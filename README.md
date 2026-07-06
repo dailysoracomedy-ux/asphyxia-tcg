@@ -126,6 +126,34 @@ src/scripts/simulate.ts   - a headless randomized-playthrough test harness
   snapshot/restore backstop (`requestAnimationFrame` + `window.scrollTo`) as defense in
   depth, and every `<button>` in the app now has an explicit `type="button"`.
 
+## O2 rebalance (finer granularity)
+
+Per direct request: **100 damage = 1 O2 loss** (was 200), and the O2 pool is now
+**12** (was 6) for both starting and max O2. This is a pure resolution increase, not
+a power-level change - the overall damage-to-kill budget is identical either way
+(6 × 200 = 1200 = 12 × 100), so a 100-overflow hit that used to silently round down to
+0 O2 lost now correctly costs 1 O2. The direct-attack cap was scaled proportionally
+too, from 2/turn to 4/turn, so direct attacks keep the same effective 400-damage/turn
+ceiling instead of being quietly nerfed by the finer granularity. The in-game "low O2"
+warning color threshold was scaled the same way (2→4, same 1/3-of-pool fraction).
+Every one of these lives in a single set of constants in `src/game/rules.ts`
+(`OVERFLOW_O2_DIVISOR`, `DIRECT_O2_DIVISOR`, `DIRECT_O2_CAP_PER_TURN`, `STARTING_O2`,
+`MAX_O2`) - nothing else hardcodes these numbers.
+
+**Card-specific O2 thresholds have now been rescaled too** (per follow-up request),
+preserving each card's original fraction of the pool:
+- Last Breath Rush, No Gods in the Gutters, Emergency Authority, Backup Consciousness:
+  "O2 is 2 or lower" (2/6 = 33%) → **"O2 is 4 or lower"** (4/12 = 33%)
+- Echo Riot rift: "3 or less" (3/6 = 50%) → **"6 or less"** (6/12 = 50%)
+
+Relative comparisons - Riot Runner's passive ("if your O2 is lower than your
+opponent's") and the Civil War rift - were correctly left untouched, since they don't
+depend on the pool size at all. Both the game logic *and* the displayed card rules
+text were updated together so the UI stays accurate. New regression test:
+`npx tsx src/scripts/test-o2-threshold-rescale.ts` (9 checks) locks in the exact new
+boundary for four of the five rescaled thresholds - triggering at the new value,
+not triggering one point above it.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (22 checks)
