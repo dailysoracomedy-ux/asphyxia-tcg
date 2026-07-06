@@ -71,14 +71,47 @@ src/components/*          - the board UI
 src/scripts/simulate.ts   - a headless randomized-playthrough test harness
 ```
 
+## Pacing/cleanup patch (playtest fixes)
+
+- **1 Special per player turn.** A second Special attempt is blocked outright - the
+  card stays in hand, nothing is discarded, no effect resolves, no resources spent.
+- **1 Support per player turn** (Ability or Battery). Reconfigure's "play a card into
+  the vacated slot" step draws from this same budget - if you already played a Support
+  normally, Reconfigure can still *return* a card but can't play one in, and vice versa.
+- **1 INSTANT-tagged card per player turn** (Reactions/Negates), tracked per player
+  regardless of whose turn it is, resetting at the start of *that player's own* next
+  turn. `getEligibleResponses` excludes a player's instants entirely once they've used
+  one, so a Response Window simply won't open for a second instant that turn.
+- **Ability Support same-Apex chaining is enforced everywhere** it's played from
+  (normal play and Reconfigure) - an Apex that already has one chained is neither a
+  valid target in the UI nor clickable, and the engine rejects it as a backstop.
+- **No-Apex Recovery Rule**, checked at the start of every Main Phase: force-play an
+  Apex from hand → reveal the deck until one turns up (rest reshuffled in) → if the
+  deck runs dry, shuffle the discard pile in and keep searching → if there's truly no
+  Apex anywhere, that player loses immediately (a safety valve against a permanent
+  no-board deadlock).
+- **O2 is capped at 6.** Any gain that would push a player over 6 just logs "already
+  at max O2" instead.
+- **Game-over screen now shows winner/loser/reason/final O2 & Momentum**, plus
+  "View Full Game Log", "Copy Game Log" (clipboard, falling back to a selectable
+  textarea if clipboard access isn't available), and "Start New Game". The log is
+  never cleared on game end - only a fresh `startNewGame` clears it.
+- **The noisy "Checked for eligible responses: none found." trace is gated behind a
+  debug-mode checkbox** in the top bar (off by default) so normal play only shows
+  meaningful response-window lines ("Response window opened for player2.", "player2
+  played Glitch Step.", "player2 passed.", "Action resolved.").
+- Hand cards that can't legally be played this turn (Special/Support limit already
+  used) are visually disabled, not just silently rejected on click.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/simulate.ts` runs 72 full randomized games across every faction
 matchup (so every Rift Space gets exercised), driving the real store end-to-end
 including reactions, negates, reconfigure, and rift triggers, and asserts card
-conservation + sane O2/Momentum/counter values throughout. It should print
-`Games run: 72, crashed: 0` with no errors. It resolves response windows using the
-same `getEligibleResponses` helper the real engine uses, so it can't "cheat" by
+conservation, sane O2/Momentum/counter values, the O2 cap, and the new 1-per-turn
+Special/Support/Instant limits at every single turn (not just game-end). It should
+print `Games run: 72, crashed: 0` with no errors. It resolves response windows using
+the same `getEligibleResponses` helper the real engine uses, so it can't "cheat" by
 playing a card that wouldn't actually be legal.
 
 `npx tsx src/scripts/test-response-eligibility.ts` is a targeted test suite for the
@@ -86,6 +119,13 @@ Engine Tag System covering the 9 scenarios it needs to get right: no pass screen
 when nobody has an eligible instant, a window opening for each of the 6 instant
 cards in its correct situation, no window when Momentum is short, and confirming
 Specials/Equips can never be played as the non-active player.
+
+`npx tsx src/scripts/test-turn-limits.ts` is a targeted test suite (39 checks) for
+this pacing patch: the Special/Support/Instant 1-per-turn limits (including that a
+blocked card stays in hand unresolved), Reconfigure sharing the Support budget in
+both directions, Ability Support same-Apex chain prevention, all four steps of the
+No-Apex Recovery Rule (hand → deck → discard → loss), the O2 cap, and game-log
+persistence after game-over.
 
 `npx tsx src/scripts/test-overflow-fix.ts` is a small regression test locking in the
 overflow → O2 conversion math (`floor(overflow / 200)`, direct-attack cap at 2/turn).

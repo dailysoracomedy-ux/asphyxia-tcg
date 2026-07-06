@@ -104,6 +104,8 @@ function initialState(): GameState {
     openingApexSelectionPlayerId: null,
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
+    debugMode: false,
+    gameOverReason: null,
   };
 }
 
@@ -119,11 +121,12 @@ function initialState(): GameState {
 // tag) plus Momentum/target legality - never card names or ad-hoc type checks.
 // ==========================================================================
 
-/** Checks eligibility for a response event and logs the debug trail the spec asks for.
- *  Returns the eligible cards (empty array if none - callers just check .length). */
+/** Checks eligibility for a response event. Only logs the "none found" debug trail when
+ *  debugMode is on - in normal play this check happens on nearly every attack/play and
+ *  would otherwise spam the log with lines that mean nothing to a player. */
 function checkEligibleResponses(draft: GameState, respondingPlayerId: PlayerId, event: ResponseEvent): CardInstance[] {
   const eligible = getEligibleResponses(draft, respondingPlayerId, event);
-  if (eligible.length === 0) {
+  if (eligible.length === 0 && draft.debugMode) {
     logMsg(draft, 'Checked for eligible responses: none found.', 'response');
   }
   return eligible;
@@ -140,11 +143,7 @@ function maybeOpenResponseWindow(
   const eligible = checkEligibleResponses(draft, respondingPlayerId, event);
   if (eligible.length === 0) return false;
   pushItem(eligible.length);
-  logMsg(
-    draft,
-    `Response window opened: ${respondingPlayerId} has ${eligible.length} eligible response${eligible.length > 1 ? 's' : ''}.`,
-    'response'
-  );
+  logMsg(draft, `Response window opened for ${respondingPlayerId}.`, 'response');
   return true;
 }
 
@@ -260,37 +259,67 @@ function advanceToNextTurn(draft: GameState) {
   draft.reconfigureAwaitingPlay = false;
 }
 
-function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) {
-  const player = draft.players[playerId];
-  if (player.apexSlots.some(Boolean)) return;
-  const hasApexInHand = player.hand.some((c) => c.type === 'Apex');
-  if (hasApexInHand) return;
-
-  logMsg(draft, `${playerId} controls no Apex and has none in hand - revealing hand and drawing for one.`, 'info');
-  const revealed = [...player.hand];
-  player.hand = [];
-  let found: CardInstance | null = null;
-  let safety = 0;
-  const searchPile = [...revealed, ...player.deck];
-  player.deck = [];
-  while (searchPile.length > 0 && safety < 200) {
-    safety += 1;
-    const card = searchPile.shift()!;
-    if (!found && card.type === 'Apex') {
-      found = card;
+export function searchPileForApex(pile: CardInstance[]): { apex: CardInstance | null; remainder: CardInstance[] } {
+  const remainder: CardInstance[] = [];
+  let apex: CardInstance | null = null;
+  for (const card of pile) {
+    if (!apex && card.type === 'Apex') {
+      apex = card;
     } else {
-      player.deck.push(card);
+      remainder.push(card);
     }
   }
-  player.deck = shuffle(player.deck);
-  if (found) {
+  return { apex, remainder: shuffle(remainder) };
+}
+
+/** No-Apex Recovery Rule: if the active player controls zero Apexes at the start of their
+ *  Main Phase, force-recover one from hand, then deck, then discard (reshuffled in), or
+ *  else they lose - this is a safety valve against a permanent no-board death spiral. */
+export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) {
+  const player = draft.players[playerId];
+  if (player.apexSlots.some(Boolean)) return; // still controls at least one Apex - nothing to do
+
+  // Step 1: an Apex in hand must be force-played.
+  const handApexIdx = player.hand.findIndex((c) => c.type === 'Apex');
+  if (handApexIdx !== -1) {
+    const [found] = player.hand.splice(handApexIdx, 1);
     player.apexSlots[0] = found;
     const def = getCardDef(found.defId) as ApexDef;
     if (def.onEnterPlay) def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: found.instanceId });
-    logMsg(draft, `${playerId} plays ${def.name} into Apex Slot 1.`, 'play');
-  } else {
-    logMsg(draft, `${playerId} found no Apex anywhere - this shouldn't happen with a legal deck!`, 'info');
+    logMsg(draft, `${playerId} controls no Apex - forced to play ${def.name} from hand into Apex Slot 1.`, 'info');
+    return;
   }
+
+  // Step 2: reveal from the deck until an Apex turns up; everything else is shuffled back in.
+  logMsg(draft, `${playerId} controls no Apex and has none in hand - revealing from the deck.`, 'info');
+  let result = searchPileForApex(player.deck);
+  player.deck = result.remainder;
+
+  // Step 3: deck exhausted with no Apex found - fall back to the discard pile.
+  if (!result.apex) {
+    const discardHasApex = player.discard.some((c) => c.type === 'Apex');
+    if (discardHasApex) {
+      logMsg(draft, `${playerId}'s deck ran out with no Apex found - shuffling the discard pile in and continuing the search.`, 'info');
+      const combined = shuffle([...player.deck, ...player.discard]);
+      player.discard = [];
+      result = searchPileForApex(combined);
+      player.deck = result.remainder;
+    }
+  }
+
+  if (result.apex) {
+    player.apexSlots[0] = result.apex;
+    const def = getCardDef(result.apex.defId) as ApexDef;
+    if (def.onEnterPlay) def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: result.apex.instanceId });
+    logMsg(draft, `${playerId} finds ${def.name} and plays it into Apex Slot 1.`, 'play');
+    return;
+  }
+
+  // Step 4: no Apex in hand, deck, or discard - safety-valve loss.
+  draft.status = 'gameover';
+  draft.winnerId = otherPlayer(playerId);
+  draft.gameOverReason = `${playerId} has no Apex remaining anywhere and loses.`;
+  logMsg(draft, `${playerId} has no Apex remaining anywhere and loses.`, 'win');
 }
 
 // ==========================================================================
@@ -600,12 +629,12 @@ function continueTriggerUnmodified(draft: GameState, trigger: TriggerData) {
   }
 }
 
-/** Logs "Original action resolved." only once a response-window-driven trigger chain has truly
+/** Logs "Action resolved." only once a response-window-driven trigger chain has truly
  *  terminated (i.e. it didn't just open another nested window, such as a Negate-the-Reaction
  *  layer or Alley Wraith's follow-up prompt). */
 function maybeLogActionResolved(draft: GameState) {
   if (draft.pendingResponseQueue.length === 0) {
-    logMsg(draft, 'Original action resolved.', 'response');
+    logMsg(draft, 'Action resolved.', 'response');
   }
 }
 
@@ -627,6 +656,7 @@ interface GameStore extends GameState {
   resolveResponse: (choice: ResponseChoice) => void;
   lockSupportControlConflict: (supportInstanceId: string) => void;
   resetToMenu: () => void;
+  toggleDebugMode: () => void;
 }
 
 function mutate(set: (fn: (state: GameStore) => Partial<GameStore> | GameStore) => void, mutator: (draft: GameState) => void) {
@@ -731,6 +761,8 @@ export const useGameStore = create<GameStore>((set) => ({
         if (draft.phase !== 'Start' || draft.startPhasePending) return;
         draft.phase = 'Main';
         maybeRunEmergencyApexDraw(draft, draft.activePlayerId);
+        const statusAfterRecovery = draft.status as GameState['status'];
+        if (statusAfterRecovery === 'gameover') return;
         logMsg(draft, `${draft.activePlayerId} enters Main Phase.`, 'phase');
         return;
       }
@@ -784,6 +816,11 @@ export const useGameStore = create<GameStore>((set) => ({
       const card = player.hand[idx];
       if (card.type !== 'AbilitySupport' && card.type !== 'BatterySupport') return;
 
+      if (player.turnFlags.supportsPlayedThisTurn >= 1) {
+        logMsg(draft, `${playerId} has already played a Support this turn.`, 'info');
+        return;
+      }
+
       if (card.type === 'AbilitySupport') {
         const currentAbilityCount = player.supportSlots.filter((s) => s?.type === 'AbilitySupport').length;
         if (currentAbilityCount >= MAX_ABILITY_SUPPORTS) {
@@ -792,6 +829,10 @@ export const useGameStore = create<GameStore>((set) => ({
         }
         if (!chainedApexId || !player.apexSlots.some((a) => a?.instanceId === chainedApexId)) {
           logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
+          return;
+        }
+        if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
+          logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
           return;
         }
       }
@@ -806,6 +847,7 @@ export const useGameStore = create<GameStore>((set) => ({
       card.chainedApexId = card.type === 'AbilitySupport' ? chainedApexId! : null;
       player.supportSlots[targetSlot] = card;
       player.turnFlags.cardsPlayedThisTurn += 1;
+      player.turnFlags.supportsPlayedThisTurn += 1;
       const def = getCardDef(card.defId);
       logMsg(draft, `${playerId} plays ${def.name} into Support Slot ${targetSlot + 1}.`, 'play');
     }),
@@ -867,6 +909,11 @@ export const useGameStore = create<GameStore>((set) => ({
       if (idx === -1 || player.hand[idx].type !== 'Special') return;
       const card = player.hand[idx];
       const def = getCardDef(card.defId) as SpecialDef;
+
+      if (player.turnFlags.specialsPlayedThisTurn >= 1) {
+        logMsg(draft, `${playerId} has already played a Special this turn.`, 'info');
+        return;
+      }
 
       if (def.canPlay && !def.canPlay(playerId, draft)) {
         logMsg(draft, `${def.name} cannot be played right now.`, 'info');
@@ -963,6 +1010,11 @@ export const useGameStore = create<GameStore>((set) => ({
 
       if (!playInstanceId) return;
 
+      if (player.turnFlags.supportsPlayedThisTurn >= 1) {
+        logMsg(draft, `${playerId} has already played a Support this turn - Reconfigure play skipped.`, 'info');
+        return;
+      }
+
       const handIdx = player.hand.findIndex((c) => c.instanceId === playInstanceId);
       if (handIdx === -1) return;
       const toPlay = player.hand[handIdx];
@@ -978,12 +1030,17 @@ export const useGameStore = create<GameStore>((set) => ({
           logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
           return;
         }
+        if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
+          logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
+          return;
+        }
       }
 
       player.hand.splice(handIdx, 1);
       toPlay.chainedApexId = toPlay.type === 'AbilitySupport' ? chainedApexId! : null;
       toPlay.enteredViaReconfigureTurn = draft.turnNumber;
       player.supportSlots[slotIdx] = toPlay;
+      player.turnFlags.supportsPlayedThisTurn += 1;
       logMsg(draft, `${playerId} plays ${getCardDef(toPlay.defId).name} via Reconfigure (Sync Ability locked this turn).`, 'support');
     }),
 
@@ -1135,7 +1192,12 @@ export const useGameStore = create<GameStore>((set) => ({
           }
           const cardInstance = player.hand[idx];
           const reactionDef = getCardDef(cardInstance.defId) as ReactionDef;
-          if (reactionDef.type !== 'Reaction' || reactionDef.trigger !== trigger.kind || player.momentum < reactionDef.cost) {
+          if (
+            reactionDef.type !== 'Reaction' ||
+            reactionDef.trigger !== trigger.kind ||
+            player.momentum < reactionDef.cost ||
+            player.turnFlags.instantsPlayedThisTurn >= 1
+          ) {
             logMsg(draft, `${item.respondingPlayerId} passed.`, 'response');
             continueTriggerUnmodified(draft, trigger);
             maybeLogActionResolved(draft);
@@ -1144,6 +1206,7 @@ export const useGameStore = create<GameStore>((set) => ({
           player.hand.splice(idx, 1);
           player.discard.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
+          player.turnFlags.instantsPlayedThisTurn += 1;
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
 
           if (trigger.kind === 'enemyApexAttacks') {
@@ -1236,11 +1299,13 @@ export const useGameStore = create<GameStore>((set) => ({
             negateDef &&
             negateDef.type === 'Negate' &&
             player.momentum >= negateDef.cost &&
+            player.turnFlags.instantsPlayedThisTurn < 1 &&
             negateDef.canCancel(item.cardType, item.cardFaction)
           ) {
             player.hand.splice(idx, 1);
             player.discard.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
+            player.turnFlags.instantsPlayedThisTurn += 1;
             logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
             logMsg(draft, `${negateDef.name} cancels ${getCardDef(item.cardDefId).name}.`, 'response');
             negateDef.resolve({
@@ -1296,6 +1361,7 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   resetToMenu: () => mutate(set, (draft) => Object.assign(draft, initialState())),
+  toggleDebugMode: () => mutate(set, (draft) => { draft.debugMode = !draft.debugMode; }),
 }));
 
 export type { GameStore };

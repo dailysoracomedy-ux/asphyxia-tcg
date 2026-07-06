@@ -33,6 +33,8 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
     availableSync: 0,
     turnFlags: {
       specialsPlayedThisTurn: 0,
+      supportsPlayedThisTurn: 0,
+      instantsPlayedThisTurn: 0,
       cardsPlayedThisTurn: 0,
       reconfigureUsedThisTurn: false,
       directO2LossThisTurn: 0,
@@ -66,6 +68,8 @@ function fixtureState(p1: PlayerState, p2: PlayerState): GameState {
     openingApexSelectionPlayerId: null,
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
+    debugMode: false,
+    gameOverReason: null,
   };
 }
 

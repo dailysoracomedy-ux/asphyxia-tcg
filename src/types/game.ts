@@ -254,6 +254,8 @@ export interface CardInstance {
 
 export interface TurnFlags {
   specialsPlayedThisTurn: number;
+  supportsPlayedThisTurn: number;
+  instantsPlayedThisTurn: number;
   cardsPlayedThisTurn: number;
   reconfigureUsedThisTurn: boolean;
   directO2LossThisTurn: number;
@@ -266,6 +268,8 @@ export interface TurnFlags {
 export function freshTurnFlags(): TurnFlags {
   return {
     specialsPlayedThisTurn: 0,
+    supportsPlayedThisTurn: 0,
+    instantsPlayedThisTurn: 0,
     cardsPlayedThisTurn: 0,
     reconfigureUsedThisTurn: false,
     directO2LossThisTurn: 0,
@@ -431,4 +435,6 @@ export interface GameState {
   openingApexSelectionPlayerId: PlayerId | null;
   reconfigureAwaitingPlay: boolean;
   startPhasePending: boolean;
+  debugMode: boolean; // when true, verbose response-eligibility checks are logged
+  gameOverReason: string | null;
 }

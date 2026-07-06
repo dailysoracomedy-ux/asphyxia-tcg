@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
-import type { ApexDef, SpecialDef, PlayerId } from '@/types/game';
+import type { ApexDef, SpecialDef, PlayerId, GameState } from '@/types/game';
 import PlayerBoard from './PlayerBoard';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
@@ -56,6 +56,13 @@ export default function GameBoard() {
       resetMode();
       return;
     }
+    if (card.type === 'Special' && activePlayer.turnFlags.specialsPlayedThisTurn >= 1) return;
+    if (
+      (card.type === 'AbilitySupport' || card.type === 'BatterySupport') &&
+      activePlayer.turnFlags.supportsPlayedThisTurn >= 1
+    ) {
+      return;
+    }
     switch (card.type) {
       case 'Apex':
         setMode({ kind: 'apexReady', cardId });
@@ -78,6 +85,16 @@ export default function GameBoard() {
         break;
     }
   }
+
+  const handDisabledIds = new Set(
+    activePlayer.hand
+      .filter(
+        (c) =>
+          (c.type === 'Special' && activePlayer.turnFlags.specialsPlayedThisTurn >= 1) ||
+          ((c.type === 'AbilitySupport' || c.type === 'BatterySupport') && activePlayer.turnFlags.supportsPlayedThisTurn >= 1)
+      )
+      .map((c) => c.instanceId)
+  );
 
   function ownApexClick(apexId: string) {
     if (mode.kind === 'supportChooseChain') {
@@ -154,8 +171,15 @@ export default function GameBoard() {
     return null;
   };
 
+  function apexHasAbilitySupportChained(apexId: string): boolean {
+    return activePlayer.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === apexId);
+  }
+
   const ownApexHighlight = (id: string): 'valid-target' | null => {
-    if (mode.kind === 'supportChooseChain' || mode.kind === 'equipReady' || mode.kind === 'reconfigureChain') return 'valid-target';
+    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain') {
+      return apexHasAbilitySupportChained(id) ? null : 'valid-target';
+    }
+    if (mode.kind === 'equipReady') return 'valid-target';
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'ownApex' || mode.requiresTarget === 'ownApexWithUpgrade')) {
       const target = activePlayer.apexSlots.find((a) => a?.instanceId === id);
       if (mode.requiresTarget === 'ownApexWithUpgrade' && (target?.counters?.upgrade ?? 0) === 0) return null;
@@ -164,9 +188,19 @@ export default function GameBoard() {
     return null;
   };
 
+  function ownApexDisabled(id: string): boolean {
+    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain') {
+      return apexHasAbilitySupportChained(id);
+    }
+    return false;
+  }
+
   const reconfigureDisabled = activePlayer.turnFlags.reconfigureUsedThisTurn || state.phase !== 'Main';
+  const supportBudgetSpent = activePlayer.turnFlags.supportsPlayedThisTurn >= 1;
   const eligibleReconfigurePlays =
-    mode.kind === 'reconfigurePlay' ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport') : [];
+    mode.kind === 'reconfigurePlay' && !supportBudgetSpent
+      ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport')
+      : [];
 
   const theme = factionTheme(activePlayer.faction);
 
@@ -178,9 +212,15 @@ export default function GameBoard() {
         <div>
           Turn {state.turnNumber} · Phase: <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
         </div>
-        <button onClick={() => state.resetToMenu()} className="hover:text-white underline">
-          Reset to menu
-        </button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
+            <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
+            debug log
+          </label>
+          <button onClick={() => state.resetToMenu()} className="hover:text-white underline">
+            Reset to menu
+          </button>
+        </div>
       </div>
 
       <RiftPanel rift={state.riftSpace} />
@@ -195,6 +235,7 @@ export default function GameBoard() {
             onApexClick={ownApexClick}
             onSupportClick={ownSupportClick}
             apexHighlight={ownApexHighlight}
+            apexDisabled={ownApexDisabled}
             selectedApexId={
               mode.kind === 'attackerChosen' || mode.kind === 'attackAwaitingTarget' ? mode.attackerId : null
             }
@@ -285,7 +326,12 @@ export default function GameBoard() {
                   </button>
                 )}
               </div>
-              {mode.kind === 'reconfigurePlay' && eligibleReconfigurePlays.length > 0 && (
+              {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
+                <div className="mt-2 text-white/40 italic">
+                  Already played a Support this turn - this Reconfigure can only return a card, not play one in.
+                </div>
+              )}
+              {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
                 <div className="mt-2 flex gap-2 flex-wrap">
                   {eligibleReconfigurePlays.map((c) => {
                     const def = getCardDef(c.defId);
@@ -319,6 +365,7 @@ export default function GameBoard() {
             cards={activePlayer.hand}
             selectedId={selectedCard?.instanceId ?? null}
             onSelect={state.phase === 'Main' ? selectHandCard : undefined}
+            disabledIds={handDisabledIds}
           />
 
           {mode.kind === 'apexReady' && (
@@ -428,28 +475,103 @@ function OpeningApexScreen() {
   );
 }
 
+function formatLogAsText(log: GameState['log']): string {
+  return log.map((entry) => `[T${entry.turn}] ${entry.message}`).join('\n');
+}
+
 function GameOverScreen() {
   const state = useGameStore();
   const theme = state.winnerId ? factionTheme(state.players[state.winnerId].faction) : null;
+  const loserId: PlayerId | null = state.winnerId ? (state.winnerId === 'player1' ? 'player2' : 'player1') : null;
+  const [showLog, setShowLog] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [showFallback, setShowFallback] = useState(false);
+
+  async function handleCopyLog() {
+    const text = formatLogAsText(state.log);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        setCopyStatus('copied');
+        setShowFallback(false);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      setCopyStatus('failed');
+      setShowFallback(true);
+    }
+    setTimeout(() => setCopyStatus('idle'), 2500);
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div
-        className="max-w-lg w-full rounded-xl border-2 p-8 text-center"
+        className="max-w-2xl w-full rounded-xl border-2 p-8"
         style={{ borderColor: theme?.border ?? '#888', boxShadow: theme ? `0 0 40px ${theme.primary}66` : undefined }}
       >
-        <div className="text-[11px] uppercase tracking-widest text-white/40 mb-2">Game Over</div>
-        <div className="text-3xl font-black mb-4" style={{ color: theme?.primary ?? '#fff' }}>
-          {state.winnerId ? `${state.winnerId} wins!` : 'Draw!'}
+        <div className="text-center">
+          <div className="text-[11px] uppercase tracking-widest text-white/40 mb-2">Game Over</div>
+          <div className="text-3xl font-black mb-2" style={{ color: theme?.primary ?? '#fff' }}>
+            {state.winnerId ? `${state.winnerId} wins!` : 'Draw!'}
+          </div>
+          {loserId && <div className="text-xs text-white/40 mb-2">{loserId} lost the game.</div>}
+          <div className="text-xs text-white/60 mb-4">{state.gameOverReason ?? 'The game has ended.'}</div>
+
+          <div className="flex justify-center gap-6 text-xs font-mono mb-6">
+            <div className="text-left">
+              <div className="text-white/40 uppercase tracking-widest text-[10px] mb-1">player1</div>
+              <div>O2: {state.players.player1.o2}</div>
+              <div>Momentum: {state.players.player1.momentum}</div>
+            </div>
+            <div className="text-left">
+              <div className="text-white/40 uppercase tracking-widest text-[10px] mb-1">player2</div>
+              <div>O2: {state.players.player2.o2}</div>
+              <div>Momentum: {state.players.player2.momentum}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2 mb-4">
+            <button
+              onClick={() => setShowLog((v) => !v)}
+              className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
+            >
+              {showLog ? 'Hide Full Game Log' : 'View Full Game Log'}
+            </button>
+            <button
+              onClick={handleCopyLog}
+              className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
+            >
+              {copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed - see below' : 'Copy Game Log'}
+            </button>
+            <button
+              onClick={() => state.resetToMenu()}
+              className="px-4 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black"
+            >
+              Start New Game
+            </button>
+          </div>
         </div>
-        <div className="text-xs text-white/50 mb-6">
-          O2 hit zero — Player 1: {state.players.player1.o2}, Player 2: {state.players.player2.o2}
-        </div>
-        <button
-          onClick={() => state.resetToMenu()}
-          className="px-6 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black"
-        >
-          New Game
-        </button>
+
+        {showFallback && (
+          <div className="mb-4">
+            <div className="text-[10px] text-white/40 mb-1">
+              Clipboard access isn&apos;t available here - select all text below and copy manually.
+            </div>
+            <textarea
+              readOnly
+              value={formatLogAsText(state.log)}
+              onFocus={(e) => e.currentTarget.select()}
+              className="w-full h-40 text-[10px] font-mono bg-black/60 border border-white/20 rounded p-2 text-white/70"
+            />
+          </div>
+        )}
+
+        {showLog && (
+          <div className="h-72">
+            <GameLog log={state.log} />
+          </div>
+        )}
       </div>
     </div>
   );

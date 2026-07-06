@@ -216,6 +216,7 @@ function runOneGame(f1: Faction, f2: Faction, maxTurns: number): { turns: number
           throw new Error(`Card conservation broken for ${pid}: has ${totalCards(pid)} expected 30`);
         }
       }
+      assertSaneNumbers(`${st.activePlayerId} end of Main Phase turn ${st.turnNumber}`);
       useGameStore.getState().advancePhase('Combat');
       continue;
     }
@@ -236,8 +237,16 @@ function assertSaneNumbers(label: string) {
   for (const pid of ['player1', 'player2'] as PlayerId[]) {
     const p = s.players[pid];
     if (!Number.isFinite(p.o2) || p.o2 < 0) throw new Error(`${label}: ${pid} has invalid O2 = ${p.o2}`);
+    if (p.o2 > 6) throw new Error(`${label}: ${pid} has O2 above the 6 cap = ${p.o2}`);
     if (!Number.isFinite(p.momentum) || p.momentum < 0) throw new Error(`${label}: ${pid} has invalid Momentum = ${p.momentum}`);
     if (!Number.isFinite(p.availableSync) || p.availableSync < 0) throw new Error(`${label}: ${pid} has invalid Sync = ${p.availableSync}`);
+    if (p.turnFlags.specialsPlayedThisTurn > 1) throw new Error(`${label}: ${pid} played more than 1 Special this turn`);
+    if (p.turnFlags.supportsPlayedThisTurn > 1) throw new Error(`${label}: ${pid} played more than 1 Support this turn`);
+    if (p.turnFlags.instantsPlayedThisTurn > 1) throw new Error(`${label}: ${pid} played more than 1 instant-speed card this turn`);
+    const abilitySupportApexIds = p.supportSlots.filter((s) => s?.type === 'AbilitySupport' && s.chainedApexId).map((s) => s!.chainedApexId);
+    if (new Set(abilitySupportApexIds).size !== abilitySupportApexIds.length) {
+      throw new Error(`${label}: ${pid} has two Ability Supports chained to the same Apex`);
+    }
     for (const apex of p.apexSlots) {
       if (!apex) continue;
       if (apex.counters) {
@@ -262,7 +271,7 @@ function main() {
       for (let i = 0; i < 8; i++) {
         gamesRun += 1;
         try {
-          const { turns, winner } = runOneGame(f1, f2, 80);
+          const { turns, winner } = runOneGame(f1, f2, 150);
           assertSaneNumbers(`${f1} vs ${f2} [run ${i}] post-game`);
           results.push(`${f1} vs ${f2} [run ${i}]: ${turns} turns, winner=${winner ?? 'none/timeout'}`);
         } catch (e) {

@@ -16,6 +16,7 @@ export const OVERFLOW_O2_DIVISOR = 200;
 export const DIRECT_O2_DIVISOR = 200;
 export const DIRECT_O2_CAP_PER_TURN = 2;
 export const STARTING_O2 = 6;
+export const MAX_O2 = 6;
 export const STARTING_HAND_SIZE = 5;
 export const DECK_SIZE_TARGET = 30;
 export const MAX_ABILITY_SUPPORTS = 2;
@@ -201,8 +202,14 @@ export function loseMomentumFn(draft: GameState, playerId: PlayerId, amount: num
 export function gainO2Fn(draft: GameState, playerId: PlayerId, amount: number) {
   if (amount <= 0) return;
   const player = draft.players[playerId];
-  player.o2 += amount;
-  logMsg(draft, `${playerId} gains ${amount} O2 (now ${player.o2}).`, 'o2');
+  if (player.o2 >= MAX_O2) {
+    logMsg(draft, `${playerId} is already at max O2.`, 'o2');
+    return;
+  }
+  const newO2 = Math.min(MAX_O2, player.o2 + amount);
+  const actualGain = newO2 - player.o2;
+  player.o2 = newO2;
+  logMsg(draft, `${playerId} gains ${actualGain} O2 (now ${player.o2}).`, 'o2');
 }
 
 export function loseO2Fn(
@@ -243,6 +250,7 @@ export function checkWinCondition(draft: GameState) {
   if (p1Dead || p2Dead) {
     draft.status = 'gameover';
     draft.winnerId = p1Dead && p2Dead ? null : p1Dead ? 'player2' : 'player1';
+    draft.gameOverReason = p1Dead && p2Dead ? 'Both players hit 0 O2 simultaneously.' : `${p1Dead ? 'player1' : 'player2'}'s O2 hit zero.`;
     logMsg(
       draft,
       draft.winnerId
@@ -451,6 +459,9 @@ export function getEligibleResponses(
     if (!tags.includes('INSTANT')) return false;
     if (!tags.includes(requiredTag)) return false;
     if (player.momentum < def.cost) return false;
+    // Each player may play only 1 INSTANT-tagged card per their own turn cycle
+    // (whether played on their own turn or in response to the opponent's).
+    if (player.turnFlags.instantsPlayedThisTurn >= 1) return false;
 
     // Target/effect legality checks beyond simple tag + cost matching:
     if (def.type === 'Negate' && (event.kind === 'SPECIAL_PLAYED' || event.kind === 'EQUIP_PLAYED' || event.kind === 'REACTION_PLAYED')) {
