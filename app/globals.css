@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --background: #05050a;
+  --foreground: #e6f7ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Courier New', ui-monospace, monospace;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 4px;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+.glow-cyan {
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6), 0 0 2px rgba(34, 211, 238, 0.8);
+}
+.glow-magenta {
+  box-shadow: 0 0 8px rgba(232, 121, 249, 0.6), 0 0 2px rgba(232, 121, 249, 0.8);
+}
+.glow-red {
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.7);
+}
+.glow-green {
+  box-shadow: 0 0 8px rgba(163, 230, 53, 0.6);
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(34, 211, 238, 0.4); }
+  50% { border-color: rgba(34, 211, 238, 1); }
+}
+.pulse-border {
+  animation: pulse-border 1.4s ease-in-out infinite;
+}
+
+.text-shadow-glow {
+  text-shadow: 0 0 6px currentColor;
+}
