@@ -34,7 +34,7 @@ export default function PassScreen({ toPlayerId, direction, onReady }: PassScree
             ? "Make sure the other player can't see this screen before continuing."
             : 'The response has been resolved. Hand the device back before play continues.'}
         </p>
-        <button
+        <button type="button"
           onClick={onReady}
           className="px-6 py-2 rounded-md font-bold tracking-widest text-black"
           style={{ background: theme.primary }}

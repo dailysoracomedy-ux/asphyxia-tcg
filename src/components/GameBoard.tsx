@@ -31,6 +31,29 @@ export default function GameBoard() {
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
 
+  /**
+   * Root-cause fix for the "click a phase button and the page jumps to the top" bug.
+   * The phase/end-turn buttons intentionally become `disabled` the instant their own
+   * click handler updates state (e.g. clicking "Main Phase" makes that same button
+   * `enabled=false` on the very next render). When a focused element becomes disabled,
+   * browsers forcibly move focus away from it - typically to <body> - and that focus
+   * shift is what triggers the native scroll-to-top. Blurring the button ourselves
+   * *before* the state update runs avoids that forced-focus-loss path entirely, since
+   * blur() on a still-enabled element is a normal, harmless operation.
+   * The scroll-position snapshot/restore is kept as a defensive backstop in case any
+   * other button (or a future one) exhibits the same disabled-focus issue.
+   */
+  function scrollSafeClick(handler: () => void) {
+    return (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.blur();
+      const scrollY = window.scrollY;
+      handler();
+      requestAnimationFrame(() => {
+        if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
+      });
+    };
+  }
+
   if (state.status === 'selectingOpeningApex') {
     return <OpeningApexScreen />;
   }
@@ -219,7 +242,7 @@ export default function GameBoard() {
             <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
             debug log
           </label>
-          <button onClick={() => state.resetToMenu()} className="hover:text-white underline">
+          <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
             Reset to menu
           </button>
         </div>
@@ -266,7 +289,8 @@ export default function GameBoard() {
               onClick={() => state.advancePhase('Combat')}
             />
             <button
-              onClick={() => state.endTurn()}
+              type="button"
+              onClick={scrollSafeClick(() => state.endTurn())}
               disabled={state.phase !== 'Combat'}
               className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
                 state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
@@ -279,10 +303,10 @@ export default function GameBoard() {
               <div className="flex items-center gap-1 ml-2 border-l border-white/10 pl-2">
                 <span className="text-[10px] text-blue-300">Control Conflict:</span>
                 {activePlayer.supportSlots.filter(Boolean).map((s) => (
-                  <button
+                  <button type="button"
                     key={s!.instanceId}
                     disabled={!!activePlayer.lockedSupportInstanceId}
-                    onClick={() => state.lockSupportControlConflict(s!.instanceId)}
+                    onClick={scrollSafeClick(() => state.lockSupportControlConflict(s!.instanceId))}
                     className="text-[10px] px-1.5 py-0.5 rounded border border-blue-400/50 hover:bg-blue-400/10 disabled:opacity-30"
                   >
                     lock {getCardDef(s!.defId).name}
@@ -307,9 +331,9 @@ export default function GameBoard() {
           {state.phase === 'Main' && (
             <div className="rounded-lg border border-teal-500/30 bg-black/50 p-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
-                <button
+                <button type="button"
                   disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn'}
-                  onClick={() => setMode({ kind: 'reconfigureReturn' })}
+                  onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
                   className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
                 >
                   Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
@@ -318,12 +342,12 @@ export default function GameBoard() {
                   <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
                 )}
                 {mode.kind === 'reconfigurePlay' && (
-                  <button onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                  <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
                     Skip — finish Reconfigure
                   </button>
                 )}
                 {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-                  <button onClick={resetMode} className="text-white/40 hover:text-white/70">
+                  <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
                     cancel
                   </button>
                 )}
@@ -338,7 +362,7 @@ export default function GameBoard() {
                   {eligibleReconfigurePlays.map((c) => {
                     const def = getCardDef(c.defId);
                     return (
-                      <button
+                      <button type="button"
                         key={c.instanceId}
                         onClick={() => {
                           if (mode.kind !== 'reconfigurePlay') return;
@@ -416,7 +440,15 @@ export default function GameBoard() {
 function PhaseButton({ label, active, enabled, onClick }: { label: string; active: boolean; enabled: boolean; onClick: () => void }) {
   return (
     <button
-      onClick={onClick}
+      type="button"
+      onClick={(e) => {
+        e.currentTarget.blur();
+        const scrollY = window.scrollY;
+        onClick();
+        requestAnimationFrame(() => {
+          if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
+        });
+      }}
       disabled={!enabled}
       className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide border ${
         active
@@ -437,11 +469,11 @@ function ConfirmBar({ text, onConfirm, onCancel }: { text: string; onConfirm?: (
       <span className="text-yellow-200">{text}</span>
       <div className="flex gap-2 shrink-0">
         {onConfirm && (
-          <button onClick={onConfirm} className="px-2 py-1 rounded bg-yellow-300 text-black font-bold">
+          <button type="button" onClick={onConfirm} className="px-2 py-1 rounded bg-yellow-300 text-black font-bold">
             Confirm
           </button>
         )}
-        <button onClick={onCancel} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+        <button type="button" onClick={onCancel} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
           Cancel
         </button>
       </div>
@@ -534,19 +566,19 @@ function GameOverScreen() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-2 mb-4">
-            <button
+            <button type="button"
               onClick={() => setShowLog((v) => !v)}
               className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
             >
               {showLog ? 'Hide Full Game Log' : 'View Full Game Log'}
             </button>
-            <button
+            <button type="button"
               onClick={handleCopyLog}
               className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
             >
               {copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed - see below' : 'Copy Game Log'}
             </button>
-            <button
+            <button type="button"
               onClick={() => state.resetToMenu()}
               className="px-4 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black"
             >

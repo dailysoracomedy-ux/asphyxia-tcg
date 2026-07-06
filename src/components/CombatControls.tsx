@@ -33,7 +33,7 @@ export default function CombatControls({
     <div className="rounded-lg border border-orange-500/40 bg-black/50 p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-bold text-orange-300">{apexDef.name} — choose an attack</div>
-        <button onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80">
+        <button type="button" onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80">
           cancel
         </button>
       </div>
@@ -46,10 +46,17 @@ export default function CombatControls({
           {apexDef.attacks.map((atk) => {
             const affordable = atk.syncCost <= availableSync;
             return (
-              <button
+              <button type="button"
                 key={atk.id}
                 disabled={!affordable}
-                onClick={() => onChooseAttack(atk.id)}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  const scrollY = window.scrollY;
+                  onChooseAttack(atk.id);
+                  requestAnimationFrame(() => {
+                    if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
+                  });
+                }}
                 className={`text-left px-2 py-1.5 rounded border text-[11px] transition-colors ${
                   selectedAttackId === atk.id
                     ? 'border-yellow-300 bg-yellow-300/10 text-yellow-200'

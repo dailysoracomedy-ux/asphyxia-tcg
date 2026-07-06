@@ -103,7 +103,36 @@ src/scripts/simulate.ts   - a headless randomized-playthrough test harness
 - Hand cards that can't legally be played this turn (Special/Support limit already
   used) are visually disabled, not just silently rejected on click.
 
+## Apex Break Reward + scroll-position fix
+
+- **Apex Break Reward.** When an attack destroys an enemy Apex and that same attack
+  dealt exactly 0 O2 damage (no overflow got through), the attacker gains +1 Momentum.
+  Implemented at the single terminal point of the attack-resolution pipeline
+  (`finalizeAttackEffects`), which is only ever reached via the real combat flow - so it
+  automatically excludes direct attacks (no target = no reward), prevented destructions
+  (Backup Consciousness), and any non-attack destruction effect (they never route
+  through that function). Overflow O2 damage - even if later reduced to 0 by a
+  Reaction like Emergency Authority - still counts as "O2 damage was dealt" for this
+  rule, since the check runs after all reactions have resolved and uses the actual
+  final O2-loss outcome.
+- **Phase-button scroll-to-top, root cause found and fixed.** No `<form>` elements and
+  no remounting `key` were involved - the actual cause was the classic React/browser
+  gotcha where a *focused* button becoming `disabled` on the very next render forces
+  the browser to yank focus away (usually to `<body>`), which triggers a native
+  scroll-to-top. The Start/Main/Combat/End Turn buttons all disable themselves the
+  instant their own click updates the phase. Fixed by calling `.blur()` on the button
+  *before* the state update runs, so focus has already moved away gracefully by the
+  time the button becomes disabled or unmounts. Also added a scroll-position
+  snapshot/restore backstop (`requestAnimationFrame` + `window.scrollTo`) as defense in
+  depth, and every `<button>` in the app now has an explicit `type="button"`.
+
 ## Verifying it yourself
+
+`npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (22 checks)
+for the 6 required scenarios: exact-lethal grants the reward, overflow O2 damage
+denies it, non-lethal damage denies it, Backup Consciousness prevention denies it,
+direct attacks never trigger it, and non-attack destruction (calling `destroyApexFn`
+directly) never triggers it either.
 
 `npx tsx src/scripts/simulate.ts` runs 72 full randomized games across every faction
 matchup (so every Rift Space gets exercised), driving the real store end-to-end

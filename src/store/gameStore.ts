@@ -380,7 +380,7 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
 
     const effectiveDef = getEffectiveDef(draft, trigger.targetInstanceId);
     if (dmg < effectiveDef) {
-      logMsg(draft, `${apexDef.name} hits ${targetDef.name} for ${dmg} - not enough to break ${effectiveDef} DEF.`, 'damage');
+      logMsg(draft, `${targetDef.name} defends with ${effectiveDef} DEF and survives ${dmg} damage.`, 'damage');
       finalizeAttackEffects(draft, trigger, false, false);
       return;
     }
@@ -388,7 +388,13 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
     let overflow = dmg - effectiveDef;
     if (targetHit.apex.equip) {
       const eqDef = getCardDef(targetHit.apex.equip.defId);
-      if (eqDef.type === 'Equip' && eqDef.onOverflowDamage) overflow = eqDef.onOverflowDamage(overflow);
+      if (eqDef.type === 'Equip' && eqDef.onOverflowDamage) {
+        const reduced = eqDef.onOverflowDamage(overflow);
+        if (reduced !== overflow) {
+          logMsg(draft, `${eqDef.name} reduces the overflow from ${overflow} to ${reduced}.`, 'damage');
+        }
+        overflow = reduced;
+      }
     }
 
     const destroyTrigger: DestroyTriggerData = {
@@ -404,7 +410,13 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
         overflow,
       },
     };
-    logMsg(draft, `${targetDef.name} would be destroyed.`, 'damage');
+    logMsg(
+      draft,
+      `${targetDef.name} defends with ${effectiveDef} DEF but is destroyed by ${dmg} damage${
+        overflow > 0 ? ` (${overflow} overflow)` : ''
+      }.`,
+      'damage'
+    );
     const opened = maybeOpenResponseWindow(
       draft,
       defenderId,
@@ -430,7 +442,11 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
   const cappedLoss = Math.min(rawLoss, remainingCap);
 
   if (cappedLoss <= 0) {
-    logMsg(draft, `${apexDef.name} attacks O2 directly for ${damage} but the 2-per-turn direct O2 cap is already spent.`, 'damage');
+    logMsg(
+      draft,
+      `${apexDef.name} attacks ${defenderId}'s O2 directly for ${damage} damage (would cost ${rawLoss} O2), but the 2-per-turn direct O2 cap is already spent - 0 O2 lost.`,
+      'damage'
+    );
     finalizeAttackEffects(draft, trigger, false, false);
     return;
   }
@@ -449,7 +465,11 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
 }
 
 function resolveO2LossWindow(draft: GameState, o2trigger: O2DamageTriggerData) {
-  logMsg(draft, `This attack would deal ${o2trigger.amount} O2 damage.`, 'o2');
+  logMsg(
+    draft,
+    `${o2trigger.isOverflow ? 'Overflow damage' : 'Direct attack'} would deal ${o2trigger.amount} O2 loss to ${o2trigger.defenderId}.`,
+    'o2'
+  );
   const opened = maybeOpenResponseWindow(
     draft,
     o2trigger.defenderId,
@@ -470,6 +490,9 @@ function resolveO2LossWindow(draft: GameState, o2trigger: O2DamageTriggerData) {
 function applyO2LossFinal(draft: GameState, o2trigger: O2DamageTriggerData, reduction: number) {
   const finalAmount = Math.max(0, o2trigger.amount - reduction);
   const helpers = createHelpers(draft);
+  if (reduction > 0) {
+    logMsg(draft, `O2 loss reduced by ${reduction} (from ${o2trigger.amount} to ${finalAmount}).`, 'o2');
+  }
   helpers.loseO2(o2trigger.defenderId, finalAmount);
   if (!o2trigger.isOverflow && finalAmount > 0) {
     draft.players[o2trigger.attackerId].turnFlags.directO2LossThisTurn += finalAmount;
@@ -575,6 +598,18 @@ function finalizeAttackEffects(
     }
   }
 
+  // Apex Break Reward: destroying an enemy Apex with an attack that dealt exactly 0 O2
+  // damage (no overflow got through) rewards the attacker with 1 Momentum. This function
+  // is only ever called as the terminal step of the attack-resolution pipeline, so this
+  // naturally excludes direct attacks (destroyedTarget is always false for those),
+  // non-attack destruction effects (they never route through here), and destructions
+  // that were prevented (Backup Consciousness passes destroyedTarget=false).
+  if (destroyedTarget && !dealtO2Damage && trigger.targetInstanceId) {
+    logMsg(draft, 'No O2 damage was dealt.', 'o2');
+    helpers.gainMomentum(trigger.attackerId, 1);
+    logMsg(draft, `${trigger.attackerId} gains 1 Momentum from Apex Break Reward.`, 'momentum');
+  }
+
   logMsg(draft, 'Attack fully resolved.', 'attack');
 }
 
@@ -590,6 +625,9 @@ function applyChosenReactionAndContinue(
   if (trigger.kind === 'enemyApexAttacks') {
     const reduction = (result.damageReduction as number) ?? 0;
     const newDamage = Math.max(0, trigger.totalDamage - reduction);
+    if (reduction > 0) {
+      logMsg(draft, `${reactionDef.name} reduces the attack by ${reduction} (now ${newDamage} damage).`, 'response');
+    }
     if (reactionDef.id === 'nu-glitch-step') {
       const owner = draft.players[reactionOwnerId];
       const hasSmallNeon = owner.apexSlots.some(
@@ -1103,7 +1141,11 @@ export const useGameStore = create<GameStore>((set) => ({
 
       player.availableSync -= attackDef.syncCost;
       apex.hasAttacked = true;
-      logMsg(draft, `${draft.activePlayerId}'s ${apexDef.name} uses ${attackDef.name} (${attackDef.syncCost} Sync).`, 'attack');
+      logMsg(
+        draft,
+        `${apexDef.name} declares ${attackDef.name} (${attackDef.baseDamage} base damage, ${attackDef.syncCost} Sync).`,
+        'attack'
+      );
 
       const helpers = createHelpers(draft);
       const baseCtx = {
@@ -1123,26 +1165,52 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       let total = attackDef.baseDamage;
-      if (attackDef.bonusDamage) total += attackDef.bonusDamage(baseCtx);
-      if (apexDef.passiveDamageBonus) total += apexDef.passiveDamageBonus(baseCtx);
+
+      const conditionalBonus = attackDef.bonusDamage ? attackDef.bonusDamage(baseCtx) : 0;
+      if (conditionalBonus) {
+        total += conditionalBonus;
+        logMsg(draft, `${apexDef.name} gains +${conditionalBonus} attack (${attackDef.name} bonus condition met).`, 'attack');
+      }
+
+      const passiveBonus = apexDef.passiveDamageBonus ? apexDef.passiveDamageBonus(baseCtx) : 0;
+      if (passiveBonus) {
+        total += passiveBonus;
+        logMsg(draft, `${apexDef.name} gains +${passiveBonus} attack (passive trait).`, 'attack');
+      }
+
       if (apex.equip) {
         const eqDef = getCardDef(apex.equip.defId);
-        if (eqDef.type === 'Equip' && eqDef.damageBonus) total += eqDef.damageBonus(baseCtx);
+        if (eqDef.type === 'Equip' && eqDef.damageBonus) {
+          const equipBonus = eqDef.damageBonus(baseCtx);
+          if (equipBonus) {
+            total += equipBonus;
+            logMsg(draft, `${apexDef.name} gains +${equipBonus} attack from ${eqDef.name}.`, 'attack');
+          }
+        }
       }
+
       if (apex.armedBonus) {
         total += apex.armedBonus;
-        logMsg(draft, `Armed bonus adds +${apex.armedBonus} damage.`, 'attack');
+        logMsg(draft, `${apexDef.name} gains +${apex.armedBonus} attack from its armed bonus.`, 'attack');
         apex.armedBonus = 0;
       }
+
       if (player.pendingAttackBonus) {
         total += player.pendingAttackBonus;
-        logMsg(draft, `Primed bonus adds +${player.pendingAttackBonus} damage.`, 'attack');
+        logMsg(draft, `${apexDef.name} gains +${player.pendingAttackBonus} attack from a primed effect.`, 'attack');
         player.pendingAttackBonus = 0;
       }
+
       if (player.pendingTargetedAttackBonus && player.pendingTargetedAttackBonus.targetInstanceId === targetInstanceId) {
         total += player.pendingTargetedAttackBonus.amount;
+        logMsg(draft, `${apexDef.name} gains +${player.pendingTargetedAttackBonus.amount} attack against this target.`, 'attack');
         player.pendingTargetedAttackBonus = null;
       }
+
+      const targetLabel = targetInstanceId
+        ? getCardDef(findApexAnywhere(draft, targetInstanceId)!.apex.defId).name
+        : `${opponentId}'s O2 directly`;
+      logMsg(draft, `${apexDef.name} attacks ${targetLabel} for ${total} damage.`, 'attack');
 
       const trigger: AttackTriggerData = {
         kind: 'enemyApexAttacks',

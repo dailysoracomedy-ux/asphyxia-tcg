@@ -87,7 +87,7 @@ function ReactionPrompt({
         {eligible.map((c) => {
           const def = getCardDef(c.defId) as ReactionDef;
           return (
-            <button
+            <button type="button"
               key={c.instanceId}
               onClick={() => onChoose({ type: 'reaction', cardInstanceId: c.instanceId })}
               className="w-full text-left px-3 py-2 rounded border border-pink-400/50 hover:bg-pink-400/10 text-xs"
@@ -100,7 +100,7 @@ function ReactionPrompt({
           );
         })}
       </div>
-      <button onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
+      <button type="button" onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
         Pass
       </button>
     </>
@@ -140,7 +140,7 @@ function NegatePrompt({
           const def = getCardDef(c.defId);
           if (def.type !== 'Negate') return null;
           return (
-            <button
+            <button type="button"
               key={c.instanceId}
               onClick={() => onChoose({ type: 'negate', cardInstanceId: c.instanceId })}
               className="w-full text-left px-3 py-2 rounded border border-pink-400/50 hover:bg-pink-400/10 text-xs"
@@ -153,7 +153,7 @@ function NegatePrompt({
           );
         })}
       </div>
-      <button onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
+      <button type="button" onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
         Pass
       </button>
     </>
@@ -172,13 +172,13 @@ function HumanErrorPrompt({
       <div className="text-[10px] uppercase tracking-widest text-fuchsia-300/70 mb-1">Human Error · {item.playerId}</div>
       <div className="text-sm text-white/80 mb-4">First Special this turn. Choose one:</div>
       <div className="space-y-2">
-        <button
+        <button type="button"
           onClick={() => onChoose({ type: 'humanError', pick: 'momentum' })}
           className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
         >
           Gain 1 Momentum
         </button>
-        <button
+        <button type="button"
           onClick={() => onChoose({ type: 'humanError', pick: 'damage' })}
           className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
         >
@@ -204,13 +204,13 @@ function AlleyWraithPrompt({
         {item.reactionOwnerId} just played <b>{reactionDef.name}</b> against your Alley Wraith&apos;s attack. Pay 1 Momentum to cancel it?
       </div>
       <div className="space-y-2">
-        <button
+        <button type="button"
           onClick={() => onChoose({ type: 'alleyWraithCancel' })}
           className="w-full text-left px-3 py-2 rounded border border-pink-400/50 hover:bg-pink-400/10 text-xs font-bold"
         >
           Pay 1 Momentum — cancel it
         </button>
-        <button
+        <button type="button"
           onClick={() => onChoose({ type: 'alleyWraithDecline' })}
           className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
         >

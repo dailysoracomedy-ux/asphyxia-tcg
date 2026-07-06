@@ -25,7 +25,7 @@ function FactionPicker({
           const theme = factionTheme(f);
           const active = value === f;
           return (
-            <button
+            <button type="button"
               key={f}
               onClick={() => onChange(f)}
               className={`text-left px-3 py-2 rounded-md border-2 transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
@@ -71,7 +71,7 @@ export default function NewGameMenu() {
           <FactionPicker label="Player 2" value={p2} onChange={setP2} />
         </div>
 
-        <button
+        <button type="button"
           onClick={() => startNewGame(p1, p2)}
           className="mt-8 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
         >
