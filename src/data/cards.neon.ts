@@ -238,6 +238,7 @@ export const nuGlitchStep: ReactionDef = {
   type: 'Reaction',
   cost: 1,
   trigger: 'enemyApexAttacks',
+  tags: ['INSTANT', 'REACTION', 'ON_ATTACK_DECLARED'],
   rulesText:
     'When an enemy Apex attacks: reduce that attack\u2019s damage by 200. If you control a Neon Underground Apex with 300 DEF or less, gain 1 Momentum after the attack resolves.',
   resolve: (ctx) => {
@@ -252,6 +253,7 @@ export const nuFeedbackLoop: NegateDef = {
   faction: F,
   type: 'Negate',
   cost: 2,
+  tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED'],
   rulesText: 'Cancel an enemy Special or Reaction. Then deal 100 damage to one enemy Apex.',
   canCancel: (type) => type === 'Special' || type === 'Reaction',
   resolve: (ctx) => {

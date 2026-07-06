@@ -4,8 +4,11 @@ import type {
   EngineHelpers,
   GameState,
   LogKind,
+  NegateDef,
   PlayerId,
+  ResponseEvent,
 } from '@/types/game';
+import { RESPONSE_EVENT_TAG } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 
 export const MAX_SYNC = 3;
@@ -414,4 +417,55 @@ export function createHelpers(draft: GameState): EngineHelpers {
     markPendingEndPhaseProtection: (apexInstanceId, reduction) =>
       markPendingEndPhaseProtectionFn(draft, apexInstanceId, reduction),
   };
+}
+
+// ==========================================================================
+// Engine Tag System - response-window eligibility
+//
+// This is the single source of truth for "does the responding player have a
+// legal instant-speed card for this event?" Nothing else in the engine should
+// hand-check card names/types for this purpose - it should call
+// getEligibleResponses (or isResponseWindowEligible) instead.
+// ==========================================================================
+
+/**
+ * Returns every card in the responding player's hand that is a legal instant-speed
+ * response to the given event: tagged INSTANT, tagged with the event's matching
+ * trigger tag, affordable with current Momentum, and (for Negates) actually able to
+ * cancel the specific card type/faction involved.
+ */
+export function getEligibleResponses(
+  state: GameState,
+  respondingPlayerId: PlayerId,
+  event: ResponseEvent
+): CardInstance[] {
+  const player = state.players[respondingPlayerId];
+  const requiredTag = RESPONSE_EVENT_TAG[event.kind];
+
+  return player.hand.filter((card) => {
+    if (card.type !== 'Reaction' && card.type !== 'Negate') return false;
+    const def = getCardDef(card.defId);
+    if (def.type !== 'Reaction' && def.type !== 'Negate') return false;
+
+    const tags = def.tags ?? [];
+    if (!tags.includes('INSTANT')) return false;
+    if (!tags.includes(requiredTag)) return false;
+    if (player.momentum < def.cost) return false;
+
+    // Target/effect legality checks beyond simple tag + cost matching:
+    if (def.type === 'Negate' && (event.kind === 'SPECIAL_PLAYED' || event.kind === 'EQUIP_PLAYED' || event.kind === 'REACTION_PLAYED')) {
+      const negateDef = def as NegateDef;
+      if (!negateDef.canCancel(event.data.cardType, event.data.cardFaction)) return false;
+    }
+    if (def.type === 'Reaction' && event.kind === 'O2_DAMAGE_PENDING') {
+      if (event.data.amount <= 0) return false; // must actually deal at least 1 O2 damage
+    }
+
+    return true;
+  });
+}
+
+/** Convenience boolean form of getEligibleResponses, for gating whether to open a Response Window at all. */
+export function isResponseWindowEligible(state: GameState, respondingPlayerId: PlayerId, event: ResponseEvent): boolean {
+  return getEligibleResponses(state, respondingPlayerId, event).length > 0;
 }

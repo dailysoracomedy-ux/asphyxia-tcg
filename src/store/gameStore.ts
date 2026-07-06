@@ -11,9 +11,11 @@ import type {
   NegateDef,
   O2DamageTriggerData,
   Phase,
+  PlayedCardEventData,
   PlayerId,
   PlayerState,
   ReactionDef,
+  ResponseEvent,
   SpecialDef,
   TriggerData,
 } from '@/types/game';
@@ -29,9 +31,11 @@ import {
   createHelpers,
   destroyApexFn,
   directDamageToO2Loss,
+  overflowToO2Loss,
   drawCardsFn,
   findApexAnywhere,
   getEffectiveDef,
+  getEligibleResponses,
   gainMomentumFn,
   logMsg,
   loseMomentumFn,
@@ -107,26 +111,48 @@ function initialState(): GameState {
 // Helper predicates
 // ==========================================================================
 
-function hasEligibleReaction(
-  draft: GameState,
-  playerId: PlayerId,
-  triggerKind: 'enemyApexAttacks' | 'opponentAttackDealsO2Damage' | 'ownApexWouldBeDestroyed'
-): boolean {
-  const player = draft.players[playerId];
-  return player.hand.some((c) => {
-    if (c.type !== 'Reaction') return false;
-    const def = getCardDef(c.defId) as ReactionDef;
-    return def.trigger === triggerKind && player.momentum >= def.cost;
-  });
+// ==========================================================================
+// Response-window eligibility (Engine Tag System)
+//
+// All eligibility checks funnel through getEligibleResponses (rules.ts), which
+// looks only at each card's engine tags (INSTANT + the matching ON_* trigger
+// tag) plus Momentum/target legality - never card names or ad-hoc type checks.
+// ==========================================================================
+
+/** Checks eligibility for a response event and logs the debug trail the spec asks for.
+ *  Returns the eligible cards (empty array if none - callers just check .length). */
+function checkEligibleResponses(draft: GameState, respondingPlayerId: PlayerId, event: ResponseEvent): CardInstance[] {
+  const eligible = getEligibleResponses(draft, respondingPlayerId, event);
+  if (eligible.length === 0) {
+    logMsg(draft, 'Checked for eligible responses: none found.', 'response');
+  }
+  return eligible;
 }
 
-function hasEligibleNegate(draft: GameState, playerId: PlayerId, cardType: 'Special' | 'Equip' | 'Reaction', faction: Faction): boolean {
-  const player = draft.players[playerId];
-  return player.hand.some((c) => {
-    if (c.type !== 'Negate') return false;
-    const def = getCardDef(c.defId) as NegateDef;
-    return player.momentum >= def.cost && def.canCancel(cardType, faction);
-  });
+/** Opens a Response Window (pushing to the queue) only if eligible responses exist.
+ *  Returns true if a window was opened (caller should stop and wait), false otherwise. */
+function maybeOpenResponseWindow(
+  draft: GameState,
+  respondingPlayerId: PlayerId,
+  event: ResponseEvent,
+  pushItem: (eligibleCount: number) => void
+): boolean {
+  const eligible = checkEligibleResponses(draft, respondingPlayerId, event);
+  if (eligible.length === 0) return false;
+  pushItem(eligible.length);
+  logMsg(
+    draft,
+    `Response window opened: ${respondingPlayerId} has ${eligible.length} eligible response${eligible.length > 1 ? 's' : ''}.`,
+    'response'
+  );
+  return true;
+}
+
+function playedCardEvent(
+  kind: 'SPECIAL_PLAYED' | 'EQUIP_PLAYED' | 'REACTION_PLAYED',
+  data: PlayedCardEventData
+): ResponseEvent {
+  return { kind, data } as ResponseEvent;
 }
 
 // ==========================================================================
@@ -289,12 +315,13 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
     });
   }
 
-  if (overflow > 0) {
+  const o2Loss = overflowToO2Loss(overflow);
+  if (o2Loss > 0) {
     resolveO2LossWindow(draft, {
       kind: 'opponentAttackDealsO2Damage',
       attackerId: trigger.attackerId,
       defenderId: otherPlayer(trigger.attackerId),
-      amount: overflow,
+      amount: o2Loss,
       isOverflow: true,
       attackerInstanceId: trigger.attackerInstanceId,
       attackDefId: trigger.attackDefId,
@@ -335,28 +362,34 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
       if (eqDef.type === 'Equip' && eqDef.onOverflowDamage) overflow = eqDef.onOverflowDamage(overflow);
     }
 
-    if (hasEligibleReaction(draft, defenderId, 'ownApexWouldBeDestroyed')) {
-      draft.pendingResponseQueue.push({
-        id: newId('rx'),
-        stage: 'reactionChoice',
-        respondingPlayerId: defenderId,
-        trigger: {
-          kind: 'ownApexWouldBeDestroyed',
-          apexInstanceId: trigger.targetInstanceId,
-          ownerId: defenderId,
-          fromAttack: {
-            attackerId: trigger.attackerId,
-            attackerInstanceId: trigger.attackerInstanceId,
-            attackDefId: trigger.attackDefId,
-            syncCost: trigger.syncCost,
-            totalDamage: damage,
-            overflow,
-          },
-        },
-      });
-      logMsg(draft, `${targetDef.name} would be destroyed - ${defenderId} may respond.`, 'response');
-      return;
-    }
+    const destroyTrigger: DestroyTriggerData = {
+      kind: 'ownApexWouldBeDestroyed',
+      apexInstanceId: trigger.targetInstanceId,
+      ownerId: defenderId,
+      fromAttack: {
+        attackerId: trigger.attackerId,
+        attackerInstanceId: trigger.attackerInstanceId,
+        attackDefId: trigger.attackDefId,
+        syncCost: trigger.syncCost,
+        totalDamage: damage,
+        overflow,
+      },
+    };
+    logMsg(draft, `${targetDef.name} would be destroyed.`, 'damage');
+    const opened = maybeOpenResponseWindow(
+      draft,
+      defenderId,
+      { kind: 'APEX_WOULD_BE_DESTROYED', data: destroyTrigger },
+      () => {
+        draft.pendingResponseQueue.push({
+          id: newId('rx'),
+          stage: 'reactionChoice',
+          respondingPlayerId: defenderId,
+          trigger: destroyTrigger,
+        });
+      }
+    );
+    if (opened) return;
 
     proceedWithDestruction(draft, trigger, overflow);
     return;
@@ -387,16 +420,21 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
 }
 
 function resolveO2LossWindow(draft: GameState, o2trigger: O2DamageTriggerData) {
-  if (hasEligibleReaction(draft, o2trigger.defenderId, 'opponentAttackDealsO2Damage')) {
-    draft.pendingResponseQueue.push({
-      id: newId('rx'),
-      stage: 'reactionChoice',
-      respondingPlayerId: o2trigger.defenderId,
-      trigger: o2trigger,
-    });
-    logMsg(draft, `${o2trigger.defenderId} may respond before losing ${o2trigger.amount} O2.`, 'response');
-    return;
-  }
+  logMsg(draft, `This attack would deal ${o2trigger.amount} O2 damage.`, 'o2');
+  const opened = maybeOpenResponseWindow(
+    draft,
+    o2trigger.defenderId,
+    { kind: 'O2_DAMAGE_PENDING', data: o2trigger },
+    () => {
+      draft.pendingResponseQueue.push({
+        id: newId('rx'),
+        stage: 'reactionChoice',
+        respondingPlayerId: o2trigger.defenderId,
+        trigger: o2trigger,
+      });
+    }
+  );
+  if (opened) return;
   applyO2LossFinal(draft, o2trigger, 0);
 }
 
@@ -559,6 +597,15 @@ function continueTriggerUnmodified(draft: GameState, trigger: TriggerData) {
     finishDestroyDecision(draft, trigger, false);
   } else if (trigger.kind === 'opponentAttackDealsO2Damage') {
     applyO2LossFinal(draft, trigger, 0);
+  }
+}
+
+/** Logs "Original action resolved." only once a response-window-driven trigger chain has truly
+ *  terminated (i.e. it didn't just open another nested window, such as a Negate-the-Reaction
+ *  layer or Alley Wraith's follow-up prompt). */
+function maybeLogActionResolved(draft: GameState) {
+  if (draft.pendingResponseQueue.length === 0) {
+    logMsg(draft, 'Original action resolved.', 'response');
   }
 }
 
@@ -783,23 +830,29 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.cardsPlayedThisTurn += 1;
       const def = getCardDef(card.defId);
       const faction = def.faction;
+      const negatingPlayerId = otherPlayer(playerId);
 
-      if (hasEligibleNegate(draft, otherPlayer(playerId), 'Equip', faction)) {
-        draft.pendingResponseQueue.push({
-          id: newId('negate'),
-          stage: 'negateWindow',
-          negatingPlayerId: otherPlayer(playerId),
-          cardOwnerId: playerId,
-          cardInstanceId: card.instanceId,
-          cardDefId: card.defId,
-          cardType: 'Equip',
-          cardFaction: faction,
-          continuation: { kind: 'resolveEquip', ownerId: playerId, apexInstanceId },
-          pendingCardInstance: card,
-        });
-        logMsg(draft, `${playerId} plays ${def.name} - awaiting Negate response.`, 'play');
-        return;
-      }
+      logMsg(draft, `${playerId} plays ${def.name}.`, 'play');
+      const opened = maybeOpenResponseWindow(
+        draft,
+        negatingPlayerId,
+        playedCardEvent('EQUIP_PLAYED', { cardType: 'Equip', cardFaction: faction, cardOwnerId: playerId, cardInstanceId: card.instanceId }),
+        () => {
+          draft.pendingResponseQueue.push({
+            id: newId('negate'),
+            stage: 'negateWindow',
+            negatingPlayerId,
+            cardOwnerId: playerId,
+            cardInstanceId: card.instanceId,
+            cardDefId: card.defId,
+            cardType: 'Equip',
+            cardFaction: faction,
+            continuation: { kind: 'resolveEquip', ownerId: playerId, apexInstanceId },
+            pendingCardInstance: card,
+          });
+        }
+      );
+      if (opened) return;
 
       apex.equip = card;
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name}.`, 'play');
@@ -856,20 +909,31 @@ export const useGameStore = create<GameStore>((set) => ({
         }
       }
 
-      if (hasEligibleNegate(draft, otherPlayer(playerId), 'Special', def.faction)) {
-        draft.pendingResponseQueue.push({
-          id: newId('negate'),
-          stage: 'negateWindow',
-          negatingPlayerId: otherPlayer(playerId),
-          cardOwnerId: playerId,
-          cardInstanceId: card.instanceId,
-          cardDefId: card.defId,
+      const negatingPlayerId = otherPlayer(playerId);
+      const opened = maybeOpenResponseWindow(
+        draft,
+        negatingPlayerId,
+        playedCardEvent('SPECIAL_PLAYED', {
           cardType: 'Special',
           cardFaction: def.faction,
-          continuation: { kind: 'resolveSpecial', ownerId: playerId, targetApexInstanceId },
-        });
-        return;
-      }
+          cardOwnerId: playerId,
+          cardInstanceId: card.instanceId,
+        }),
+        () => {
+          draft.pendingResponseQueue.push({
+            id: newId('negate'),
+            stage: 'negateWindow',
+            negatingPlayerId,
+            cardOwnerId: playerId,
+            cardInstanceId: card.instanceId,
+            cardDefId: card.defId,
+            cardType: 'Special',
+            cardFaction: def.faction,
+            continuation: { kind: 'resolveSpecial', ownerId: playerId, targetApexInstanceId },
+          });
+        }
+      );
+      if (opened) return;
 
       def.resolve({ helpers: createHelpers(draft), ownerId: playerId, targetApexInstanceId });
     }),
@@ -1034,16 +1098,18 @@ export const useGameStore = create<GameStore>((set) => ({
         cannotBeRedirected: attackDef.cannotBeRedirected,
       };
 
-      if (!attackDef.cannotBeRedirected && hasEligibleReaction(draft, opponentId, 'enemyApexAttacks')) {
-        draft.pendingResponseQueue.push({
-          id: newId('rx'),
-          stage: 'reactionChoice',
-          respondingPlayerId: opponentId,
-          trigger,
+      let opened = false;
+      if (!attackDef.cannotBeRedirected) {
+        opened = maybeOpenResponseWindow(draft, opponentId, { kind: 'ATTACK_DECLARED', data: trigger }, () => {
+          draft.pendingResponseQueue.push({
+            id: newId('rx'),
+            stage: 'reactionChoice',
+            respondingPlayerId: opponentId,
+            trigger,
+          });
         });
-        logMsg(draft, `${opponentId} may respond with a Reaction.`, 'response');
-        return;
       }
+      if (opened) return;
 
       resolveAttackAgainstTarget(draft, trigger, total);
     }),
@@ -1062,19 +1128,23 @@ export const useGameStore = create<GameStore>((set) => ({
           const player = draft.players[item.respondingPlayerId];
           const idx = player.hand.findIndex((c) => c.instanceId === choice.cardInstanceId);
           if (idx === -1) {
+            logMsg(draft, `${item.respondingPlayerId} passed.`, 'response');
             continueTriggerUnmodified(draft, trigger);
+            maybeLogActionResolved(draft);
             return;
           }
           const cardInstance = player.hand[idx];
           const reactionDef = getCardDef(cardInstance.defId) as ReactionDef;
           if (reactionDef.type !== 'Reaction' || reactionDef.trigger !== trigger.kind || player.momentum < reactionDef.cost) {
+            logMsg(draft, `${item.respondingPlayerId} passed.`, 'response');
             continueTriggerUnmodified(draft, trigger);
+            maybeLogActionResolved(draft);
             return;
           }
           player.hand.splice(idx, 1);
           player.discard.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
-          logMsg(draft, `${item.respondingPlayerId} plays ${reactionDef.name} in response.`, 'response');
+          logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
 
           if (trigger.kind === 'enemyApexAttacks') {
             const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
@@ -1095,11 +1165,46 @@ export const useGameStore = create<GameStore>((set) => ({
             }
           }
 
+          // A Negate may itself respond to this Reaction being played (ON_REACTION_PLAYED).
+          // Single extra layer only - no arbitrary stacking.
+          const negatingPlayerId = otherPlayer(item.respondingPlayerId);
+          const negateOpened = maybeOpenResponseWindow(
+            draft,
+            negatingPlayerId,
+            playedCardEvent('REACTION_PLAYED', {
+              cardType: 'Reaction',
+              cardFaction: reactionDef.faction,
+              cardOwnerId: item.respondingPlayerId,
+              cardInstanceId: cardInstance.instanceId,
+            }),
+            () => {
+              draft.pendingResponseQueue.push({
+                id: newId('negate'),
+                stage: 'negateWindow',
+                negatingPlayerId,
+                cardOwnerId: item.respondingPlayerId,
+                cardInstanceId: cardInstance.instanceId,
+                cardDefId: reactionDef.id,
+                cardType: 'Reaction',
+                cardFaction: reactionDef.faction,
+                continuation: {
+                  kind: 'resolveReactionThenFinishTrigger',
+                  reactionOwnerId: item.respondingPlayerId,
+                  trigger,
+                },
+              });
+            }
+          );
+          if (negateOpened) return;
+
           applyChosenReactionAndContinue(draft, trigger, reactionDef, item.respondingPlayerId);
+          maybeLogActionResolved(draft);
           return;
         }
 
+        logMsg(draft, `${item.respondingPlayerId} passed.`, 'response');
         continueTriggerUnmodified(draft, trigger);
+        maybeLogActionResolved(draft);
         return;
       }
 
@@ -1108,12 +1213,14 @@ export const useGameStore = create<GameStore>((set) => ({
           const attackerHit = findApexAnywhere(draft, item.attackerInstanceId);
           if (attackerHit) attackerHit.apex.traitUsedThisTurn = true;
           loseMomentumFn(draft, item.attackerId, 1);
-          logMsg(draft, `Alley Wraith pays 1 Momentum to cancel the Reaction!`, 'response');
+          logMsg(draft, `${item.attackerId} paid 1 Momentum to cancel the Reaction with Alley Wraith!`, 'response');
           continueTriggerUnmodified(draft, item.trigger);
         } else {
+          logMsg(draft, `${item.attackerId} let the Reaction resolve.`, 'response');
           const reactionDef = getCardDef(item.reactionDefId) as ReactionDef;
           applyChosenReactionAndContinue(draft, item.trigger, reactionDef, item.reactionOwnerId);
         }
+        maybeLogActionResolved(draft);
         return;
       }
 
@@ -1134,7 +1241,8 @@ export const useGameStore = create<GameStore>((set) => ({
             player.hand.splice(idx, 1);
             player.discard.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
-            logMsg(draft, `${item.negatingPlayerId} plays ${negateDef.name}, cancelling ${item.cardDefId}!`, 'response');
+            logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
+            logMsg(draft, `${negateDef.name} cancels ${getCardDef(item.cardDefId).name}.`, 'response');
             negateDef.resolve({
               helpers,
               ownerId: item.negatingPlayerId,
@@ -1144,10 +1252,17 @@ export const useGameStore = create<GameStore>((set) => ({
             if (item.cardType === 'Equip' && item.pendingCardInstance) {
               draft.players[item.cardOwnerId].discard.push(item.pendingCardInstance);
             }
+            if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
+              // The Reaction itself never applies - the original event still needs to finish,
+              // just as if the responding player had passed instead of playing it.
+              continueTriggerUnmodified(draft, item.continuation.trigger);
+            }
+            maybeLogActionResolved(draft);
             return;
           }
         }
 
+        logMsg(draft, `${item.negatingPlayerId} passed.`, 'response');
         if (item.continuation.kind === 'resolveSpecial') {
           const def = getCardDef(item.cardDefId) as SpecialDef;
           def.resolve({
@@ -1161,7 +1276,11 @@ export const useGameStore = create<GameStore>((set) => ({
             hit.apex.equip = item.pendingCardInstance;
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name}.`, 'play');
           }
+        } else if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
+          const reactionDef = getCardDef(item.cardDefId) as ReactionDef;
+          applyChosenReactionAndContinue(draft, item.continuation.trigger, reactionDef, item.continuation.reactionOwnerId);
         }
+        maybeLogActionResolved(draft);
         return;
       }
 

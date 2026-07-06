@@ -2,7 +2,8 @@
    actions to shake out runtime crashes and check core invariants. Not a UI test. */
 import { useGameStore } from '../store/gameStore';
 import { getCardDef } from '../data/cards';
-import type { Faction, PlayerId } from '../types/game';
+import { getEligibleResponses } from '../game/rules';
+import type { Faction, GameState, PendingResponseItem, PlayerId, ResponseEvent } from '../types/game';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
 
@@ -17,33 +18,54 @@ function totalCards(playerId: PlayerId): number {
   return p.deck.length + p.hand.length + p.discard.length + p.apexSlots.filter(Boolean).length + p.supportSlots.filter(Boolean).length + equips;
 }
 
+/** Builds the same ResponseEvent shape the real engine uses, from a pending queue item -
+ *  so the simulator asks getEligibleResponses the exact question the UI would ask, instead
+ *  of re-deriving eligibility itself (which could silently drift from the real rules). */
+function eventForItem(item: PendingResponseItem): { respondingPlayerId: PlayerId; event: ResponseEvent } | null {
+  if (item.stage === 'reactionChoice') {
+    const t = item.trigger;
+    if (t.kind === 'enemyApexAttacks') return { respondingPlayerId: item.respondingPlayerId, event: { kind: 'ATTACK_DECLARED', data: t } };
+    if (t.kind === 'opponentAttackDealsO2Damage')
+      return { respondingPlayerId: item.respondingPlayerId, event: { kind: 'O2_DAMAGE_PENDING', data: t } };
+    if (t.kind === 'ownApexWouldBeDestroyed')
+      return { respondingPlayerId: item.respondingPlayerId, event: { kind: 'APEX_WOULD_BE_DESTROYED', data: t } };
+  }
+  if (item.stage === 'negateWindow') {
+    const kind = item.cardType === 'Special' ? 'SPECIAL_PLAYED' : item.cardType === 'Equip' ? 'EQUIP_PLAYED' : 'REACTION_PLAYED';
+    return {
+      respondingPlayerId: item.negatingPlayerId,
+      event: {
+        kind,
+        data: { cardType: item.cardType, cardFaction: item.cardFaction, cardOwnerId: item.cardOwnerId, cardInstanceId: item.cardInstanceId },
+      } as ResponseEvent,
+    };
+  }
+  return null;
+}
+
 function resolvePending(): boolean {
   const s = useGameStore.getState();
   const item = s.pendingResponseQueue[0];
   if (!item) return false;
 
-  if (item.stage === 'reactionChoice') {
-    const player = s.players[item.respondingPlayerId];
-    const eligible = player.hand.filter((c) => {
-      if (c.type !== 'Reaction') return false;
-      const def = getCardDef(c.defId) as import('../types/game').ReactionDef;
-      return def.trigger === item.trigger.kind && player.momentum >= def.cost;
-    });
-    if (eligible.length > 0 && Math.random() < 0.6) {
-      s.resolveResponse({ type: 'reaction', cardInstanceId: eligible[0].instanceId });
-    } else {
-      s.resolveResponse({ type: 'pass' });
-    }
-  } else if (item.stage === 'negateWindow') {
-    const player = s.players[item.negatingPlayerId];
-    const eligible = player.hand.filter((c) => {
-      if (c.type !== 'Negate') return false;
+  if (item.stage === 'reactionChoice' || item.stage === 'negateWindow') {
+    const built = eventForItem(item);
+    const eligible = built ? getEligibleResponses(s as unknown as GameState, built.respondingPlayerId, built.event) : [];
+
+    // Sanity check: getCardDef must agree these are actually Reaction/Negate cards (never Specials/Equips).
+    for (const c of eligible) {
       const def = getCardDef(c.defId);
-      if (def.type !== 'Negate') return false;
-      return player.momentum >= def.cost && def.canCancel(item.cardType, item.cardFaction);
-    });
-    if (eligible.length > 0 && Math.random() < 0.5) {
-      s.resolveResponse({ type: 'negate', cardInstanceId: eligible[0].instanceId });
+      if (item.stage === 'reactionChoice' && def.type !== 'Reaction') {
+        throw new Error(`getEligibleResponses returned a non-Reaction card (${def.type}) for a reactionChoice window`);
+      }
+      if (item.stage === 'negateWindow' && def.type !== 'Negate') {
+        throw new Error(`getEligibleResponses returned a non-Negate card (${def.type}) for a negateWindow`);
+      }
+    }
+
+    const respondType = item.stage === 'reactionChoice' ? 'reaction' : 'negate';
+    if (eligible.length > 0 && Math.random() < (item.stage === 'reactionChoice' ? 0.6 : 0.5)) {
+      s.resolveResponse({ type: respondType, cardInstanceId: eligible[0].instanceId } as never);
     } else {
       s.resolveResponse({ type: 'pass' });
     }

@@ -23,6 +23,33 @@ Then open http://localhost:3000. Two players share one browser tab/window (hotse
 - Momentum, Reactions, Negates, and a queued "Available Responses" system so both
   players get real response windows (declare attack → opponent may Glitch Step /
   Emergency Authority / Backup Consciousness / Negate before it resolves)
+- **An internal Engine Tag System for response-window eligibility.** Rather than
+  hardcoding "is this card a Reaction/Negate that matches this event" by name or
+  type, every card can carry `tags: EngineTag[]` (`INSTANT`, `REACTION`, `NEGATE`,
+  `ON_ATTACK_DECLARED`, `ON_SPECIAL_PLAYED`, `ON_EQUIP_PLAYED`, `ON_REACTION_PLAYED`,
+  `ON_O2_DAMAGE`, `ON_APEX_WOULD_BE_DESTROYED`). Only the 6 actual instant-speed
+  cards (Glitch Step, Feedback Loop, Emergency Authority, Absolute Refusal, Backup
+  Consciousness, Logic Denial) carry `INSTANT` - Specials and Equips never do, so
+  they're never playable at instant speed themselves (Negates can still respond
+  *to* them). `getEligibleResponses(state, respondingPlayerId, event)` in
+  `src/game/rules.ts` is the single source of truth every eligibility check calls
+  through - the attack/Special/Equip/destroy/O2-loss code paths, the UI, and the
+  headless simulator all ask the same function the same question, so there's no
+  way for "hardcoded by name" logic to drift out of sync in one place but not
+  another. A Negate can now even respond to a Reaction being played
+  (`ON_REACTION_PLAYED`) as one additional single-layer response opportunity -
+  still no full effect stack, just one well-defined extra step.
+- **Hotseat privacy screens for response windows.** A Response Window (and the
+  "pass the screen" privacy step around it) only opens when the non-active player
+  actually has at least one legal instant-speed card (per the tag system above) -
+  otherwise the action just resolves immediately with no pause. When a window does
+  open: the board is fully hidden behind an opaque "Pass the screen to Player X"
+  screen, then the responder's eligible Reactions/Negates and the triggering event
+  are shown, then another "Pass the screen back to Player Y" screen before control
+  returns. The log records each step precisely ("Checked for eligible responses:
+  none found.", "Response window opened: player2 has 1 eligible response.",
+  "player2 passed." / "player2 played Emergency Authority.", "Original action
+  resolved.").
 - All 6 Rift Spaces with their actual trigger conditions
 - Choke / Upgrade / Glitch counters, Equip attach/detach/discard-on-destroy
 - Reconfigure (once per turn), Ability Support chaining/unchaining,
@@ -50,7 +77,18 @@ src/scripts/simulate.ts   - a headless randomized-playthrough test harness
 matchup (so every Rift Space gets exercised), driving the real store end-to-end
 including reactions, negates, reconfigure, and rift triggers, and asserts card
 conservation + sane O2/Momentum/counter values throughout. It should print
-`Games run: 72, crashed: 0` with no errors.
+`Games run: 72, crashed: 0` with no errors. It resolves response windows using the
+same `getEligibleResponses` helper the real engine uses, so it can't "cheat" by
+playing a card that wouldn't actually be legal.
+
+`npx tsx src/scripts/test-response-eligibility.ts` is a targeted test suite for the
+Engine Tag System covering the 9 scenarios it needs to get right: no pass screen
+when nobody has an eligible instant, a window opening for each of the 6 instant
+cards in its correct situation, no window when Momentum is short, and confirming
+Specials/Equips can never be played as the non-active player.
+
+`npx tsx src/scripts/test-overflow-fix.ts` is a small regression test locking in the
+overflow → O2 conversion math (`floor(overflow / 200)`, direct-attack cap at 2/turn).
 
 ## Known simplifications (documented in code with TODO/NOTE comments)
 

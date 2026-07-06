@@ -272,6 +272,7 @@ export const dwEmergencyAuthority: ReactionDef = {
   type: 'Reaction',
   cost: 1,
   trigger: 'opponentAttackDealsO2Damage',
+  tags: ['INSTANT', 'REACTION', 'ON_O2_DAMAGE'],
   rulesText:
     'When your opponent\u2019s attack would deal O2 damage: reduce that O2 damage by 1. If your O2 is 2 or lower, place 1 Choke Counter on the attacking Apex.',
   resolve: (ctx) => {
@@ -286,6 +287,7 @@ export const dwAbsoluteRefusal: NegateDef = {
   faction: F,
   type: 'Negate',
   cost: 2,
+  tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED', 'ON_EQUIP_PLAYED'],
   rulesText: 'Cancel an enemy Special, Reaction, or Equip. If the canceled card was Neon Underground, gain 1 Momentum.',
   canCancel: (type) => type === 'Special' || type === 'Reaction' || type === 'Equip',
   resolve: (ctx) => {

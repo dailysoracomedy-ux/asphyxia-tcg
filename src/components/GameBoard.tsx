@@ -9,7 +9,7 @@ import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
 import CombatControls from './CombatControls';
-import ResponseModal from './ResponseModal';
+import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import { factionTheme } from '@/lib/theme';
 
@@ -172,7 +172,7 @@ export default function GameBoard() {
 
   return (
     <div className="min-h-screen p-3 flex flex-col gap-3 max-w-[1400px] mx-auto">
-      {state.pendingResponseQueue.length > 0 && <ResponseModal state={state} />}
+      {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
       <div className="flex items-center justify-between text-white/50 text-xs">
         <div>

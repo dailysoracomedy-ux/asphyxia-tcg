@@ -80,11 +80,67 @@ export interface AttackDef {
   cannotBeRedirected?: boolean;
 }
 
+// --------------------------------------------------------------------------
+// Engine Tag System - a scalable, data-driven way for the engine to answer
+// "can this card create a Response Window for this event?" without hardcoding
+// checks by card name or card type. Cards opt into instant-speed behavior by
+// carrying tags; the engine only ever looks at tags to decide eligibility.
+// This is an internal rules-engine concept and need not be shown to players.
+// --------------------------------------------------------------------------
+
+export type EngineTag =
+  | 'INSTANT'
+  | 'REACTION'
+  | 'NEGATE'
+  | 'ON_ATTACK_DECLARED'
+  | 'ON_SPECIAL_PLAYED'
+  | 'ON_EQUIP_PLAYED'
+  | 'ON_REACTION_PLAYED'
+  | 'ON_O2_DAMAGE'
+  | 'ON_APEX_WOULD_BE_DESTROYED';
+
+/** The event kinds the engine can open a Response Window for. */
+export type ResponseEventKind =
+  | 'ATTACK_DECLARED'
+  | 'SPECIAL_PLAYED'
+  | 'EQUIP_PLAYED'
+  | 'REACTION_PLAYED'
+  | 'O2_DAMAGE_PENDING'
+  | 'APEX_WOULD_BE_DESTROYED';
+
+/** Maps each response event to the single engine tag that makes a card eligible for it. */
+export const RESPONSE_EVENT_TAG: Record<ResponseEventKind, EngineTag> = {
+  ATTACK_DECLARED: 'ON_ATTACK_DECLARED',
+  SPECIAL_PLAYED: 'ON_SPECIAL_PLAYED',
+  EQUIP_PLAYED: 'ON_EQUIP_PLAYED',
+  REACTION_PLAYED: 'ON_REACTION_PLAYED',
+  O2_DAMAGE_PENDING: 'ON_O2_DAMAGE',
+  APEX_WOULD_BE_DESTROYED: 'ON_APEX_WOULD_BE_DESTROYED',
+};
+
+/** Context describing a card that was just played, for SPECIAL_PLAYED / EQUIP_PLAYED / REACTION_PLAYED events. */
+export interface PlayedCardEventData {
+  cardType: 'Special' | 'Equip' | 'Reaction';
+  cardFaction: Faction;
+  cardOwnerId: PlayerId;
+  cardInstanceId: string;
+}
+
+export type ResponseEvent =
+  | { kind: 'ATTACK_DECLARED'; data: AttackTriggerData }
+  | { kind: 'O2_DAMAGE_PENDING'; data: O2DamageTriggerData }
+  | { kind: 'APEX_WOULD_BE_DESTROYED'; data: DestroyTriggerData }
+  | { kind: 'SPECIAL_PLAYED'; data: PlayedCardEventData }
+  | { kind: 'EQUIP_PLAYED'; data: PlayedCardEventData }
+  | { kind: 'REACTION_PLAYED'; data: PlayedCardEventData };
+
 export interface BaseCardDef {
   id: string;
   name: string;
   faction: Faction;
   rulesText: string;
+  /** Internal engine tags (see EngineTag). Optional - most cards carry none. */
+  tags?: EngineTag[];
 }
 
 export interface ApexDef extends BaseCardDef {

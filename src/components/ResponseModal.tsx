@@ -2,7 +2,7 @@
 
 import type { GameState, ReactionDef } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { useGameStore } from '@/store/gameStore';
+import { useGameStore, type ResponseChoice } from '@/store/gameStore';
 
 function describeTrigger(state: GameState, item: GameState['pendingResponseQueue'][number]): string {
   if (item.stage !== 'reactionChoice') return '';
@@ -29,13 +29,24 @@ function describeTrigger(state: GameState, item: GameState['pendingResponseQueue
   return '';
 }
 
-export default function ResponseModal({ state }: { state: GameState }) {
-  const resolveResponse = useGameStore((s) => s.resolveResponse);
+interface ResponseModalProps {
+  state: GameState;
+  onAfterChoose?: () => void;
+}
+
+export default function ResponseModal({ state, onAfterChoose }: ResponseModalProps) {
+  const rawResolveResponse = useGameStore((s) => s.resolveResponse);
   const item = state.pendingResponseQueue[0];
   if (!item) return null;
 
+  // Wrap so the hotseat gate can advance to its "pass back" step right after a choice is made.
+  const resolveResponse: typeof rawResolveResponse = (choice) => {
+    rawResolveResponse(choice);
+    onAfterChoose?.();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
       <div className="max-w-md w-full rounded-xl border-2 border-pink-400 bg-[#0a0512] p-5 shadow-[0_0_40px_rgba(244,114,182,0.35)]">
         {item.stage === 'reactionChoice' && (
           <ReactionPrompt state={state} item={item} onChoose={resolveResponse} />
@@ -55,7 +66,7 @@ function ReactionPrompt({
 }: {
   state: GameState;
   item: Extract<GameState['pendingResponseQueue'][number], { stage: 'reactionChoice' }>;
-  onChoose: ReturnType<typeof useGameStore.getState>['resolveResponse'];
+  onChoose: (choice: ResponseChoice) => void;
 }) {
   const player = state.players[item.respondingPlayerId];
   const eligible = player.hand.filter((c) => {
@@ -66,8 +77,11 @@ function ReactionPrompt({
 
   return (
     <>
-      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">Response window · {item.respondingPlayerId}</div>
+      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">
+        Response Window: {item.respondingPlayerId} may respond.
+      </div>
       <div className="text-sm text-white/80 mb-4">{describeTrigger(state, item)}</div>
+      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible Reactions</div>
       <div className="space-y-2 mb-4">
         {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible Reactions in hand.</div>}
         {eligible.map((c) => {
@@ -100,7 +114,7 @@ function NegatePrompt({
 }: {
   state: GameState;
   item: Extract<GameState['pendingResponseQueue'][number], { stage: 'negateWindow' }>;
-  onChoose: ReturnType<typeof useGameStore.getState>['resolveResponse'];
+  onChoose: (choice: ResponseChoice) => void;
 }) {
   const player = state.players[item.negatingPlayerId];
   const targetDef = getCardDef(item.cardDefId);
@@ -113,10 +127,13 @@ function NegatePrompt({
 
   return (
     <>
-      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">Negate window · {item.negatingPlayerId}</div>
+      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">
+        Response Window: {item.negatingPlayerId} may respond.
+      </div>
       <div className="text-sm text-white/80 mb-4">
         {item.cardOwnerId} plays <b>{targetDef.name}</b> ({item.cardType}). Cancel it?
       </div>
+      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible Negates</div>
       <div className="space-y-2 mb-4">
         {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible Negate in hand.</div>}
         {eligible.map((c) => {
@@ -137,7 +154,7 @@ function NegatePrompt({
         })}
       </div>
       <button onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
-        Let it resolve
+        Pass
       </button>
     </>
   );
@@ -148,7 +165,7 @@ function HumanErrorPrompt({
   onChoose,
 }: {
   item: Extract<GameState['pendingResponseQueue'][number], { stage: 'humanErrorChoice' }>;
-  onChoose: ReturnType<typeof useGameStore.getState>['resolveResponse'];
+  onChoose: (choice: ResponseChoice) => void;
 }) {
   return (
     <>
@@ -177,7 +194,7 @@ function AlleyWraithPrompt({
   onChoose,
 }: {
   item: Extract<GameState['pendingResponseQueue'][number], { stage: 'alleyWraithChoice' }>;
-  onChoose: ReturnType<typeof useGameStore.getState>['resolveResponse'];
+  onChoose: (choice: ResponseChoice) => void;
 }) {
   const reactionDef = getCardDef(item.reactionDefId);
   return (

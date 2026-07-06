@@ -242,6 +242,7 @@ export const saBackupConsciousness: ReactionDef = {
   type: 'Reaction',
   cost: 1,
   trigger: 'ownApexWouldBeDestroyed',
+  tags: ['INSTANT', 'REACTION', 'ON_APEX_WOULD_BE_DESTROYED'],
   rulesText:
     'When one of your Apexes would be destroyed: that Apex remains in play with 100 DEF. If your O2 is 2 or lower, place 1 Upgrade Counter on that Apex, then place 1 Glitch Counter on it.',
   resolve: (ctx) => {
@@ -256,6 +257,7 @@ export const saLogicDenial: NegateDef = {
   faction: F,
   type: 'Negate',
   cost: 2,
+  tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED', 'ON_EQUIP_PLAYED'],
   rulesText: 'Cancel an enemy Special, Reaction, or Equip. If this is the second card you played this turn, draw 1 card.',
   canCancel: (type) => type === 'Special' || type === 'Reaction' || type === 'Equip',
   resolve: (ctx) => {
