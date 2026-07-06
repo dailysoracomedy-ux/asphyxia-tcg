@@ -14,7 +14,11 @@ interface CardProps {
   highlight?: 'valid-target' | 'attacked' | 'locked' | null;
   footer?: React.ReactNode;
   effectiveDef?: number;
+  attackBonusPreview?: number;
 }
+
+const BOOST_GREEN = '#4ade80';
+const NERF_RED = '#f87171';
 
 export default function Card({
   instance,
@@ -26,6 +30,7 @@ export default function Card({
   highlight,
   footer,
   effectiveDef,
+  attackBonusPreview,
 }: CardProps) {
   if (faceDown) {
     return (
@@ -76,11 +81,18 @@ export default function Card({
       </div>
       <div className="flex items-center justify-between mt-0.5 opacity-80" style={{ color: theme.secondary }}>
         <span className="tracking-wider">{CARD_TYPE_LABEL[def.type]}</span>
-        {apexDef && (
-          <span className="font-mono font-bold" style={{ color: theme.secondary }}>
-            DEF {effectiveDef ?? apexDef.baseDef}
-          </span>
-        )}
+        {apexDef &&
+          (() => {
+            const shownDef = effectiveDef ?? apexDef.baseDef;
+            const defDelta = shownDef - apexDef.baseDef;
+            const defColor = defDelta > 0 ? BOOST_GREEN : defDelta < 0 ? NERF_RED : theme.secondary;
+            return (
+              <span className="font-mono font-bold" style={{ color: defColor }}>
+                DEF {shownDef}
+                {defDelta !== 0 && <span className="ml-0.5">({defDelta > 0 ? '+' : ''}{defDelta})</span>}
+              </span>
+            );
+          })()}
       </div>
 
       {'cost' in def && (
@@ -91,14 +103,22 @@ export default function Card({
 
       {apexDef && (
         <div className="mt-1 flex-1 overflow-y-auto space-y-0.5 leading-tight">
-          {apexDef.attacks.map((atk) => (
-            <div key={atk.id} className="flex justify-between gap-1 opacity-90">
-              <span className="truncate">
-                [{atk.syncCost}] {atk.name}
-              </span>
-              <span className="font-mono font-bold shrink-0">{atk.baseDamage}</span>
-            </div>
-          ))}
+          {apexDef.attacks.map((atk) => {
+            const bonus = attackBonusPreview ?? 0;
+            const shownDamage = atk.baseDamage + bonus;
+            const dmgColor = bonus > 0 ? BOOST_GREEN : bonus < 0 ? NERF_RED : undefined;
+            return (
+              <div key={atk.id} className="flex justify-between gap-1 opacity-90">
+                <span className="truncate">
+                  [{atk.syncCost}] {atk.name}
+                </span>
+                <span className="font-mono font-bold shrink-0" style={dmgColor ? { color: dmgColor } : undefined}>
+                  {shownDamage}
+                  {bonus !== 0 && <span className="ml-0.5">({bonus > 0 ? '+' : ''}{bonus})</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
 

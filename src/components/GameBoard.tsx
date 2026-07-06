@@ -12,6 +12,7 @@ import CombatControls from './CombatControls';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import { factionTheme } from '@/lib/theme';
+import { BUILD_VERSION } from '@/lib/version';
 
 type Mode =
   | { kind: 'idle' }
@@ -211,6 +212,7 @@ export default function GameBoard() {
       <div className="flex items-center justify-between text-white/50 text-xs">
         <div>
           Turn {state.turnNumber} · Phase: <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
+          <span className="text-white/20 ml-2 font-mono">{BUILD_VERSION}</span>
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">

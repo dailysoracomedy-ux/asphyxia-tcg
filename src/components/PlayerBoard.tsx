@@ -2,7 +2,7 @@
 
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { getEffectiveDef } from '@/game/rules';
+import { getEffectiveDef, getApexAttackBonusPreview } from '@/game/rules';
 import Card from './Card';
 import { factionTheme } from '@/lib/theme';
 
@@ -128,10 +128,12 @@ function ApexSlot({
     );
   }
   const effDef = getEffectiveDef(state, apex.instanceId);
+  const attackBonus = getApexAttackBonusPreview(state, apex.instanceId);
   return (
     <Card
       instance={apex}
       effectiveDef={effDef}
+      attackBonusPreview={attackBonus}
       onClick={onClick ? () => onClick(apex.instanceId) : undefined}
       highlight={apex.hasAttacked ? 'attacked' : highlight}
       disabled={disabled}

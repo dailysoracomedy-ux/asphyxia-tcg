@@ -91,6 +91,46 @@ export function getEffectiveDef(state: GameState, apexInstanceId: string): numbe
   return Math.max(0, total);
 }
 
+/**
+ * Best-effort preview of the flat damage bonus currently "loaded" on an Apex, for UI
+ * boost/nerf coloring. Combines: the apex's armed one-shot bonus (Spark-Plug, Overclock,
+ * Static Jack, Drone Choir...), any target-independent passive trait bonus (Riot Runner,
+ * Virex, Halcyon Maw), and the equipped Equip's flat damage bonus. Conditional bonuses
+ * that depend on the eventual target (e.g. Monomolecular Blade's choke check) are
+ * previewed at their base/lower value since no target is known yet - the real value at
+ * attack-declare time may be equal or higher, never lower, so this never overstates a boost.
+ * This is a read-only preview: it never mutates state, even though it borrows createHelpers.
+ */
+export function getApexAttackBonusPreview(state: GameState, apexInstanceId: string): number {
+  const hit = findApexAnywhere(state, apexInstanceId);
+  if (!hit) return 0;
+  const { apex, ownerId } = hit;
+  const def = getCardDef(apex.defId);
+  if (def.type !== 'Apex') return 0;
+
+  let bonus = apex.armedBonus ?? 0;
+  const helpers = createHelpers(state);
+  const previewCtx = {
+    helpers,
+    ownerId,
+    attackerInstanceId: apexInstanceId,
+    targetInstanceId: undefined,
+    syncCost: 0 as const,
+    baseDamage: 0,
+  };
+
+  if (def.passiveDamageBonus) {
+    bonus += def.passiveDamageBonus(previewCtx);
+  }
+  if (apex.equip) {
+    const equipDef = getCardDef(apex.equip.defId);
+    if (equipDef.type === 'Equip' && equipDef.damageBonus) {
+      bonus += equipDef.damageBonus(previewCtx);
+    }
+  }
+  return bonus;
+}
+
 export function pruneExpiredModifiers(state: GameState) {
   for (const pid of ['player1', 'player2'] as PlayerId[]) {
     for (const apex of state.players[pid].apexSlots) {
