@@ -22,7 +22,7 @@ const RIFT_DEFS: Record<RiftSpaceId, RiftSpace> = {
     id: 'EchoRiot',
     name: 'Echo Riot',
     description:
-      'The first time each turn a player loses O2 from their own card effect, they lose 1 additional O2. At the start of each player\u2019s turn, if both players have 3 or less O2, that player gains 1 Momentum.',
+      'The first time each turn a player loses O2 from their own card effect, they lose 1 additional O2. At the start of each player\u2019s turn, if both players have 6 or less O2, that player gains 1 Momentum.',
   },
   WhiteRoomCollapse: {
     id: 'WhiteRoomCollapse',

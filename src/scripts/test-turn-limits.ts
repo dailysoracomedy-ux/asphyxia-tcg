@@ -49,7 +49,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
     discard: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
-    o2: 6,
+    o2: MAX_O2,
     momentum: 0,
     availableSync: 0,
     turnFlags: freshTurnFlags(),
@@ -294,14 +294,14 @@ console.log('=== Test 10: No-Apex recovery - no Apex anywhere -> player loses ==
   check('gameOverReason mentions the no-Apex loss', !!state.gameOverReason && state.gameOverReason.includes('no Apex remaining anywhere'));
 }
 
-console.log('=== Test 11: O2 cannot exceed 6 ===');
+console.log(`=== Test 11: O2 cannot exceed MAX_O2 (${MAX_O2}) ===`);
 {
-  const state = fixtureState(fixturePlayer('player1', 'Neon Underground', { o2: 6 }), fixturePlayer('player2', 'Dark White'));
+  const state = fixtureState(fixturePlayer('player1', 'Neon Underground', { o2: MAX_O2 }), fixturePlayer('player2', 'Dark White'));
   gainO2Fn(state, 'player1', 1);
-  check('O2 stays at MAX_O2 (6) when already at max', state.players.player1.o2 === MAX_O2);
+  check(`O2 stays at MAX_O2 (${MAX_O2}) when already at max`, state.players.player1.o2 === MAX_O2);
   check('a log entry notes the player is already at max O2', state.log.some((l) => l.message.includes('already at max O2')));
 
-  const state2 = fixtureState(fixturePlayer('player1', 'Neon Underground', { o2: 5 }), fixturePlayer('player2', 'Dark White'));
+  const state2 = fixtureState(fixturePlayer('player1', 'Neon Underground', { o2: MAX_O2 - 1 }), fixturePlayer('player2', 'Dark White'));
   gainO2Fn(state2, 'player1', 3);
   check('O2 gain is clamped to MAX_O2 rather than overshooting', state2.players.player1.o2 === MAX_O2);
 }

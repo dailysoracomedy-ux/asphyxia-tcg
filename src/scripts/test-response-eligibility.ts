@@ -1,7 +1,7 @@
 /* Targeted verification tests for the Engine Tag System / getEligibleResponses helper,
    per the 9 scenarios requested. Uses small hand-built state fixtures for the pure
    eligibility checks (1-7) and the real store for the structural checks (8-9). */
-import { getEligibleResponses } from '../game/rules';
+import { getEligibleResponses, MAX_O2 } from '../game/rules';
 import { getCardDef } from '../data/cards';
 import { createInstance } from '../data/decks';
 import { useGameStore } from '../store/gameStore';
@@ -28,7 +28,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
     discard: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
-    o2: 6,
+    o2: MAX_O2,
     momentum: 0,
     availableSync: 0,
     turnFlags: {

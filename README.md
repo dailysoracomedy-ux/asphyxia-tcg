@@ -154,13 +154,36 @@ text were updated together so the UI stays accurate. New regression test:
 boundary for four of the five rescaled thresholds - triggering at the new value,
 not triggering one point above it.
 
+**Follow-up playtest report ("still behaving like the old 6 O2 / 200 damage
+system"):** directly verified against this exact code with fresh scripted scenarios
+matching the report - 600 damage into 400 DEF correctly loses 2 O2, 400 into 300 DEF
+correctly loses 1 O2, and a fresh game correctly starts at 12 O2. All three already
+matched the reported *expected* behavior, meaning the deployment being tested predates
+this rebalance (same root cause as the earlier "2 Supports per turn" report - the fix
+was in the code but not yet the live deployment). **Redeploy this zip to fix it.**
+
+That said, this report did surface one genuine remaining bug while checking the exact
+math: Apex Break Reward was checking the *final, post-reduction* O2 loss to decide
+whether to fire, so if Emergency Authority absorbed an overflow's O2 loss all the way
+to 0, the reward incorrectly fired anyway (overflow genuinely happened; a Reaction
+just prevented its cost afterward - not a clean break). Fixed by tracking the
+mechanical fact that overflow occurred separately from the final applied loss, and
+the log now explicitly says *"Apex Break Reward does not trigger - overflow damage
+was prevented by a Reaction"* in that case, rather than silently doing nothing or
+misfiring. Two new tests in `test-apex-break-reward.ts` lock this in, including the
+exact scenario from the report (Riot Runner's Mob Charge into Pale Executioner: 400
+damage vs 300 DEF → destroyed, 100 overflow, exactly 1 O2 lost, no reward).
+
 ## Verifying it yourself
 
-`npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (22 checks)
-for the 6 required scenarios: exact-lethal grants the reward, overflow O2 damage
-denies it, non-lethal damage denies it, Backup Consciousness prevention denies it,
-direct attacks never trigger it, and non-attack destruction (calling `destroyApexFn`
-directly) never triggers it either.
+`npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (33 checks)
+for the 6 original required scenarios (exact-lethal grants the reward, overflow O2
+damage denies it, non-lethal damage denies it, Backup Consciousness prevention denies
+it, direct attacks never trigger it, non-attack destruction never triggers it) plus 2
+follow-up scenarios: Emergency Authority absorbing overflow's O2 loss to exactly 0
+still denies the reward, and the exact reported scenario (Riot Runner's Mob Charge
+into Pale Executioner - 400 into 300 DEF, destroyed, 100 overflow, exactly 1 O2 lost,
+no reward).
 
 `npx tsx src/scripts/simulate.ts` runs 72 full randomized games across every faction
 matchup (so every Rift Space gets exercised), driving the real store end-to-end

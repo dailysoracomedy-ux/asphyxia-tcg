@@ -52,7 +52,7 @@ export default function PlayerBoard({
           {state.firstPlayerId === playerId && <span className="text-[10px] text-white/40">(went first)</span>}
         </div>
         <div className="flex items-center gap-3 text-xs font-mono">
-          <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 2} />
+          <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 4} />
           <Stat label="MOM" value={player.momentum} colorClass="text-yellow-300" />
           <Stat label="DECK" value={player.deck.length} colorClass="text-white/50" />
           <Stat label="DISC" value={player.discard.length} colorClass="text-white/50" />

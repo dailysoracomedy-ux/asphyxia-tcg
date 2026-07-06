@@ -2,7 +2,7 @@
    actions to shake out runtime crashes and check core invariants. Not a UI test. */
 import { useGameStore } from '../store/gameStore';
 import { getCardDef } from '../data/cards';
-import { getEligibleResponses } from '../game/rules';
+import { getEligibleResponses, MAX_O2 } from '../game/rules';
 import type { Faction, GameState, PendingResponseItem, PlayerId, ResponseEvent } from '../types/game';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
@@ -237,7 +237,7 @@ function assertSaneNumbers(label: string) {
   for (const pid of ['player1', 'player2'] as PlayerId[]) {
     const p = s.players[pid];
     if (!Number.isFinite(p.o2) || p.o2 < 0) throw new Error(`${label}: ${pid} has invalid O2 = ${p.o2}`);
-    if (p.o2 > 6) throw new Error(`${label}: ${pid} has O2 above the 6 cap = ${p.o2}`);
+    if (p.o2 > MAX_O2) throw new Error(`${label}: ${pid} has O2 above the ${MAX_O2} cap = ${p.o2}`);
     if (!Number.isFinite(p.momentum) || p.momentum < 0) throw new Error(`${label}: ${pid} has invalid Momentum = ${p.momentum}`);
     if (!Number.isFinite(p.availableSync) || p.availableSync < 0) throw new Error(`${label}: ${pid} has invalid Sync = ${p.availableSync}`);
     if (p.turnFlags.specialsPlayedThisTurn > 1) throw new Error(`${label}: ${pid} played more than 1 Special this turn`);

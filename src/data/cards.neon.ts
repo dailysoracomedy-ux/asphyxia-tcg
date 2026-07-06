@@ -96,8 +96,8 @@ export const nuRiotRunner: ApexDef = {
       name: 'Last Breath Rush',
       syncCost: 3,
       baseDamage: 700,
-      description: '700 damage. If your O2 is 2 or lower, this attack deals +100 damage.',
-      bonusDamage: (ctx) => (ctx.helpers.getPlayer(ctx.ownerId).o2 <= 2 ? 100 : 0),
+      description: '700 damage. If your O2 is 4 or lower, this attack deals +100 damage.',
+      bonusDamage: (ctx) => (ctx.helpers.getPlayer(ctx.ownerId).o2 <= 4 ? 100 : 0),
     },
   ],
   passiveDamageBonus: (ctx) => {
@@ -218,11 +218,11 @@ export const nuNoGodsInTheGutters: SpecialDef = {
   faction: F,
   type: 'Special',
   rulesText:
-    'Draw 1 card. If your O2 is 2 or lower, gain 1 Momentum and your next Apex attack this turn deals +200 damage.',
+    'Draw 1 card. If your O2 is 4 or lower, gain 1 Momentum and your next Apex attack this turn deals +200 damage.',
   resolve: (ctx) => {
     ctx.helpers.drawCards(ctx.ownerId, 1);
     const p = ctx.helpers.getPlayer(ctx.ownerId);
-    if (p.o2 <= 2) {
+    if (p.o2 <= 4) {
       ctx.helpers.gainMomentum(ctx.ownerId, 1);
       const state = ctx.helpers.getState();
       state.players[ctx.ownerId].pendingAttackBonus += 200;

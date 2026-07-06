@@ -185,7 +185,7 @@ function runStartPhase(draft: GameState) {
         }
         break;
       case 'EchoRiot':
-        if (player.o2 <= 3 && opp.o2 <= 3) {
+        if (player.o2 <= 6 && opp.o2 <= 6) {
           gainMomentumFn(draft, playerId, 1);
           logMsg(draft, 'Echo Riot grants Momentum - both players are critical on O2.', 'rift');
         }
@@ -506,7 +506,7 @@ function applyO2LossFinal(draft: GameState, o2trigger: O2DamageTriggerData, redu
     syncCost: 0,
     totalDamage: 0,
   };
-  finalizeAttackEffects(draft, trigger, o2trigger.destroyedTarget, finalAmount > 0);
+  finalizeAttackEffects(draft, trigger, o2trigger.destroyedTarget, finalAmount > 0, o2trigger.isOverflow);
 }
 
 function finishDestroyDecision(draft: GameState, trigger: DestroyTriggerData, prevented: boolean, survivorDef = 100) {
@@ -517,7 +517,7 @@ function finishDestroyDecision(draft: GameState, trigger: DestroyTriggerData, pr
     apexHit.apex.survivorDefOverride = survivorDef;
     logMsg(draft, `${getCardDef(apexHit.apex.defId).name} survives at ${survivorDef} DEF (Backup Consciousness)!`, 'response');
     const owner = draft.players[trigger.ownerId];
-    if (owner.o2 <= 2) {
+    if (owner.o2 <= 4) {
       addCounterFn(draft, trigger.apexInstanceId, 'upgrade', 1);
       addCounterFn(draft, trigger.apexInstanceId, 'glitch', 1);
     }
@@ -556,7 +556,8 @@ function finalizeAttackEffects(
   draft: GameState,
   trigger: AttackTriggerData,
   destroyedTarget: boolean,
-  dealtO2Damage: boolean
+  dealtO2Damage: boolean,
+  hadOverflowDamage: boolean = dealtO2Damage
 ) {
   const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
   const helpers = createHelpers(draft);
@@ -598,16 +599,27 @@ function finalizeAttackEffects(
     }
   }
 
-  // Apex Break Reward: destroying an enemy Apex with an attack that dealt exactly 0 O2
-  // damage (no overflow got through) rewards the attacker with 1 Momentum. This function
-  // is only ever called as the terminal step of the attack-resolution pipeline, so this
-  // naturally excludes direct attacks (destroyedTarget is always false for those),
-  // non-attack destruction effects (they never route through here), and destructions
-  // that were prevented (Backup Consciousness passes destroyedTarget=false).
-  if (destroyedTarget && !dealtO2Damage && trigger.targetInstanceId) {
-    logMsg(draft, 'No O2 damage was dealt.', 'o2');
-    helpers.gainMomentum(trigger.attackerId, 1);
-    logMsg(draft, `${trigger.attackerId} gains 1 Momentum from Apex Break Reward.`, 'momentum');
+  // Apex Break Reward: destroying an enemy Apex with an attack that had exactly 0
+  // overflow damage (a "clean break") rewards the attacker with 1 Momentum. This
+  // function is only ever called as the terminal step of the attack-resolution
+  // pipeline, so this naturally excludes direct attacks (destroyedTarget is always
+  // false for those), non-attack destruction effects (they never route through here),
+  // and destructions that were prevented (Backup Consciousness passes destroyedTarget=false).
+  //
+  // Uses hadOverflowDamage (the mechanical fact that overflow occurred), not
+  // dealtO2Damage (the final post-reduction amount) - if a Reaction like Emergency
+  // Authority absorbs the overflow's O2 loss all the way down to 0, that still isn't a
+  // clean break: overflow damage genuinely happened, a Reaction just prevented its cost.
+  if (destroyedTarget && trigger.targetInstanceId) {
+    if (!dealtO2Damage) {
+      logMsg(draft, 'No O2 damage was dealt.', 'o2');
+    }
+    if (!hadOverflowDamage) {
+      helpers.gainMomentum(trigger.attackerId, 1);
+      logMsg(draft, `${trigger.attackerId} gains 1 Momentum from Apex Break Reward.`, 'momentum');
+    } else if (!dealtO2Damage) {
+      logMsg(draft, 'Apex Break Reward does not trigger - overflow damage was prevented by a Reaction.', 'momentum');
+    }
   }
 
   logMsg(draft, 'Attack fully resolved.', 'attack');
@@ -648,7 +660,7 @@ function applyChosenReactionAndContinue(
   if (trigger.kind === 'opponentAttackDealsO2Damage') {
     if (reactionDef.id === 'dw-emergency-authority') {
       const defender = draft.players[reactionOwnerId];
-      if (defender.o2 <= 2) {
+      if (defender.o2 <= 4) {
         addCounterFn(draft, trigger.attackerInstanceId, 'choke', 1, reactionOwnerId);
       }
     }

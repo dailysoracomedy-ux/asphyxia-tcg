@@ -244,7 +244,7 @@ export const saBackupConsciousness: ReactionDef = {
   trigger: 'ownApexWouldBeDestroyed',
   tags: ['INSTANT', 'REACTION', 'ON_APEX_WOULD_BE_DESTROYED'],
   rulesText:
-    'When one of your Apexes would be destroyed: that Apex remains in play with 100 DEF. If your O2 is 2 or lower, place 1 Upgrade Counter on that Apex, then place 1 Glitch Counter on it.',
+    'When one of your Apexes would be destroyed: that Apex remains in play with 100 DEF. If your O2 is 4 or lower, place 1 Upgrade Counter on that Apex, then place 1 Glitch Counter on it.',
   resolve: (ctx) => {
     ctx.helpers.log('Backup Consciousness reboots the Apex at 100 DEF.', 'response');
     return { preventDestruction: true, survivorDef: 100 };

@@ -12,11 +12,18 @@ import { RESPONSE_EVENT_TAG } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 
 export const MAX_SYNC = 3;
-export const OVERFLOW_O2_DIVISOR = 200;
-export const DIRECT_O2_DIVISOR = 200;
-export const DIRECT_O2_CAP_PER_TURN = 2;
-export const STARTING_O2 = 6;
-export const MAX_O2 = 6;
+// Rebalanced per request: 100 damage = 1 O2 loss (was 200), with the total O2 pool
+// doubled to 12 (was 6) so the overall damage-to-kill budget stays the same
+// (6 * 200 = 1200 == 12 * 100 = 1200) - just at twice the resolution, so smaller
+// overflow amounts (like 100) actually register instead of rounding down to 0.
+// The direct-attack cap is scaled proportionally too (2 -> 4) so direct attacks
+// keep the same effective per-turn damage ceiling (2 * 200 == 4 * 100 = 400) rather
+// than being silently nerfed by the finer granularity.
+export const OVERFLOW_O2_DIVISOR = 100;
+export const DIRECT_O2_DIVISOR = 100;
+export const DIRECT_O2_CAP_PER_TURN = 4;
+export const STARTING_O2 = 12;
+export const MAX_O2 = 12;
 export const STARTING_HAND_SIZE = 5;
 export const DECK_SIZE_TARGET = 30;
 export const MAX_ABILITY_SUPPORTS = 2;

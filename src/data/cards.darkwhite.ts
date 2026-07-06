@@ -274,7 +274,7 @@ export const dwEmergencyAuthority: ReactionDef = {
   trigger: 'opponentAttackDealsO2Damage',
   tags: ['INSTANT', 'REACTION', 'ON_O2_DAMAGE'],
   rulesText:
-    'When your opponent\u2019s attack would deal O2 damage: reduce that O2 damage by 1. If your O2 is 2 or lower, place 1 Choke Counter on the attacking Apex.',
+    'When your opponent\u2019s attack would deal O2 damage: reduce that O2 damage by 1. If your O2 is 4 or lower, place 1 Choke Counter on the attacking Apex.',
   resolve: (ctx) => {
     ctx.helpers.log('Emergency Authority softens the O2 damage.', 'response');
     return { o2Reduction: 1 };
