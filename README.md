@@ -248,7 +248,76 @@ Board card attack numbers now show `base → current` (e.g. `600 → 500`) whene
 modified, colored green/red, with the same modifier breakdown shown in the selector
 and the combat log - all three read from the identical calculation.
 
+## Major design correction: Apex traits removed, all 6 Rift Spaces rewritten
+
+**Apex cards are now clean combat units: name, faction, DEF, and 4 attacks - nothing
+else.** Every Apex-level passive trait was removed:
+
+| Apex | Trait removed |
+|---|---|
+| Street-Beast | Draw 1 card on Apex kill |
+| Static Jack | +100 ATK after first Special (was hardcoded in `gameStore.ts`, not even in card data) |
+| Alley Wraith | Pay 1 Momentum to cancel a Reaction targeting it once/turn |
+| Riot Runner | +100 ATK while behind on O2 |
+| Overseer Prime | Choke Counter on an enemy Apex on entry |
+| Enforcer-V4 | +100 DEF with 2+ Supports |
+| Glass Warden | -100 damage taken from 0-Sync attacks |
+| Pale Executioner | +1 Momentum on attacking a Choked target |
+| Model-00 "Crown" | +1 Momentum on entry if you control a Support |
+| Chrome Seraph | (its rulesText described a 2nd-card bonus, but no code ever implemented it - flavor-only, same as it always was) |
+| Virex | Upgrade Counter + scaling damage on Apex kill |
+| Halcyon Maw | +100 ATK at 2+ Momentum |
+
+Each attack's **own** printed conditional text was deliberately kept (e.g. Last Breath
+Rush's "if your O2 is 4 or lower, +100 damage" is that attack's own clause, not a
+blanket Apex-wide trait) - only the separate, apex-level passive hooks
+(`onEnterPlay`, `passiveDamageBonus`, `passiveDefBonus`, `incomingDamageReduction`,
+`onAttackTargetWithChoke`, `onDestroyEnemyApex`) were stripped. Every Apex's
+`rulesText` is now `''`, and Alley Wraith's whole cancel-a-Reaction mechanic (its own
+response-queue stage, UI prompt, and hardcoded engine hook) was removed end to end
+rather than left dead in the codebase.
+
+**All 6 Rift Spaces were rewritten:**
+
+- **Civil War** (Neon/Dark White): unchanged start-of-turn Momentum-while-trailing
+  check, **plus new**: destroying an enemy Apex while behind on O2 arms +100 damage
+  for your next attack this turn (once per turn).
+- **Human Error** (Neon/Synth): same first-Special choice (Momentum or +100 next
+  attack) - but fixed a real ordering bug where the choice used to fire *before* the
+  negate window even opened, meaning a negated Special still granted the bonus. The
+  trigger now lives at the two actual "Special genuinely resolved" points instead of
+  right after the card is played.
+- **Control Conflict** (Dark White/Synth): locking a Support now actually grants 1
+  Momentum (previously it didn't), and locked Supports can no longer be returned by
+  Reconfigure (previously they could be, silently bypassing the lock).
+- **Echo Riot** (Neon mirror): completely reworked from a punishment (“self O2 loss
+  deals +1 more O2”) into two rewards - self-inflicted O2 loss now grants 1 Momentum,
+  and Apex Break Reward grants +2 Momentum instead of +1 when both players are at 6
+  O2 or lower.
+- **White Room Collapse** (Dark White mirror): completely reworked from a punishment
+  (discard/Momentum/O2 cost on placing Choke) into a reward - placing the first Choke
+  Counter on an enemy Apex each turn now grants 1 Momentum, plus a new end-of-turn
+  cleanup removing 1 Choke Counter from any Apex (either side) sitting at 3 or more.
+- **Recursive Failure** (Synth mirror): retargeted from "first Momentum gain from a
+  card effect" (which fired off *any* Momentum source, including Rift/reward effects
+  never intended to trigger it) to specifically "playing your second voluntary card
+  this turn," which now grants Momentum then places the Glitch Counter, in that order.
+  End-of-turn Glitch removal logic (already correct) is unchanged.
+
+All Momentum gains still funnel through the single `gainMomentumFn` and respect the
+3-cap automatically - no rift needed its own capping logic.
+
 ## Verifying it yourself
+
+`npx tsx src/scripts/test-trait-removal-and-rifts.ts` is a targeted test suite (52
+checks) covering this whole patch: every removed Apex trait no longer affects
+gameplay, unchained Ability Supports provide Sync but never trigger their Sync
+Ability, and all 6 rewritten Rift Spaces work as specified - including Human Error
+correctly skipping the bonus for a negated Special, Control Conflict's lock
+correctly blocking Reconfigure, Echo Riot's new Momentum-reward mechanics, White
+Room Collapse's new Momentum-on-Choke and end-of-turn cleanup, and Recursive
+Failure's retargeted second-voluntary-card trigger (verified to ignore forced
+No-Apex recovery, since that path never touches `cardsPlayedThisTurn` at all).
 
 `npx tsx src/scripts/test-combat-damage-patch.ts` is a targeted test suite (36 checks)
 covering this patch, most importantly the Ability Support `chainedApexId` bug fix

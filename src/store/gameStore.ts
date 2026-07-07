@@ -61,9 +61,7 @@ export type ResponseChoice =
   | { type: 'pass' }
   | { type: 'reaction'; cardInstanceId: string }
   | { type: 'negate'; cardInstanceId: string }
-  | { type: 'humanError'; pick: 'momentum' | 'damage' }
-  | { type: 'alleyWraithCancel' }
-  | { type: 'alleyWraithDecline' };
+  | { type: 'humanError'; pick: 'momentum' | 'damage' };
 
 function freshPlayer(id: PlayerId, faction: Faction): PlayerState {
   return {
@@ -174,7 +172,7 @@ function runStartPhase(draft: GameState) {
       case 'CivilWar':
         if (player.o2 < opp.o2) {
           gainMomentumFn(draft, playerId, 1);
-          logMsg(draft, 'Civil War grants Momentum for trailing on O2.', 'rift');
+          logMsg(draft, `Civil War grants ${playerId} 1 Momentum.`, 'rift');
         }
         break;
       case 'ControlConflict':
@@ -183,12 +181,6 @@ function runStartPhase(draft: GameState) {
           if (support) support.lockedByControlConflict = false;
           player.lockedSupportInstanceId = null;
           logMsg(draft, 'Control Conflict unlocks the previously locked Support.', 'rift');
-        }
-        break;
-      case 'EchoRiot':
-        if (player.o2 <= 6 && opp.o2 <= 6) {
-          gainMomentumFn(draft, playerId, 1);
-          logMsg(draft, 'Echo Riot grants Momentum - both players are critical on O2.', 'rift');
         }
         break;
       default:
@@ -203,7 +195,6 @@ function runStartPhase(draft: GameState) {
   for (const apex of player.apexSlots) {
     if (!apex) continue;
     apex.hasAttacked = false;
-    apex.traitUsedThisTurn = false;
     if (apex.attackLockedForTurn !== null && apex.attackLockedForTurn !== undefined && apex.attackLockedForTurn < draft.turnNumber) {
       apex.attackLockedForTurn = null;
     }
@@ -213,6 +204,33 @@ function runStartPhase(draft: GameState) {
   player.availableSync = 0;
 
   draft.startPhasePending = false;
+}
+
+function maybeTriggerHumanErrorChoice(draft: GameState, playerId: PlayerId) {
+  // Human Error rift: only offered when a Special actually resolves - i.e. after any
+  // negate window has already been checked/resolved and the Special was NOT negated.
+  // Called from both the "no negate window opened" path and the "negate window
+  // resolved with a pass" path, so a negated Special never reaches this at all.
+  if (draft.riftSpace?.id !== 'HumanError') return;
+  const player = draft.players[playerId];
+  if (player.turnFlags.specialsPlayedThisTurn !== 1) return;
+  draft.pendingResponseQueue.push({ id: newId('he'), stage: 'humanErrorChoice', playerId });
+}
+
+function maybeTriggerRecursiveFailureSecondCard(draft: GameState, playerId: PlayerId) {
+  if (draft.riftSpace?.id !== 'RecursiveFailure') return;
+  const player = draft.players[playerId];
+  if (player.turnFlags.cardsPlayedThisTurn !== 2) return;
+  if (player.turnFlags.recursiveGlitchPlacedThisTurn) return;
+  player.turnFlags.recursiveGlitchPlacedThisTurn = true;
+  gainMomentumFn(draft, playerId, 1);
+  const targetApex = player.apexSlots.find(Boolean);
+  if (targetApex) {
+    addCounterFn(draft, targetApex.instanceId, 'glitch', 1, playerId);
+    logMsg(draft, `Recursive Failure places 1 Glitch Counter on ${getCardDef(targetApex.defId).name}.`, 'rift');
+  } else {
+    logMsg(draft, `Recursive Failure would place a Glitch Counter, but ${playerId} controls no Apex.`, 'rift');
+  }
 }
 
 function runEndPhase(draft: GameState) {
@@ -247,6 +265,17 @@ function runEndPhase(draft: GameState) {
     if (candidate && candidate.counters && candidate.counters.glitch > 0) {
       candidate.counters.glitch -= 1;
       logMsg(draft, `Recursive Failure lets ${getCardDef(candidate.defId).name} shed a Glitch Counter.`, 'rift');
+    }
+  }
+
+  if (draft.riftSpace?.id === 'WhiteRoomCollapse') {
+    for (const pid of ['player1', 'player2'] as const) {
+      for (const apex of draft.players[pid].apexSlots) {
+        if (apex && (apex.counters?.choke ?? 0) >= 3) {
+          apex.counters!.choke -= 1;
+          logMsg(draft, `White Room Collapse removes 1 Choke Counter from ${getCardDef(apex.defId).name}.`, 'rift');
+        }
+      }
     }
   }
 }
@@ -560,66 +589,96 @@ function finalizeAttackEffects(
   dealtO2Damage: boolean,
   hadOverflowDamage: boolean = dealtO2Damage
 ) {
-  const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
-  const helpers = createHelpers(draft);
+  // If this attack's O2 loss (applied just before this function runs) already ended the
+  // game, stop here: no further onResolve/Overclock/Sync Ability/Apex Break Reward
+  // triggers should fire once a winner has been declared (e.g. Oxygen Siphon should not
+  // heal O2 back for the winner after the loser has already hit 0).
+  const gameAlreadyOver = draft.status === 'gameover';
 
-  if (attackerHit) {
-    const apexDef = getCardDef(attackerHit.apex.defId) as ApexDef;
-    const attackDef = apexDef.attacks.find((a) => a.id === trigger.attackDefId);
-    const ctx = {
-      helpers,
-      ownerId: trigger.attackerId,
-      attackerInstanceId: trigger.attackerInstanceId,
-      targetInstanceId: trigger.targetInstanceId,
-      syncCost: trigger.syncCost,
-      baseDamage: attackDef?.baseDamage ?? 0,
-      destroyedTarget,
-      dealtO2Damage,
-    };
+  if (!gameAlreadyOver) {
+    const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
+    const helpers = createHelpers(draft);
 
-    if (attackDef?.onResolve) attackDef.onResolve(ctx);
+    if (attackerHit) {
+      const apexDef = getCardDef(attackerHit.apex.defId) as ApexDef;
+      const attackDef = apexDef.attacks.find((a) => a.id === trigger.attackDefId);
+      const ctx = {
+        helpers,
+        ownerId: trigger.attackerId,
+        attackerInstanceId: trigger.attackerInstanceId,
+        targetInstanceId: trigger.targetInstanceId,
+        syncCost: trigger.syncCost,
+        baseDamage: attackDef?.baseDamage ?? 0,
+        destroyedTarget,
+        dealtO2Damage,
+      };
 
-    if (attackerHit.apex.armedBonusIsOverclock) {
-      attackerHit.apex.armedBonusIsOverclock = false;
-      helpers.loseO2(trigger.attackerId, dealtO2Damage ? 1 : 2, { fromOwnEffect: true });
-      logMsg(draft, 'Overclock burns O2 as its damage resolves.', 'o2');
-    }
+      if (attackDef?.onResolve) attackDef.onResolve(ctx);
 
-    const player = draft.players[trigger.attackerId];
-    for (const support of player.supportSlots) {
-      if (!support || support.type !== 'AbilitySupport') continue;
-      if (support.chainedApexId !== trigger.attackerInstanceId) continue;
-      if (support.lockedByControlConflict) continue;
-      if (support.enteredViaReconfigureTurn === draft.turnNumber) continue;
-      const supportDef = getCardDef(support.defId) as AbilitySupportDef;
-      supportDef.syncAbility({ ...ctx, chainedApexId: trigger.attackerInstanceId });
-      if (support.defId === 'sa-drone-choir' && apexDef.faction === 'Synth Ascendancy') {
-        helpers.armAttackBonus(trigger.attackerInstanceId, 100);
+      if (attackerHit.apex.armedBonusIsOverclock) {
+        attackerHit.apex.armedBonusIsOverclock = false;
+        helpers.loseO2(trigger.attackerId, dealtO2Damage ? 1 : 2, { fromOwnEffect: true });
+        logMsg(draft, 'Overclock burns O2 as its damage resolves.', 'o2');
       }
-      logMsg(draft, `${supportDef.name}'s Sync Ability triggers.`, 'support');
-    }
-  }
 
-  // Apex Break Reward: destroying an enemy Apex with an attack that had exactly 0
-  // overflow damage (a "clean break") rewards the attacker with 1 Momentum. This
-  // function is only ever called as the terminal step of the attack-resolution
-  // pipeline, so this naturally excludes direct attacks (destroyedTarget is always
-  // false for those), non-attack destruction effects (they never route through here),
-  // and destructions that were prevented (Backup Consciousness passes destroyedTarget=false).
-  //
-  // Uses hadOverflowDamage (the mechanical fact that overflow occurred), not
-  // dealtO2Damage (the final post-reduction amount) - if a Reaction like Emergency
-  // Authority absorbs the overflow's O2 loss all the way down to 0, that still isn't a
-  // clean break: overflow damage genuinely happened, a Reaction just prevented its cost.
-  if (destroyedTarget && trigger.targetInstanceId) {
-    if (!dealtO2Damage) {
-      logMsg(draft, 'No O2 damage was dealt.', 'o2');
+      const player = draft.players[trigger.attackerId];
+      for (const support of player.supportSlots) {
+        if (!support || support.type !== 'AbilitySupport') continue;
+        if (support.chainedApexId !== trigger.attackerInstanceId) continue;
+        if (support.lockedByControlConflict) continue;
+        if (support.enteredViaReconfigureTurn === draft.turnNumber) continue;
+        const supportDef = getCardDef(support.defId) as AbilitySupportDef;
+        supportDef.syncAbility({ ...ctx, chainedApexId: trigger.attackerInstanceId });
+        if (support.defId === 'sa-drone-choir' && apexDef.faction === 'Synth Ascendancy') {
+          helpers.armAttackBonus(trigger.attackerInstanceId, 100);
+        }
+        logMsg(draft, `${supportDef.name}'s Sync Ability triggers.`, 'support');
+      }
     }
-    if (!hadOverflowDamage) {
-      helpers.gainMomentum(trigger.attackerId, 1);
-      logMsg(draft, `${trigger.attackerId} gains 1 Momentum from Apex Break Reward.`, 'momentum');
-    } else if (!dealtO2Damage) {
-      logMsg(draft, 'Apex Break Reward does not trigger - overflow damage was prevented by a Reaction.', 'momentum');
+
+    // Apex Break Reward: destroying an enemy Apex with an attack that had exactly 0
+    // overflow damage (a "clean break") rewards the attacker with 1 Momentum. This
+    // function is only ever called as the terminal step of the attack-resolution
+    // pipeline, so this naturally excludes direct attacks (destroyedTarget is always
+    // false for those), non-attack destruction effects (they never route through here),
+    // and destructions that were prevented (Backup Consciousness passes destroyedTarget=false).
+    //
+    // Uses hadOverflowDamage (the mechanical fact that overflow occurred), not
+    // dealtO2Damage (the final post-reduction amount) - if a Reaction like Emergency
+    // Authority absorbs the overflow's O2 loss all the way down to 0, that still isn't a
+    // clean break: overflow damage genuinely happened, a Reaction just prevented its cost.
+    if (destroyedTarget && trigger.targetInstanceId) {
+      if (!dealtO2Damage) {
+        logMsg(draft, 'No O2 damage was dealt.', 'o2');
+      }
+      if (!hadOverflowDamage) {
+        const opponentId = otherPlayer(trigger.attackerId);
+        const echoRiotBoost =
+          draft.riftSpace?.id === 'EchoRiot' && draft.players[trigger.attackerId].o2 <= 6 && draft.players[opponentId].o2 <= 6;
+        const rewardAmount = echoRiotBoost ? 2 : 1;
+        helpers.gainMomentum(trigger.attackerId, rewardAmount);
+        if (echoRiotBoost) {
+          logMsg(draft, `Echo Riot increases Apex Break Reward to +2 Momentum for ${trigger.attackerId}.`, 'rift');
+        } else {
+          logMsg(draft, `${trigger.attackerId} gains 1 Momentum from Apex Break Reward.`, 'momentum');
+        }
+      } else if (!dealtO2Damage) {
+        logMsg(draft, 'Apex Break Reward does not trigger - overflow damage was prevented by a Reaction.', 'momentum');
+      }
+    }
+
+    // Civil War rift: once per turn, destroying an enemy Apex while behind on O2 arms
+    // +100 damage for the attacker's next attack this turn.
+    if (destroyedTarget && draft.riftSpace?.id === 'CivilWar') {
+      const attackerPlayer = draft.players[trigger.attackerId];
+      if (!attackerPlayer.turnFlags.civilWarBonusArmedThisTurn) {
+        const opponentId = otherPlayer(trigger.attackerId);
+        if (attackerPlayer.o2 < draft.players[opponentId].o2) {
+          attackerPlayer.turnFlags.civilWarBonusArmedThisTurn = true;
+          attackerPlayer.pendingAttackBonus += 100;
+          logMsg(draft, `Civil War arms +100 damage for ${trigger.attackerId}'s next attack this turn.`, 'rift');
+        }
+      }
     }
   }
 
@@ -703,6 +762,7 @@ interface GameStore extends GameState {
   playEquipCard: (cardInstanceId: string, apexInstanceId: string) => void;
   playSpecialCard: (cardInstanceId: string, targetApexInstanceId?: string) => void;
   reconfigure: (returnInstanceId: string, playInstanceId?: string, chainedApexId?: string) => void;
+  chainSupport: (supportInstanceId: string, apexInstanceId: string) => void;
   declareAttack: (attackerInstanceId: string, attackId: string, targetInstanceId?: string) => void;
   resolveResponse: (choice: ResponseChoice) => void;
   lockSupportControlConflict: (supportInstanceId: string) => void;
@@ -855,6 +915,7 @@ export const useGameStore = create<GameStore>((set) => ({
         def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: card.instanceId });
       }
       logMsg(draft, `${playerId} plays ${def.name} into Apex Slot ${targetSlot + 1}.`, 'play');
+      maybeTriggerRecursiveFailureSecondCard(draft, playerId);
     }),
 
   playSupportCard: (cardInstanceId, slotIndex, chainedApexId) =>
@@ -878,13 +939,18 @@ export const useGameStore = create<GameStore>((set) => ({
           logMsg(draft, 'Cannot control more than 2 Ability Supports.', 'info');
           return;
         }
-        if (!chainedApexId || !player.apexSlots.some((a) => a?.instanceId === chainedApexId)) {
-          logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
-          return;
-        }
-        if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
-          logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
-          return;
+        // Chaining is now optional: an Ability Support can be played unchained/vanilla as a
+        // pure +1 Sync source (e.g. no legal chain target, or the player simply doesn't want
+        // to commit it yet). Only validate the target if one was actually provided.
+        if (chainedApexId) {
+          if (!player.apexSlots.some((a) => a?.instanceId === chainedApexId)) {
+            logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
+            return;
+          }
+          if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
+            logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
+            return;
+          }
         }
       }
 
@@ -895,12 +961,14 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       player.hand.splice(idx, 1);
-      card.chainedApexId = card.type === 'AbilitySupport' ? chainedApexId! : null;
+      card.chainedApexId = card.type === 'AbilitySupport' ? chainedApexId ?? null : null;
       player.supportSlots[targetSlot] = card;
       player.turnFlags.cardsPlayedThisTurn += 1;
       player.turnFlags.supportsPlayedThisTurn += 1;
       const def = getCardDef(card.defId);
-      logMsg(draft, `${playerId} plays ${def.name} into Support Slot ${targetSlot + 1}.`, 'play');
+      const chainSuffix = card.type === 'AbilitySupport' ? (card.chainedApexId ? ' (chained)' : ' (unchained)') : '';
+      logMsg(draft, `${playerId} plays ${def.name} into Support Slot ${targetSlot + 1}${chainSuffix}.`, 'play');
+      maybeTriggerRecursiveFailureSecondCard(draft, playerId);
     }),
 
   playEquipCard: (cardInstanceId, apexInstanceId) =>
@@ -926,6 +994,7 @@ export const useGameStore = create<GameStore>((set) => ({
       const negatingPlayerId = otherPlayer(playerId);
 
       logMsg(draft, `${playerId} plays ${def.name}.`, 'play');
+      maybeTriggerRecursiveFailureSecondCard(draft, playerId);
       const opened = maybeOpenResponseWindow(
         draft,
         negatingPlayerId,
@@ -992,20 +1061,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.cardsPlayedThisTurn += 1;
       player.turnFlags.specialsPlayedThisTurn += 1;
       logMsg(draft, `${playerId} plays ${def.name}.`, 'play');
-
-      const isFirstSpecialThisTurn = player.turnFlags.specialsPlayedThisTurn === 1;
-      if (isFirstSpecialThisTurn) {
-        for (const apex of player.apexSlots) {
-          if (apex && apex.defId === 'nu-static-jack') {
-            const helpers = createHelpers(draft);
-            helpers.armAttackBonus(apex.instanceId, 100);
-            logMsg(draft, 'Static Jack primes +100 damage from its first Special this turn.', 'support');
-          }
-        }
-        if (draft.riftSpace?.id === 'HumanError') {
-          draft.pendingResponseQueue.push({ id: newId('he'), stage: 'humanErrorChoice', playerId });
-        }
-      }
+      maybeTriggerRecursiveFailureSecondCard(draft, playerId);
 
       const negatingPlayerId = otherPlayer(playerId);
       const opened = maybeOpenResponseWindow(
@@ -1034,6 +1090,7 @@ export const useGameStore = create<GameStore>((set) => ({
       if (opened) return;
 
       def.resolve({ helpers: createHelpers(draft), ownerId: playerId, targetApexInstanceId });
+      maybeTriggerHumanErrorChoice(draft, playerId);
     }),
 
   reconfigure: (returnInstanceId, playInstanceId, chainedApexId) =>
@@ -1048,6 +1105,10 @@ export const useGameStore = create<GameStore>((set) => ({
       const slotIdx = player.supportSlots.findIndex((s) => s?.instanceId === returnInstanceId);
       if (slotIdx === -1) return;
       const returned = player.supportSlots[slotIdx]!;
+      if (returned.lockedByControlConflict) {
+        logMsg(draft, `${getCardDef(returned.defId).name} is locked by Control Conflict and cannot be Reconfigured.`, 'info');
+        return;
+      }
       player.supportSlots[slotIdx] = null;
       player.hand.push(returned);
       player.turnFlags.reconfigureUsedThisTurn = true;
@@ -1077,22 +1138,52 @@ export const useGameStore = create<GameStore>((set) => ({
           logMsg(draft, 'Cannot control more than 2 Ability Supports - Reconfigure play skipped.', 'info');
           return;
         }
-        if (!chainedApexId || !player.apexSlots.some((a) => a?.instanceId === chainedApexId)) {
-          logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
-          return;
-        }
-        if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
-          logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
-          return;
+        if (chainedApexId) {
+          if (!player.apexSlots.some((a) => a?.instanceId === chainedApexId)) {
+            logMsg(draft, 'Ability Support must be chained to an Apex you control.', 'info');
+            return;
+          }
+          if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === chainedApexId)) {
+            logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
+            return;
+          }
         }
       }
 
       player.hand.splice(handIdx, 1);
-      toPlay.chainedApexId = toPlay.type === 'AbilitySupport' ? chainedApexId! : null;
+      toPlay.chainedApexId = toPlay.type === 'AbilitySupport' ? chainedApexId ?? null : null;
       toPlay.enteredViaReconfigureTurn = draft.turnNumber;
       player.supportSlots[slotIdx] = toPlay;
       player.turnFlags.supportsPlayedThisTurn += 1;
-      logMsg(draft, `${playerId} plays ${getCardDef(toPlay.defId).name} via Reconfigure (Sync Ability locked this turn).`, 'support');
+      const chainSuffix = toPlay.type === 'AbilitySupport' ? (toPlay.chainedApexId ? ' (chained)' : ' (unchained)') : '';
+      logMsg(draft, `${playerId} plays ${getCardDef(toPlay.defId).name} via Reconfigure${chainSuffix} (Sync Ability locked this turn).`, 'support');
+    }),
+
+  chainSupport: (supportInstanceId, apexInstanceId) =>
+    mutate(set, (draft) => {
+      // Free, optional (re)assignment of an already-unchained Ability Support to an eligible
+      // Apex during Main Phase. Does not count as playing a new Support and does not touch
+      // Reconfigure - it's purely fixing up an existing card already on the board.
+      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      const playerId = draft.activePlayerId;
+      const player = draft.players[playerId];
+      const support = player.supportSlots.find((s) => s?.instanceId === supportInstanceId);
+      if (!support || support.type !== 'AbilitySupport') return;
+      if (support.chainedApexId) {
+        logMsg(draft, `${getCardDef(support.defId).name} is already chained.`, 'info');
+        return;
+      }
+      if (!player.apexSlots.some((a) => a?.instanceId === apexInstanceId)) {
+        logMsg(draft, 'You can only chain to an Apex you control.', 'info');
+        return;
+      }
+      if (player.supportSlots.some((s) => s?.type === 'AbilitySupport' && s.chainedApexId === apexInstanceId)) {
+        logMsg(draft, 'That Apex already has an Ability Support chained to it.', 'info');
+        return;
+      }
+      support.chainedApexId = apexInstanceId;
+      const apexName = getCardDef(player.apexSlots.find((a) => a?.instanceId === apexInstanceId)!.defId).name;
+      logMsg(draft, `${playerId} chains ${getCardDef(support.defId).name} to ${apexName}.`, 'support');
     }),
 
   lockSupportControlConflict: (supportInstanceId) =>
@@ -1105,7 +1196,8 @@ export const useGameStore = create<GameStore>((set) => ({
       if (!support) return;
       support.lockedByControlConflict = true;
       player.lockedSupportInstanceId = support.instanceId;
-      logMsg(draft, `${draft.activePlayerId} locks ${getCardDef(support.defId).name} (Control Conflict).`, 'rift');
+      logMsg(draft, `Control Conflict: ${draft.activePlayerId} locks ${getCardDef(support.defId).name} and gains 1 Momentum.`, 'rift');
+      gainMomentumFn(draft, draft.activePlayerId, 1);
     }),
 
   declareAttack: (attackerInstanceId, attackId, targetInstanceId) =>
@@ -1267,25 +1359,6 @@ export const useGameStore = create<GameStore>((set) => ({
           player.turnFlags.instantsPlayedThisTurn += 1;
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
 
-          if (trigger.kind === 'enemyApexAttacks') {
-            const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
-            if (attackerHit && attackerHit.apex.defId === 'nu-alley-wraith' && !attackerHit.apex.traitUsedThisTurn) {
-              const attackerPlayer = draft.players[trigger.attackerId];
-              if (attackerPlayer.momentum >= 1) {
-                draft.pendingResponseQueue.unshift({
-                  id: newId('aw'),
-                  stage: 'alleyWraithChoice',
-                  attackerId: trigger.attackerId,
-                  attackerInstanceId: trigger.attackerInstanceId,
-                  reactionDefId: reactionDef.id,
-                  reactionOwnerId: item.respondingPlayerId,
-                  trigger,
-                });
-                return;
-              }
-            }
-          }
-
           // A Negate may itself respond to this Reaction being played (ON_REACTION_PLAYED).
           // Single extra layer only - no arbitrary stacking.
           const negatingPlayerId = otherPlayer(item.respondingPlayerId);
@@ -1325,22 +1398,6 @@ export const useGameStore = create<GameStore>((set) => ({
 
         logMsg(draft, `${item.respondingPlayerId} passed.`, 'response');
         continueTriggerUnmodified(draft, trigger);
-        maybeLogActionResolved(draft);
-        return;
-      }
-
-      if (item.stage === 'alleyWraithChoice') {
-        if (choice.type === 'alleyWraithCancel') {
-          const attackerHit = findApexAnywhere(draft, item.attackerInstanceId);
-          if (attackerHit) attackerHit.apex.traitUsedThisTurn = true;
-          loseMomentumFn(draft, item.attackerId, 1);
-          logMsg(draft, `${item.attackerId} paid 1 Momentum to cancel the Reaction with Alley Wraith!`, 'response');
-          continueTriggerUnmodified(draft, item.trigger);
-        } else {
-          logMsg(draft, `${item.attackerId} let the Reaction resolve.`, 'response');
-          const reactionDef = getCardDef(item.reactionDefId) as ReactionDef;
-          applyChosenReactionAndContinue(draft, item.trigger, reactionDef, item.reactionOwnerId);
-        }
         maybeLogActionResolved(draft);
         return;
       }
@@ -1393,6 +1450,7 @@ export const useGameStore = create<GameStore>((set) => ({
             ownerId: item.continuation.ownerId,
             targetApexInstanceId: item.continuation.targetApexInstanceId,
           });
+          maybeTriggerHumanErrorChoice(draft, item.continuation.ownerId);
         } else if (item.continuation.kind === 'resolveEquip' && item.pendingCardInstance) {
           const hit = findApexAnywhere(draft, item.continuation.apexInstanceId);
           if (hit) {

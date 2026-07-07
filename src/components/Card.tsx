@@ -112,25 +112,13 @@ export default function Card({
             const isModified = preview ? preview.modifiedDamage !== preview.baseDamage : false;
             const dmgColor = isModified ? (shownDamage > atk.baseDamage ? BOOST_GREEN : NERF_RED) : undefined;
             return (
-              <div key={atk.id} className="opacity-90">
-                <div className="flex justify-between gap-1">
-                  <span className="truncate">
-                    [{atk.syncCost}] {atk.name}
-                  </span>
-                  <span className="font-mono font-bold shrink-0" style={dmgColor ? { color: dmgColor } : undefined}>
-                    {isModified ? `${atk.baseDamage} → ${shownDamage}` : shownDamage}
-                  </span>
-                </div>
-                {preview && preview.modifiers.length > 0 && (
-                  <div className="pl-2 space-y-0.5">
-                    {preview.modifiers.map((mod, i) => (
-                      <div key={i} className={mod.amount >= 0 ? 'text-emerald-300/90' : 'text-red-300/90'}>
-                        {mod.amount >= 0 ? '+' : ''}
-                        {mod.amount} {mod.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div key={atk.id} className="flex justify-between gap-1 opacity-90">
+                <span className="truncate">
+                  [{atk.syncCost}] {atk.name}
+                </span>
+                <span className="font-mono font-bold shrink-0" style={dmgColor ? { color: dmgColor } : undefined}>
+                  {shownDamage}
+                </span>
               </div>
             );
           })}

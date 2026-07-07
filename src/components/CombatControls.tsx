@@ -60,52 +60,54 @@ export default function CombatControls({
             const affordable = atk.syncCost <= availableSync;
             const preview = attackerInstanceId ? getPreviewAttackDamage(state, attackerInstanceId, atk.id) : null;
             const isModified = !!preview && preview.modifiedDamage !== preview.baseDamage;
+            const dmgColorClass = isModified ? (preview!.modifiedDamage > preview!.baseDamage ? 'text-emerald-300' : 'text-red-300') : '';
             return (
-              <button type="button"
+              <div
                 key={atk.id}
-                disabled={!affordable}
-                onClick={(e) => {
-                  e.currentTarget.blur();
-                  const scrollY = window.scrollY;
-                  onChooseAttack(atk.id);
-                  requestAnimationFrame(() => {
-                    if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
-                  });
-                }}
-                className={`text-left px-2 py-1.5 rounded border text-[11px] transition-colors ${
+                className={`rounded border text-[11px] transition-colors ${
                   selectedAttackId === atk.id
                     ? 'border-yellow-300 bg-yellow-300/10 text-yellow-200'
                     : affordable
-                    ? 'border-orange-400/50 hover:bg-orange-400/10 text-orange-200'
-                    : 'border-white/10 text-white/25 cursor-not-allowed'
+                    ? 'border-orange-400/50 text-orange-200'
+                    : 'border-white/10 text-white/25'
                 }`}
               >
-                <div className="font-bold flex items-center justify-between gap-1">
-                  <span>
-                    [{atk.syncCost} Sync] {atk.name}
-                  </span>
-                  {preview && (
-                    <span
-                      className={`font-mono shrink-0 ${
-                        isModified ? (preview.modifiedDamage > preview.baseDamage ? 'text-emerald-300' : 'text-red-300') : ''
-                      }`}
-                    >
-                      {isModified ? `${preview.modifiedDamage} (base ${preview.baseDamage})` : preview.modifiedDamage}
+                <button
+                  type="button"
+                  disabled={!affordable}
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    const scrollY = window.scrollY;
+                    onChooseAttack(atk.id);
+                    requestAnimationFrame(() => {
+                      if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
+                    });
+                  }}
+                  className={`w-full text-left px-2 py-1.5 ${affordable ? 'hover:bg-orange-400/10 cursor-pointer' : 'cursor-not-allowed'}`}
+                >
+                  <div className="font-bold flex items-center justify-between gap-1">
+                    <span>
+                      [{atk.syncCost} Sync] {atk.name}
                     </span>
-                  )}
-                </div>
-                <div className="opacity-80">{atk.description}</div>
-                {preview && preview.modifiers.length > 0 && (
-                  <div className="mt-0.5 space-y-0.5 opacity-90">
-                    {preview.modifiers.map((mod, i) => (
-                      <div key={i} className={mod.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}>
-                        {mod.amount >= 0 ? '+' : ''}
-                        {mod.amount} {mod.label}
-                      </div>
-                    ))}
+                    {preview && <span className={`font-mono shrink-0 ${dmgColorClass}`}>{preview.modifiedDamage}</span>}
                   </div>
+                </button>
+                {preview && preview.modifiers.length > 0 && (
+                  <details className="px-2 pb-1 -mt-1 opacity-80">
+                    <summary className="cursor-pointer text-[9px] text-white/40 hover:text-white/70">details</summary>
+                    <div className="mt-0.5 space-y-0.5">
+                      <div className="text-white/50">{preview.baseDamage} base</div>
+                      {preview.modifiers.map((mod, i) => (
+                        <div key={i} className={mod.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                          {mod.amount >= 0 ? '+' : ''}
+                          {mod.amount} {mod.label}
+                        </div>
+                      ))}
+                      <div className="text-white/50">= {preview.modifiedDamage} final</div>
+                    </div>
+                  </details>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

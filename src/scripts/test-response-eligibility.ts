@@ -42,6 +42,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
       chokeCounterPlacedThisTurn: false,
       ownEffectO2LossThisTurn: false,
       recursiveGlitchPlacedThisTurn: false,
+      civilWarBonusArmedThisTurn: false,
     },
     pendingAttackBonus: 0,
     pendingTargetedAttackBonus: null,

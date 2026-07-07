@@ -36,6 +36,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
+    civilWarBonusArmedThisTurn: false,
   };
 }
 
@@ -159,43 +160,46 @@ console.log('=== No Gods in the Gutters: momentum+primed-bonus at O2 <= 4, not a
   check('at O2=5, No Gods does NOT grant the bonus Momentum', useGameStore.getState().players.player1.momentum === momentumBefore5);
 }
 
-console.log('=== Echo Riot rift: Momentum at start of turn when both players have O2 <= 6, not at 7 ===');
+console.log('=== Echo Riot rift: Apex Break Reward grants +2 Momentum at O2 <= 6, +1 at O2 = 7 ===');
 {
   const riftEchoRiot = determineRiftSpace('Neon Underground', 'Neon Underground');
   check('Neon vs Neon correctly resolves to Echo Riot', riftEchoRiot.id === 'EchoRiot');
 
-  const p1Apex = createInstance('nu-riot-runner', 'Apex');
-  const p2Apex = createInstance('nu-street-beast', 'Apex');
-  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { o2: 6 });
-  const p2 = fixturePlayer('player2', 'Neon Underground', p2Apex, { o2: 6 });
-  const stateAt6: GameState = {
-    status: 'playing',
-    players: { player1: p1, player2: p2 },
-    activePlayerId: 'player1',
-    firstPlayerId: 'player1',
-    turnNumber: 3,
-    phase: 'Start',
-    riftSpace: riftEchoRiot,
-    log: [],
-    winnerId: null,
-    pendingResponseQueue: [],
-    isFirstTurnOverall: false,
-    selectedFactions: { player1: 'Neon Underground', player2: 'Neon Underground' },
-    openingApexSelectionPlayerId: null,
-    reconfigureAwaitingPlay: false,
-    startPhasePending: true,
-    debugMode: false,
-    gameOverReason: null,
-  };
-  useGameStore.setState(stateAt6);
-  useGameStore.getState().advancePhase('Start');
-  check('at O2=6 for both players, Echo Riot grants Momentum at Start Phase', useGameStore.getState().players.player1.momentum === 1);
+  function setupCleanBreak(o2: number) {
+    const p1Apex = createInstance('nu-riot-runner', 'Apex');
+    const p2Apex = createInstance('dw-overseer-prime', 'Apex'); // 400 DEF, exact match for Mob Charge
+    const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { o2 });
+    const p2 = fixturePlayer('player2', 'Dark White', p2Apex, { o2 });
+    const state: GameState = {
+      status: 'playing',
+      players: { player1: p1, player2: p2 },
+      activePlayerId: 'player1',
+      firstPlayerId: 'player1',
+      turnNumber: 2,
+      phase: 'Combat',
+      riftSpace: riftEchoRiot,
+      log: [],
+      winnerId: null,
+      pendingResponseQueue: [],
+      isFirstTurnOverall: false,
+      selectedFactions: { player1: 'Neon Underground', player2: 'Dark White' },
+      openingApexSelectionPlayerId: null,
+      reconfigureAwaitingPlay: false,
+      startPhasePending: false,
+      debugMode: false,
+      gameOverReason: null,
+    };
+    useGameStore.setState(state);
+    return { p1ApexId: p1Apex.instanceId, p2ApexId: p2Apex.instanceId };
+  }
 
-  const p1b = fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex'), { o2: 7 });
-  const p2b = fixturePlayer('player2', 'Neon Underground', createInstance('nu-street-beast', 'Apex'), { o2: 7 });
-  useGameStore.setState({ ...stateAt6, players: { player1: p1b, player2: p2b }, log: [] });
-  useGameStore.getState().advancePhase('Start');
-  check('at O2=7 for both players, Echo Riot does NOT grant Momentum', useGameStore.getState().players.player1.momentum === 0);
+  const at6 = setupCleanBreak(6);
+  useGameStore.getState().declareAttack(at6.p1ApexId, 'mob-charge', at6.p2ApexId);
+  check('at O2=6 for both, Apex Break Reward grants +2 Momentum under Echo Riot', useGameStore.getState().players.player1.momentum === 2);
+
+  const at7 = setupCleanBreak(7);
+  useGameStore.getState().declareAttack(at7.p1ApexId, 'mob-charge', at7.p2ApexId);
+  check('at O2=7 for both, Apex Break Reward grants only the normal +1 Momentum', useGameStore.getState().players.player1.momentum === 1);
 }
 
 console.log('=== Backup Consciousness: places Upgrade+Glitch counters at O2 <= 4, not at O2 = 5 ===');

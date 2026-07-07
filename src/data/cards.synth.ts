@@ -8,7 +8,7 @@ export const saModel00Crown: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 500,
-  rulesText: 'When this Apex enters play, if you control a Support, gain 1 Momentum.',
+  rulesText: '',
   attacks: [
     { id: 'steel-command', name: 'Steel Command', syncCost: 0, baseDamage: 200, description: '200 damage.' },
     { id: 'precision-rule', name: 'Precision Rule', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -24,10 +24,6 @@ export const saModel00Crown: ApexDef = {
       },
     },
   ],
-  onEnterPlay: (ctx) => {
-    const p = ctx.helpers.getPlayer(ctx.ownerId);
-    if (p.supportSlots.some(Boolean)) ctx.helpers.gainMomentum(ctx.ownerId, 1);
-  },
 };
 
 export const saChromeSeraph: ApexDef = {
@@ -36,7 +32,7 @@ export const saChromeSeraph: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 400,
-  rulesText: 'The first time each turn you play your second card, Chrome Seraph\u2019s next attack deals +100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'sever-pattern', name: 'Sever Pattern', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'optimization-cut', name: 'Optimization Cut', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -61,8 +57,7 @@ export const saVirex: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 300,
-  rulesText:
-    'When this Apex destroys an enemy Apex, place 1 Upgrade Counter on it. Each Upgrade Counter gives this Apex\u2019s attacks +100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'split-blade', name: 'Split Blade', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'war-calculation', name: 'War Calculation', syncCost: 1, baseDamage: 500, description: '500 damage.' },
@@ -78,13 +73,6 @@ export const saVirex: ApexDef = {
       },
     },
   ],
-  onDestroyEnemyApex: (ctx) => {
-    ctx.helpers.addCounter(ctx.attackerInstanceId, 'upgrade', 1);
-  },
-  passiveDamageBonus: (ctx) => {
-    const apex = ctx.helpers.getApex(ctx.attackerInstanceId);
-    return (apex?.counters?.upgrade ?? 0) * 100;
-  },
 };
 
 export const saHalcyonMaw: ApexDef = {
@@ -93,7 +81,7 @@ export const saHalcyonMaw: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 400,
-  rulesText: 'If your Momentum is 2 or higher, Halcyon Maw\u2019s attacks deal +100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'bite-sequence', name: 'Bite Sequence', syncCost: 0, baseDamage: 200, description: '200 damage.' },
     { id: 'hydraulic-crush', name: 'Hydraulic Crush', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -109,7 +97,6 @@ export const saHalcyonMaw: ApexDef = {
       },
     },
   ],
-  passiveDamageBonus: (ctx) => (ctx.helpers.getPlayer(ctx.ownerId).momentum >= 2 ? 100 : 0),
 };
 
 export const saLogicBloom: AbilitySupportDef = {

@@ -8,8 +8,7 @@ export const dwOverseerPrime: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 400,
-  rulesText:
-    'When this Apex enters play, place 1 Choke Counter on an enemy Apex. Apexes with Choke Counters deal -100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'order-strike', name: 'Order Strike', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'sterile-pressure', name: 'Sterile Pressure', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -29,17 +28,6 @@ export const dwOverseerPrime: ApexDef = {
       },
     },
   ],
-  // NOTE: demo simplification - auto-targets the opponent's first Apex on board rather than
-  // opening a manual target picker for an enter-play trigger.
-  onEnterPlay: (ctx) => {
-    const oppId = ctx.helpers.getOpponentId(ctx.ownerId);
-    const opp = ctx.helpers.getPlayer(oppId);
-    const target = opp.apexSlots.find(Boolean);
-    if (target) {
-      ctx.helpers.addCounter(target.instanceId, 'choke', 1, ctx.ownerId);
-      ctx.helpers.log('Overseer Prime marks an enemy Apex with a Choke Counter on entry.', 'counter');
-    }
-  },
 };
 
 export const dwEnforcerV4: ApexDef = {
@@ -48,7 +36,7 @@ export const dwEnforcerV4: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 500,
-  rulesText: 'If you control 2 or more Supports, Enforcer-V4 gains +100 DEF.',
+  rulesText: '',
   attacks: [
     { id: 'baton-crush', name: 'Baton Crush', syncCost: 0, baseDamage: 200, description: '200 damage.' },
     { id: 'compliance-strike', name: 'Compliance Strike', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -64,13 +52,6 @@ export const dwEnforcerV4: ApexDef = {
       },
     },
   ],
-  passiveDefBonus: (apex, state) => {
-    const ownerId = state.players.player1.apexSlots.some((a) => a?.instanceId === apex.instanceId)
-      ? 'player1'
-      : 'player2';
-    const p = state.players[ownerId];
-    return p.supportSlots.filter(Boolean).length >= 2 ? 100 : 0;
-  },
 };
 
 export const dwGlassWarden: ApexDef = {
@@ -79,7 +60,7 @@ export const dwGlassWarden: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 600,
-  rulesText: 'Glass Warden takes 100 less damage from 0-Sync attacks.',
+  rulesText: '',
   attacks: [
     { id: 'guard-tap', name: 'Guard Tap', syncCost: 0, baseDamage: 100, description: '100 damage.' },
     { id: 'shield-bash', name: 'Shield Bash', syncCost: 1, baseDamage: 300, description: '300 damage.' },
@@ -95,7 +76,6 @@ export const dwGlassWarden: ApexDef = {
       },
     },
   ],
-  incomingDamageReduction: (syncCost, dmg) => (syncCost === 0 ? Math.max(0, dmg - 100) : dmg),
 };
 
 export const dwPaleExecutioner: ApexDef = {
@@ -104,7 +84,7 @@ export const dwPaleExecutioner: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 300,
-  rulesText: 'When Pale Executioner attacks an Apex with a Choke Counter, gain 1 Momentum.',
+  rulesText: '',
   attacks: [
     { id: 'clean-cut', name: 'Clean Cut', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'surgical-strike', name: 'Surgical Strike', syncCost: 1, baseDamage: 500, description: '500 damage.' },
@@ -122,10 +102,6 @@ export const dwPaleExecutioner: ApexDef = {
       },
     },
   ],
-  onAttackTargetWithChoke: (ctx) => {
-    ctx.helpers.gainMomentum(ctx.ownerId, 1);
-    ctx.helpers.log('Pale Executioner draws Momentum from a choked target.', 'momentum');
-  },
 };
 
 export const dwOxygenSiphon: AbilitySupportDef = {

@@ -240,7 +240,6 @@ export interface CardInstance {
   attackLockedForTurn?: number | null; // absolute turn number this apex is locked for
   armedBonus?: number; // consumed on this apex's next attack
   armedBonusIsOverclock?: boolean; // if true, the armed bonus came from Overclock (triggers its O2 cost on use)
-  traitUsedThisTurn?: boolean; // generic once-per-turn trait marker (e.g. Alley Wraith)
   pendingEndPhaseDefBuff?: number; // accumulated DEF to apply at End Phase (Juice-Box / Logic Bloom)
   pendingEndPhaseProtection?: number; // accumulated protection to apply at End Phase (Gatekeeper Drone)
   survivorDefOverride?: number; // set by Backup Consciousness - overrides all DEF math while active
@@ -263,6 +262,7 @@ export interface TurnFlags {
   chokeCounterPlacedThisTurn: boolean;
   ownEffectO2LossThisTurn: boolean;
   recursiveGlitchPlacedThisTurn: boolean;
+  civilWarBonusArmedThisTurn: boolean;
 }
 
 export function freshTurnFlags(): TurnFlags {
@@ -277,6 +277,7 @@ export function freshTurnFlags(): TurnFlags {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
+    civilWarBonusArmedThisTurn: false,
   };
 }
 
@@ -407,17 +408,7 @@ export interface HumanErrorChoiceWindow {
   playerId: PlayerId;
 }
 
-export interface AlleyWraithChoiceWindow {
-  id: string;
-  stage: 'alleyWraithChoice';
-  attackerId: PlayerId;
-  attackerInstanceId: string;
-  reactionDefId: string;
-  reactionOwnerId: PlayerId;
-  trigger: AttackTriggerData;
-}
-
-export type PendingResponseItem = ReactionChoiceWindow | NegateWindow | HumanErrorChoiceWindow | AlleyWraithChoiceWindow;
+export type PendingResponseItem = ReactionChoiceWindow | NegateWindow | HumanErrorChoiceWindow;
 
 export interface GameState {
   status: 'menu' | 'mulligan' | 'selectingOpeningApex' | 'playing' | 'gameover';

@@ -8,7 +8,7 @@ export const nuStreetBeast: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 300,
-  rulesText: 'When Street-Beast destroys an enemy Apex, draw 1 card.',
+  rulesText: '',
   attacks: [
     { id: 'razor-swipe', name: 'Razor Swipe', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'neon-pounce', name: 'Neon Pounce', syncCost: 1, baseDamage: 500, description: '500 damage.' },
@@ -24,10 +24,6 @@ export const nuStreetBeast: ApexDef = {
       },
     },
   ],
-  onDestroyEnemyApex: (ctx) => {
-    ctx.helpers.drawCards(ctx.ownerId, 1);
-    ctx.helpers.log('Street-Beast draws a card after a kill.', 'support');
-  },
 };
 
 export const nuStaticJack: ApexDef = {
@@ -36,7 +32,7 @@ export const nuStaticJack: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 300,
-  rulesText: 'The first time each turn you play a Special, Static Jack\u2019s next attack this turn deals +100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'shock-jab', name: 'Shock Jab', syncCost: 0, baseDamage: 200, description: '200 damage.' },
     { id: 'circuit-breaker', name: 'Circuit Breaker', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -63,8 +59,7 @@ export const nuAlleyWraith: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 200,
-  rulesText:
-    'The first time each turn this Apex is targeted by a Reaction, you may pay 1 Momentum to cancel that Reaction.',
+  rulesText: '',
   attacks: [
     { id: 'cheap-shot', name: 'Cheap Shot', syncCost: 0, baseDamage: 300, description: '300 damage.' },
     { id: 'smoke-cut', name: 'Smoke Cut', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -86,7 +81,7 @@ export const nuRiotRunner: ApexDef = {
   faction: F,
   type: 'Apex',
   baseDef: 400,
-  rulesText: 'If your O2 is lower than your opponent\u2019s, Riot Runner\u2019s attacks deal +100 damage.',
+  rulesText: '',
   attacks: [
     { id: 'pipe-swing', name: 'Pipe Swing', syncCost: 0, baseDamage: 200, description: '200 damage.' },
     { id: 'mob-charge', name: 'Mob Charge', syncCost: 1, baseDamage: 400, description: '400 damage.' },
@@ -100,11 +95,6 @@ export const nuRiotRunner: ApexDef = {
       bonusDamage: (ctx) => (ctx.helpers.getPlayer(ctx.ownerId).o2 <= 4 ? 100 : 0),
     },
   ],
-  passiveDamageBonus: (ctx) => {
-    const p = ctx.helpers.getPlayer(ctx.ownerId);
-    const opp = ctx.helpers.getPlayer(ctx.helpers.getOpponentId(ctx.ownerId));
-    return p.o2 < opp.o2 ? 100 : 0;
-  },
 };
 
 export const nuJuiceBox: AbilitySupportDef = {

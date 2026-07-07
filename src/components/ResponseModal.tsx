@@ -53,7 +53,6 @@ export default function ResponseModal({ state, onAfterChoose }: ResponseModalPro
         )}
         {item.stage === 'negateWindow' && <NegatePrompt state={state} item={item} onChoose={resolveResponse} />}
         {item.stage === 'humanErrorChoice' && <HumanErrorPrompt item={item} onChoose={resolveResponse} />}
-        {item.stage === 'alleyWraithChoice' && <AlleyWraithPrompt item={item} onChoose={resolveResponse} />}
       </div>
     </div>
   );
@@ -183,38 +182,6 @@ function HumanErrorPrompt({
           className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
         >
           Next Apex attack this turn deals +100 damage
-        </button>
-      </div>
-    </>
-  );
-}
-
-function AlleyWraithPrompt({
-  item,
-  onChoose,
-}: {
-  item: Extract<GameState['pendingResponseQueue'][number], { stage: 'alleyWraithChoice' }>;
-  onChoose: (choice: ResponseChoice) => void;
-}) {
-  const reactionDef = getCardDef(item.reactionDefId);
-  return (
-    <>
-      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">Alley Wraith · {item.attackerId}</div>
-      <div className="text-sm text-white/80 mb-4">
-        {item.reactionOwnerId} just played <b>{reactionDef.name}</b> against your Alley Wraith&apos;s attack. Pay 1 Momentum to cancel it?
-      </div>
-      <div className="space-y-2">
-        <button type="button"
-          onClick={() => onChoose({ type: 'alleyWraithCancel' })}
-          className="w-full text-left px-3 py-2 rounded border border-pink-400/50 hover:bg-pink-400/10 text-xs font-bold"
-        >
-          Pay 1 Momentum — cancel it
-        </button>
-        <button type="button"
-          onClick={() => onChoose({ type: 'alleyWraithDecline' })}
-          className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
-        >
-          Let it resolve
         </button>
       </div>
     </>

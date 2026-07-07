@@ -413,16 +413,6 @@ export function gainMomentumFn(draft: GameState, playerId: PlayerId, amount: num
     `${playerId} gains ${actualGain} Momentum (now ${player.momentum}).${wasCapped ? ` Momentum capped at ${MAX_MOMENTUM}.` : ''}`,
     'momentum'
   );
-
-  // Recursive Failure rift: first Momentum gain from a card effect each turn places a Glitch Counter.
-  if (draft.riftSpace?.id === 'RecursiveFailure' && !player.turnFlags.recursiveGlitchPlacedThisTurn) {
-    player.turnFlags.recursiveGlitchPlacedThisTurn = true;
-    const targetApex = player.apexSlots.find(Boolean);
-    if (targetApex) {
-      addCounterFn(draft, targetApex.instanceId, 'glitch', 1, playerId);
-      logMsg(draft, `Recursive Failure punishes the Momentum gain with a Glitch Counter.`, 'rift');
-    }
-  }
 }
 
 export function loseMomentumFn(draft: GameState, playerId: PlayerId, amount: number) {
@@ -457,11 +447,12 @@ export function loseO2Fn(
   if (amount <= 0) return;
   const player = draft.players[playerId];
 
-  // Echo Riot: first self-inflicted O2 loss each turn deals 1 additional O2 loss.
+  // Echo Riot: the first time each turn a player loses O2 from their own card effect
+  // (e.g. Overclock), they gain 1 Momentum.
   if (opts?.fromOwnEffect && draft.riftSpace?.id === 'EchoRiot' && !player.turnFlags.ownEffectO2LossThisTurn) {
     player.turnFlags.ownEffectO2LossThisTurn = true;
-    amount += 1;
-    logMsg(draft, 'Echo Riot punishes the self-inflicted O2 loss with 1 additional O2 lost.', 'rift');
+    gainMomentumFn(draft, playerId, 1);
+    logMsg(draft, 'Echo Riot grants 1 Momentum for the self-inflicted O2 loss.', 'rift');
   }
 
   // Reserve Grid shield: reduces the next O2 loss this turn by 1 per stored charge.
@@ -515,22 +506,15 @@ export function addCounterFn(
   }
   logMsg(draft, `${getCardDef(apex.defId).name} gets ${amount} ${type} counter(s).`, 'counter');
 
-  // White Room Collapse rift: first Choke Counter placement each turn by a player costs a card/Momentum/O2.
+  // White Room Collapse rift: the first Choke Counter a player places on an enemy Apex
+  // each turn grants 1 Momentum.
   if (type === 'choke' && draft.riftSpace?.id === 'WhiteRoomCollapse' && placedByPlayerId) {
     const placer = draft.players[placedByPlayerId];
-    if (!placer.turnFlags.chokeCounterPlacedThisTurn) {
+    const placedOnEnemyApex = !placer.apexSlots.some((a) => a?.instanceId === apexInstanceId);
+    if (placedOnEnemyApex && !placer.turnFlags.chokeCounterPlacedThisTurn) {
       placer.turnFlags.chokeCounterPlacedThisTurn = true;
-      if (placer.hand.length > 0) {
-        const discarded = placer.hand.shift()!;
-        placer.discard.push(discarded);
-        logMsg(draft, `White Room Collapse forces ${placedByPlayerId} to discard a card.`, 'rift');
-      } else if (placer.momentum > 0) {
-        loseMomentumFn(draft, placedByPlayerId, 1);
-        logMsg(draft, `White Room Collapse costs ${placedByPlayerId} 1 Momentum (no card to discard).`, 'rift');
-      } else {
-        loseO2Fn(draft, placedByPlayerId, 1);
-        logMsg(draft, `White Room Collapse costs ${placedByPlayerId} 1 O2 (no card or Momentum).`, 'rift');
-      }
+      gainMomentumFn(draft, placedByPlayerId, 1);
+      logMsg(draft, `White Room Collapse grants ${placedByPlayerId} 1 Momentum for placing a Choke Counter.`, 'rift');
     }
   }
 }

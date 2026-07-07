@@ -71,8 +71,6 @@ function resolvePending(): boolean {
     }
   } else if (item.stage === 'humanErrorChoice') {
     s.resolveResponse({ type: 'humanError', pick: Math.random() < 0.5 ? 'momentum' : 'damage' });
-  } else if (item.stage === 'alleyWraithChoice') {
-    s.resolveResponse(Math.random() < 0.5 ? { type: 'alleyWraithCancel' } : { type: 'alleyWraithDecline' });
   }
   return true;
 }

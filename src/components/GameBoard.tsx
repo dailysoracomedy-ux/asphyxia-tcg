@@ -25,7 +25,8 @@ type Mode =
   | { kind: 'reconfigurePlay'; returnId: string }
   | { kind: 'reconfigureChain'; returnId: string; playId: string }
   | { kind: 'attackerChosen'; attackerId: string }
-  | { kind: 'attackAwaitingTarget'; attackerId: string; attackId: string };
+  | { kind: 'attackAwaitingTarget'; attackerId: string; attackId: string }
+  | { kind: 'rechainSelectApex'; supportId: string };
 
 export default function GameBoard() {
   const state = useGameStore();
@@ -141,6 +142,11 @@ export default function GameBoard() {
       resetMode();
       return;
     }
+    if (mode.kind === 'rechainSelectApex') {
+      state.chainSupport(mode.supportId, apexId);
+      resetMode();
+      return;
+    }
     if (state.phase === 'Combat') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (apex && !apex.hasAttacked) {
@@ -152,6 +158,13 @@ export default function GameBoard() {
   function ownSupportClick(supportId: string) {
     if (mode.kind === 'reconfigureReturn') {
       setMode({ kind: 'reconfigurePlay', returnId: supportId });
+      return;
+    }
+    if (mode.kind === 'idle' && state.phase === 'Main') {
+      const support = activePlayer.supportSlots.find((s) => s?.instanceId === supportId);
+      if (support?.type === 'AbilitySupport' && !support.chainedApexId) {
+        setMode({ kind: 'rechainSelectApex', supportId });
+      }
     }
   }
 
@@ -200,7 +213,7 @@ export default function GameBoard() {
   }
 
   const ownApexHighlight = (id: string): 'valid-target' | null => {
-    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain') {
+    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain' || mode.kind === 'rechainSelectApex') {
       return apexHasAbilitySupportChained(id) ? null : 'valid-target';
     }
     if (mode.kind === 'equipReady') return 'valid-target';
@@ -213,7 +226,7 @@ export default function GameBoard() {
   };
 
   function ownApexDisabled(id: string): boolean {
-    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain') {
+    if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain' || mode.kind === 'rechainSelectApex') {
       return apexHasAbilitySupportChained(id);
     }
     return false;
@@ -411,7 +424,15 @@ export default function GameBoard() {
             />
           )}
           {mode.kind === 'supportChooseChain' && (
-            <ConfirmBar text="Click one of your Apexes above to chain this Ability Support to it." onCancel={resetMode} />
+            <ConfirmBar
+              text="Click one of your Apexes above to chain this Ability Support, or play it unchained as a vanilla Sync source."
+              confirmLabel="Play Unchained"
+              onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
+              onCancel={resetMode}
+            />
+          )}
+          {mode.kind === 'rechainSelectApex' && (
+            <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
           )}
           {mode.kind === 'equipReady' && (
             <ConfirmBar text="Click one of your Apexes above (without an Equip) to attach this." onCancel={resetMode} />
@@ -465,14 +486,24 @@ function PhaseButton({ label, active, enabled, onClick }: { label: string; activ
   );
 }
 
-function ConfirmBar({ text, onConfirm, onCancel }: { text: string; onConfirm?: () => void; onCancel: () => void }) {
+function ConfirmBar({
+  text,
+  onConfirm,
+  onCancel,
+  confirmLabel = 'Confirm',
+}: {
+  text: string;
+  onConfirm?: () => void;
+  onCancel: () => void;
+  confirmLabel?: string;
+}) {
   return (
     <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs">
       <span className="text-yellow-200">{text}</span>
       <div className="flex gap-2 shrink-0">
         {onConfirm && (
           <button type="button" onClick={onConfirm} className="px-2 py-1 rounded bg-yellow-300 text-black font-bold">
-            Confirm
+            {confirmLabel}
           </button>
         )}
         <button type="button" onClick={onCancel} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
