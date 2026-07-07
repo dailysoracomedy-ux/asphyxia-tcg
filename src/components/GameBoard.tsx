@@ -319,6 +319,8 @@ export default function GameBoard() {
           {state.phase === 'Combat' && (
             <CombatControls
               apexDef={attackerDef}
+              state={state}
+              attackerInstanceId={attackerApex ? attackerApex.instanceId : null}
               availableSync={activePlayer.availableSync}
               hasAttacked={!!attackerApex && !!attackerApex.hasAttacked}
               selectedAttackId={mode.kind === 'attackAwaitingTarget' ? mode.attackId : null}

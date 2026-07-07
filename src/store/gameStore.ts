@@ -36,6 +36,7 @@ import {
   findApexAnywhere,
   getEffectiveDef,
   getEligibleResponses,
+  getPreviewAttackDamage,
   gainMomentumFn,
   logMsg,
   loseMomentumFn,
@@ -591,7 +592,7 @@ function finalizeAttackEffects(
       if (support.lockedByControlConflict) continue;
       if (support.enteredViaReconfigureTurn === draft.turnNumber) continue;
       const supportDef = getCardDef(support.defId) as AbilitySupportDef;
-      supportDef.syncAbility({ ...ctx, chainedApexId: support.instanceId });
+      supportDef.syncAbility({ ...ctx, chainedApexId: trigger.attackerInstanceId });
       if (support.defId === 'sa-drone-choir' && apexDef.faction === 'Synth Ascendancy') {
         helpers.armAttackBonus(trigger.attackerInstanceId, 100);
       }
@@ -1176,46 +1177,23 @@ export const useGameStore = create<GameStore>((set) => ({
         }
       }
 
-      let total = attackDef.baseDamage;
-
-      const conditionalBonus = attackDef.bonusDamage ? attackDef.bonusDamage(baseCtx) : 0;
-      if (conditionalBonus) {
-        total += conditionalBonus;
-        logMsg(draft, `${apexDef.name} gains +${conditionalBonus} attack (${attackDef.name} bonus condition met).`, 'attack');
+      // Single source of truth for damage math - the same helper the Combat Phase attack
+      // selector uses to preview this exact number before anything is committed.
+      const preview = getPreviewAttackDamage(draft, attackerInstanceId, attackId, targetInstanceId)!;
+      for (const mod of preview.modifiers) {
+        logMsg(
+          draft,
+          `${apexDef.name} ${mod.amount >= 0 ? 'gains' : 'loses'} ${Math.abs(mod.amount)} attack (${mod.label}).`,
+          'attack'
+        );
       }
+      const total = preview.modifiedDamage;
 
-      const passiveBonus = apexDef.passiveDamageBonus ? apexDef.passiveDamageBonus(baseCtx) : 0;
-      if (passiveBonus) {
-        total += passiveBonus;
-        logMsg(draft, `${apexDef.name} gains +${passiveBonus} attack (passive trait).`, 'attack');
-      }
-
-      if (apex.equip) {
-        const eqDef = getCardDef(apex.equip.defId);
-        if (eqDef.type === 'Equip' && eqDef.damageBonus) {
-          const equipBonus = eqDef.damageBonus(baseCtx);
-          if (equipBonus) {
-            total += equipBonus;
-            logMsg(draft, `${apexDef.name} gains +${equipBonus} attack from ${eqDef.name}.`, 'attack');
-          }
-        }
-      }
-
-      if (apex.armedBonus) {
-        total += apex.armedBonus;
-        logMsg(draft, `${apexDef.name} gains +${apex.armedBonus} attack from its armed bonus.`, 'attack');
-        apex.armedBonus = 0;
-      }
-
-      if (player.pendingAttackBonus) {
-        total += player.pendingAttackBonus;
-        logMsg(draft, `${apexDef.name} gains +${player.pendingAttackBonus} attack from a primed effect.`, 'attack');
-        player.pendingAttackBonus = 0;
-      }
-
-      if (player.pendingTargetedAttackBonus && player.pendingTargetedAttackBonus.targetInstanceId === targetInstanceId) {
-        total += player.pendingTargetedAttackBonus.amount;
-        logMsg(draft, `${apexDef.name} gains +${player.pendingTargetedAttackBonus.amount} attack against this target.`, 'attack');
+      // Consume the one-shot bonuses the preview just read (mirrors exactly which ones
+      // getPreviewAttackDamage included, so nothing is double-spent or left stale).
+      if (apex.armedBonus) apex.armedBonus = 0;
+      if (player.pendingAttackBonus) player.pendingAttackBonus = 0;
+      if (player.pendingTargetedAttackBonus && targetInstanceId && player.pendingTargetedAttackBonus.targetInstanceId === targetInstanceId) {
         player.pendingTargetedAttackBonus = null;
       }
 

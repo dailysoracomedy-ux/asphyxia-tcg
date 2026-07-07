@@ -2,7 +2,7 @@
 
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { getEffectiveDef, getApexAttackBonusPreview } from '@/game/rules';
+import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
 import Card from './Card';
 import { factionTheme } from '@/lib/theme';
 
@@ -70,6 +70,7 @@ export default function PlayerBoard({
                 key={i}
                 apex={apex}
                 state={state}
+                playerId={playerId}
                 onClick={onApexClick}
                 highlight={apex ? apexHighlight?.(apex.instanceId) ?? null : null}
                 disabled={apex ? apexDisabled?.(apex.instanceId) : false}
@@ -85,6 +86,8 @@ export default function PlayerBoard({
               <SupportSlot
                 key={i}
                 support={support}
+                state={state}
+                playerId={playerId}
                 onClick={onSupportClick}
                 disabled={support ? supportDisabled?.(support.instanceId) : false}
                 selected={support ? selectedSupportId === support.instanceId : false}
@@ -108,6 +111,7 @@ function Stat({ label, value, colorClass, danger }: { label: string; value: numb
 function ApexSlot({
   apex,
   state,
+  playerId,
   onClick,
   highlight,
   disabled,
@@ -115,6 +119,7 @@ function ApexSlot({
 }: {
   apex: CardInstance | null;
   state: GameState;
+  playerId: PlayerId;
   onClick?: (id: string) => void;
   highlight: 'valid-target' | 'attacked' | 'locked' | null;
   disabled?: boolean;
@@ -128,27 +133,49 @@ function ApexSlot({
     );
   }
   const effDef = getEffectiveDef(state, apex.instanceId);
-  const attackBonus = getApexAttackBonusPreview(state, apex.instanceId);
+  const apexCardDef = getCardDef(apex.defId);
+  const attackPreviews: Record<string, NonNullable<ReturnType<typeof getPreviewAttackDamage>>> = {};
+  if (apexCardDef.type === 'Apex') {
+    for (const atk of apexCardDef.attacks) {
+      const preview = getPreviewAttackDamage(state, apex.instanceId, atk.id);
+      if (preview) attackPreviews[atk.id] = preview;
+    }
+  }
+
+  // Chain indicator: which Ability Support (if any) is chained to this Apex.
+  const chainedSupport = getChainedSupportFor(state, playerId, apex.instanceId);
+
   return (
     <Card
       instance={apex}
       effectiveDef={effDef}
-      attackBonusPreview={attackBonus}
+      attackPreviews={attackPreviews}
       onClick={onClick ? () => onClick(apex.instanceId) : undefined}
       highlight={apex.hasAttacked ? 'attacked' : highlight}
       disabled={disabled}
       selected={selected}
+      footer={
+        chainedSupport ? (
+          <div className="mt-0.5 px-1 rounded bg-black/40 border border-teal-400/40 text-teal-300 truncate">
+            Chained Support: {getCardDef(chainedSupport.defId).name}
+          </div>
+        ) : undefined
+      }
     />
   );
 }
 
 function SupportSlot({
   support,
+  state,
+  playerId,
   onClick,
   disabled,
   selected,
 }: {
   support: CardInstance | null;
+  state: GameState;
+  playerId: PlayerId;
   onClick?: (id: string) => void;
   disabled?: boolean;
   selected?: boolean;
@@ -160,7 +187,8 @@ function SupportSlot({
       </div>
     );
   }
-  const def = getCardDef(support.defId);
+  const chainLabel = getChainLabelForSupport(state, playerId, support.instanceId);
+
   return (
     <Card
       instance={support}
@@ -170,10 +198,8 @@ function SupportSlot({
       selected={selected}
       footer={
         <div className="mt-0.5 text-[8px] leading-tight opacity-80 space-y-0.5">
-          {def.type === 'AbilitySupport' && (
-            <div className={support.chainedApexId ? 'text-emerald-300' : 'text-red-300'}>
-              {support.chainedApexId ? 'chained' : 'UNCHAINED'}
-            </div>
+          {chainLabel && (
+            <div className={chainLabel === 'Unchained' ? 'text-red-300' : 'text-emerald-300'}>{chainLabel}</div>
           )}
           {support.lockedByControlConflict && <div className="text-blue-300">LOCKED</div>}
           {support.enteredViaReconfigureTurn !== null && support.enteredViaReconfigureTurn !== undefined && (

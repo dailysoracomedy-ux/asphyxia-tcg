@@ -1,6 +1,7 @@
 'use client';
 
 import type { ApexDef, CardInstance } from '@/types/game';
+import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
 import { factionTheme, CARD_TYPE_LABEL } from '@/lib/theme';
 
@@ -14,7 +15,9 @@ interface CardProps {
   highlight?: 'valid-target' | 'attacked' | 'locked' | null;
   footer?: React.ReactNode;
   effectiveDef?: number;
-  attackBonusPreview?: number;
+  /** Per-attack damage preview, keyed by attack id - computed via getPreviewAttackDamage
+   *  so the board display always agrees with the attack selector and combat resolution. */
+  attackPreviews?: Record<string, AttackDamagePreview>;
 }
 
 const BOOST_GREEN = '#4ade80';
@@ -30,7 +33,7 @@ export default function Card({
   highlight,
   footer,
   effectiveDef,
-  attackBonusPreview,
+  attackPreviews,
 }: CardProps) {
   if (faceDown) {
     return (
@@ -104,18 +107,30 @@ export default function Card({
       {apexDef && (
         <div className="mt-1 flex-1 overflow-y-auto space-y-0.5 leading-tight">
           {apexDef.attacks.map((atk) => {
-            const bonus = attackBonusPreview ?? 0;
-            const shownDamage = atk.baseDamage + bonus;
-            const dmgColor = bonus > 0 ? BOOST_GREEN : bonus < 0 ? NERF_RED : undefined;
+            const preview = attackPreviews?.[atk.id];
+            const shownDamage = preview?.modifiedDamage ?? atk.baseDamage;
+            const isModified = preview ? preview.modifiedDamage !== preview.baseDamage : false;
+            const dmgColor = isModified ? (shownDamage > atk.baseDamage ? BOOST_GREEN : NERF_RED) : undefined;
             return (
-              <div key={atk.id} className="flex justify-between gap-1 opacity-90">
-                <span className="truncate">
-                  [{atk.syncCost}] {atk.name}
-                </span>
-                <span className="font-mono font-bold shrink-0" style={dmgColor ? { color: dmgColor } : undefined}>
-                  {shownDamage}
-                  {bonus !== 0 && <span className="ml-0.5">({bonus > 0 ? '+' : ''}{bonus})</span>}
-                </span>
+              <div key={atk.id} className="opacity-90">
+                <div className="flex justify-between gap-1">
+                  <span className="truncate">
+                    [{atk.syncCost}] {atk.name}
+                  </span>
+                  <span className="font-mono font-bold shrink-0" style={dmgColor ? { color: dmgColor } : undefined}>
+                    {isModified ? `${atk.baseDamage} → ${shownDamage}` : shownDamage}
+                  </span>
+                </div>
+                {preview && preview.modifiers.length > 0 && (
+                  <div className="pl-2 space-y-0.5">
+                    {preview.modifiers.map((mod, i) => (
+                      <div key={i} className={mod.amount >= 0 ? 'text-emerald-300/90' : 'text-red-300/90'}>
+                        {mod.amount >= 0 ? '+' : ''}
+                        {mod.amount} {mod.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

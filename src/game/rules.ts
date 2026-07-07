@@ -24,6 +24,7 @@ export const DIRECT_O2_DIVISOR = 100;
 export const DIRECT_O2_CAP_PER_TURN = 4;
 export const STARTING_O2 = 12;
 export const MAX_O2 = 12;
+export const MAX_MOMENTUM = 3;
 export const STARTING_HAND_SIZE = 5;
 export const DECK_SIZE_TARGET = 30;
 export const MAX_ABILITY_SUPPORTS = 2;
@@ -108,34 +109,209 @@ export function getEffectiveDef(state: GameState, apexInstanceId: string): numbe
  * attack-declare time may be equal or higher, never lower, so this never overstates a boost.
  * This is a read-only preview: it never mutates state, even though it borrows createHelpers.
  */
-export function getApexAttackBonusPreview(state: GameState, apexInstanceId: string): number {
-  const hit = findApexAnywhere(state, apexInstanceId);
-  if (!hit) return 0;
+// NOTE: getApexAttackBonusPreview was retired in favor of getPreviewAttackDamage, which
+// is now the single source of truth for attack damage everywhere (board display, attack
+// selector, outcome preview, and actual combat resolution) - see getPreviewAttackDamage
+// below. The old helper only summed a subset of modifiers (passive + equip + armed) and
+// applied the same number to every attack line uniformly, which both duplicated logic
+// and produced inaccurate numbers (it never accounted for Choke Counters or each
+// attack's own conditional bonus).
+
+
+export interface DamageModifier {
+  label: string;
+  amount: number;
+}
+
+export interface AttackDamagePreview {
+  baseDamage: number;
+  modifiedDamage: number;
+  modifiers: DamageModifier[];
+}
+
+/**
+ * Single source of truth for "what will this attack actually deal right now" - used both
+ * by the Combat Phase attack selector (as a preview, before anything is spent) and by
+ * declareAttack itself (to compute the real damage), so the two can never drift apart.
+ * Reads apex.armedBonus / player.pendingAttackBonus / player.pendingTargetedAttackBonus
+ * without consuming them - the caller (declareAttack) is responsible for zeroing out
+ * whichever one-shot bonuses actually got used once the attack is committed.
+ * If a modifier depends on the target (e.g. Monomolecular Blade's choke check) and no
+ * target is given yet, it's evaluated as if untargeted (matching each card's own
+ * target-independent fallback), consistent with "before target modifiers" from the request.
+ */
+export function getPreviewAttackDamage(
+  state: GameState,
+  attackerInstanceId: string,
+  attackId: string,
+  targetInstanceId?: string
+): AttackDamagePreview | null {
+  const hit = findApexAnywhere(state, attackerInstanceId);
+  if (!hit) return null;
   const { apex, ownerId } = hit;
   const def = getCardDef(apex.defId);
-  if (def.type !== 'Apex') return 0;
+  if (def.type !== 'Apex') return null;
+  const attackDef = def.attacks.find((a) => a.id === attackId);
+  if (!attackDef) return null;
 
-  let bonus = apex.armedBonus ?? 0;
   const helpers = createHelpers(state);
-  const previewCtx = {
+  const ctx = {
     helpers,
     ownerId,
-    attackerInstanceId: apexInstanceId,
-    targetInstanceId: undefined,
-    syncCost: 0 as const,
-    baseDamage: 0,
+    attackerInstanceId,
+    targetInstanceId,
+    syncCost: attackDef.syncCost,
+    baseDamage: attackDef.baseDamage,
   };
 
-  if (def.passiveDamageBonus) {
-    bonus += def.passiveDamageBonus(previewCtx);
+  const modifiers: DamageModifier[] = [];
+  let total = attackDef.baseDamage;
+
+  if (attackDef.bonusDamage) {
+    const bonus = attackDef.bonusDamage(ctx);
+    if (bonus) {
+      total += bonus;
+      modifiers.push({ label: `${attackDef.name} bonus condition met`, amount: bonus });
+    }
   }
+
+  if (def.passiveDamageBonus) {
+    const bonus = def.passiveDamageBonus(ctx);
+    if (bonus) {
+      total += bonus;
+      modifiers.push({ label: 'passive trait', amount: bonus });
+    }
+  }
+
   if (apex.equip) {
     const equipDef = getCardDef(apex.equip.defId);
     if (equipDef.type === 'Equip' && equipDef.damageBonus) {
-      bonus += equipDef.damageBonus(previewCtx);
+      const bonus = equipDef.damageBonus(ctx);
+      if (bonus) {
+        total += bonus;
+        modifiers.push({ label: equipDef.name, amount: bonus });
+      }
     }
   }
-  return bonus;
+
+  if (apex.armedBonus) {
+    total += apex.armedBonus;
+    modifiers.push({ label: 'armed bonus', amount: apex.armedBonus });
+  }
+
+  const player = state.players[ownerId];
+  if (player.pendingAttackBonus) {
+    total += player.pendingAttackBonus;
+    modifiers.push({ label: 'primed effect', amount: player.pendingAttackBonus });
+  }
+  if (player.pendingTargetedAttackBonus && targetInstanceId && player.pendingTargetedAttackBonus.targetInstanceId === targetInstanceId) {
+    total += player.pendingTargetedAttackBonus.amount;
+    modifiers.push({ label: 'primed effect vs this target', amount: player.pendingTargetedAttackBonus.amount });
+  }
+
+  // Choke Counter penalty: -100 damage per Choke Counter (0 CHK: none, 1: -100, 2: -200,
+  // 3: -300, ...). Defined in the original card-pool spec but never actually wired into
+  // damage resolution until this patch made it visible/testable.
+  const chokeCount = apex.counters?.choke ?? 0;
+  if (chokeCount > 0) {
+    const chokePenalty = -100 * chokeCount;
+    total += chokePenalty;
+    modifiers.push({ label: `Choke Counter x${chokeCount}`, amount: chokePenalty });
+  }
+
+  return { baseDamage: attackDef.baseDamage, modifiedDamage: Math.max(0, total), modifiers };
+}
+
+/** Returns the Ability Support (if any) chained to the given Apex, for the "Chained
+ *  Support: X" indicator on Apex cards. Only Ability Supports can be chained. */
+export function getChainedSupportFor(state: GameState, playerId: PlayerId, apexInstanceId: string): CardInstance | null {
+  const support = state.players[playerId].supportSlots.find(
+    (s) => s?.type === 'AbilitySupport' && s.chainedApexId === apexInstanceId
+  );
+  return support ?? null;
+}
+
+/** Returns the display label for a Support's own chain indicator: "Chain -> X" for a
+ *  chained Ability Support, "Unchained" for an unchained one, or null for a Battery
+ *  Support (which is never chained and should show no chain info at all). */
+export function getChainLabelForSupport(state: GameState, playerId: PlayerId, supportInstanceId: string): string | null {
+  const support = state.players[playerId].supportSlots.find((s) => s?.instanceId === supportInstanceId);
+  if (!support || support.type !== 'AbilitySupport') return null;
+  if (!support.chainedApexId) return 'Unchained';
+  const apex = state.players[playerId].apexSlots.find((a) => a?.instanceId === support.chainedApexId);
+  if (!apex) return 'Unchained';
+  return `Chain -> ${getCardDef(apex.defId).name}`;
+}
+
+export interface AttackOutcomePreview {
+  finalDamage: number;
+  targetDef: number | null; // null for a direct O2 attack
+  willDestroy: boolean;
+  overflow: number;
+  o2Loss: number;
+  apexBreakRewardWouldTrigger: boolean;
+  isDirect: boolean;
+}
+
+/**
+ * Full "what would happen if I attacked this right now" preview: final damage (via
+ * getPreviewAttackDamage), the target's current DEF, whether it would be destroyed,
+ * expected overflow, expected O2 loss, and whether Apex Break Reward would trigger.
+ * This never disables an attack for being "weak" - it's purely informational, matching
+ * "do not disable legal attacks just because they are weak."
+ */
+export function getAttackOutcomePreview(
+  state: GameState,
+  attackerInstanceId: string,
+  attackId: string,
+  targetInstanceId?: string
+): AttackOutcomePreview | null {
+  const dmgPreview = getPreviewAttackDamage(state, attackerInstanceId, attackId, targetInstanceId);
+  if (!dmgPreview) return null;
+  const attackerHit = findApexAnywhere(state, attackerInstanceId);
+  if (!attackerHit) return null;
+  const attackDef = getCardDef(attackerHit.apex.defId);
+  if (attackDef.type !== 'Apex') return null;
+  const atk = attackDef.attacks.find((a) => a.id === attackId);
+  if (!atk) return null;
+
+  if (targetInstanceId) {
+    const targetHit = findApexAnywhere(state, targetInstanceId);
+    if (!targetHit) return null;
+    const targetCardDef = getCardDef(targetHit.apex.defId);
+    if (targetCardDef.type !== 'Apex') return null;
+
+    let dmg = dmgPreview.modifiedDamage;
+    if (targetCardDef.incomingDamageReduction) dmg = targetCardDef.incomingDamageReduction(atk.syncCost, dmg);
+
+    const targetDef = getEffectiveDef(state, targetInstanceId);
+    const willDestroy = dmg >= targetDef;
+    let overflow = willDestroy ? dmg - targetDef : 0;
+    if (willDestroy && targetHit.apex.equip) {
+      const eqDef = getCardDef(targetHit.apex.equip.defId);
+      if (eqDef.type === 'Equip' && eqDef.onOverflowDamage) overflow = eqDef.onOverflowDamage(overflow);
+    }
+    const o2Loss = willDestroy ? overflowToO2Loss(overflow) : 0;
+    const apexBreakRewardWouldTrigger = willDestroy && overflow === 0;
+
+    return { finalDamage: dmg, targetDef, willDestroy, overflow, o2Loss, apexBreakRewardWouldTrigger, isDirect: false };
+  }
+
+  // Direct O2 attack preview
+  const rawLoss = directDamageToO2Loss(dmgPreview.modifiedDamage);
+  const attackerPlayer = state.players[attackerHit.ownerId];
+  const remainingCap = Math.max(0, DIRECT_O2_CAP_PER_TURN - attackerPlayer.turnFlags.directO2LossThisTurn);
+  const o2Loss = Math.min(rawLoss, remainingCap);
+
+  return {
+    finalDamage: dmgPreview.modifiedDamage,
+    targetDef: null,
+    willDestroy: false,
+    overflow: 0,
+    o2Loss,
+    apexBreakRewardWouldTrigger: false,
+    isDirect: true,
+  };
 }
 
 export function pruneExpiredModifiers(state: GameState) {
@@ -222,8 +398,21 @@ export function drawCardsFn(draft: GameState, playerId: PlayerId, count: number)
 export function gainMomentumFn(draft: GameState, playerId: PlayerId, amount: number) {
   if (amount <= 0) return;
   const player = draft.players[playerId];
-  player.momentum += amount;
-  logMsg(draft, `${playerId} gains ${amount} Momentum (now ${player.momentum}).`, 'momentum');
+
+  if (player.momentum >= MAX_MOMENTUM) {
+    logMsg(draft, `${playerId} is already at max Momentum.`, 'momentum');
+    return;
+  }
+
+  const newMomentum = Math.min(MAX_MOMENTUM, player.momentum + amount);
+  const actualGain = newMomentum - player.momentum;
+  const wasCapped = actualGain < amount;
+  player.momentum = newMomentum;
+  logMsg(
+    draft,
+    `${playerId} gains ${actualGain} Momentum (now ${player.momentum}).${wasCapped ? ` Momentum capped at ${MAX_MOMENTUM}.` : ''}`,
+    'momentum'
+  );
 
   // Recursive Failure rift: first Momentum gain from a card effect each turn places a Glitch Counter.
   if (draft.riftSpace?.id === 'RecursiveFailure' && !player.turnFlags.recursiveGlitchPlacedThisTurn) {

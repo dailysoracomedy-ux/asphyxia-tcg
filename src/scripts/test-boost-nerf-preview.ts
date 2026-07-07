@@ -2,7 +2,7 @@
    green (boosted) or red (nerfed) in the UI. */
 import { useGameStore } from '../store/gameStore';
 import { produce } from 'immer';
-import { getEffectiveDef, getApexAttackBonusPreview, applyTempDefBuffFn, armAttackBonusFn, addCounterFn } from '../game/rules';
+import { getEffectiveDef, getPreviewAttackDamage, applyTempDefBuffFn, armAttackBonusFn, addCounterFn } from '../game/rules';
 import { getCardDef } from '../data/cards';
 import type { ApexDef } from '../types/game';
 
@@ -65,15 +65,20 @@ console.log('=== ATK boost preview (armed bonus) ===');
   setupToMainPhase();
   const active = useGameStore.getState().activePlayerId;
   const apex = useGameStore.getState().players[active].apexSlots.find(Boolean)!;
+  const apexDef = getCardDef(apex.defId) as ApexDef;
+  const firstAttackId = apexDef.attacks[0].id;
 
-  const bonusBefore = getApexAttackBonusPreview(useGameStore.getState(), apex.instanceId);
-  check('no armed bonus initially -> preview is 0 (neutral color)', bonusBefore === 0);
+  const previewBefore = getPreviewAttackDamage(useGameStore.getState(), apex.instanceId, firstAttackId)!;
+  check('no armed bonus initially -> modified equals base (neutral color)', previewBefore.modifiedDamage === previewBefore.baseDamage);
 
   useGameStore.setState(produce((state) => {
     armAttackBonusFn(state, apex.instanceId, 200);
   }));
-  const bonusAfter = getApexAttackBonusPreview(useGameStore.getState(), apex.instanceId);
-  check('armed +200 bonus reflected in preview (would render GREEN, e.g. "300 (+200)")', bonusAfter === 200);
+  const previewAfter = getPreviewAttackDamage(useGameStore.getState(), apex.instanceId, firstAttackId)!;
+  check(
+    'armed +200 bonus reflected in preview (would render GREEN, e.g. "base -> base+200")',
+    previewAfter.modifiedDamage === previewAfter.baseDamage + 200
+  );
 }
 
 console.log('=== Glitch counters reduce DEF (would render RED) ===');
