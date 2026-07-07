@@ -569,6 +569,43 @@ real damage-race calculation - it will occasionally hold a defensive card too lo
 use one too early. It also doesn't evaluate Equip targeting beyond "first Apex without
 one." This is intentionally the "functional, not strong" bar the request asked for.
 
+## Commit 18: fixed viewport + Commit 17 hotfixes
+
+**Hotfix 1 - AI never got to pick its own opening Apex.** The opening-Apex-selection
+screen was never wired to the AI driver at all (it only handled `status ===
+'playing'`), so Vs AI games silently handed the AI's pick to the human. Fixed with a
+small effect inside `OpeningApexScreen` itself: when it's the AI's turn to choose, it
+auto-picks after a short delay and shows "{faction} AI is choosing its opening
+Apex..." instead of the AI's actual hand.
+
+**Hotfix 2 - the "goes first" banner overlapped the hand.** That banner is an
+`'info'`-kind log entry, the same mechanism Commit 16's invalid-action toast already
+watches for - it was positioned at a guessed fixed pixel offset (`bottom-[180px]`)
+that didn't reliably clear the hand's actual height. Moved it to `absolute
+bottom-full` inside the same relatively-positioned row as the hand, so it's always
+pinned exactly above that row regardless of its real height - no more guessing.
+
+**Fixed viewport in Vs AI mode - the bigger fix.** Previously the board reused
+Hotseat's pass-and-play model even in Vs AI mode: whichever player was active got
+rendered at the bottom with their hand visible, meaning the human would watch their
+own view flip to the AI's board *and see the AI's actual hand* during its turn. That
+directly contradicts what "playing against an AI" should feel like.
+
+Introduced a viewer-relative pair, separate from the real `activePlayerId` used for
+game logic: in Vs AI mode `viewerBottomId` is always `player1` (human) and
+`viewerTopId` is always `player2` (AI), full stop - the boards never swap, and the
+Hand component always renders `players.player1.hand`, never the active player's hand.
+Hotseat mode is completely unaffected (`viewerBottomId` still equals `activeId`
+there, preserving the existing pass-and-play swap by design).
+
+The trickier part was making sure the *human's own* board and hand can't be clicked
+during the AI's turn just because they're still visually present at the bottom - the
+click handlers, Reconfigure panel, and Control Conflict lock UI on the bottom board
+are now all gated by `bottomIsActingPlayer` (`viewerBottomId === activePlayerId`),
+so they're only wired up at all when it's genuinely the human's turn. During the AI's
+turn, the human's board just sits there inert while the AI's actions play out on the
+fixed top board, with the existing "{faction} AI is taking its turn..." indicator.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

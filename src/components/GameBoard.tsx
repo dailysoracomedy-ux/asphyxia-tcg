@@ -172,6 +172,15 @@ export default function GameBoard() {
   const activePlayer = state.players[activeId];
   const oppPlayer = state.players[oppId];
 
+  // Viewer-relative board identity: in Vs AI mode the human (player1) always sits at
+  // the bottom and the AI (player2) always sits at the top, regardless of whose turn
+  // it actually is - the viewport never swaps, so the human watches AI actions happen
+  // on the top board while their own board/hand stays put. In Hotseat, the board still
+  // swaps to whoever is active (the existing pass-and-play model).
+  const viewerBottomId: PlayerId = state.vsAI ? 'player1' : activeId;
+  const viewerTopId: PlayerId = state.vsAI ? 'player2' : oppId;
+  const bottomIsActingPlayer = viewerBottomId === activeId;
+
   const selectedCard = mode.kind !== 'idle' && 'cardId' in mode ? activePlayer.hand.find((c) => c.instanceId === mode.cardId) : undefined;
 
   function resetMode() {
@@ -354,7 +363,7 @@ export default function GameBoard() {
 
       {/* Row 1: top status bar - both players' compact chips + turn/phase + Battle Log */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <PlayerStatusChips state={state} playerId={oppId} onInspectCard={(instance) => setInspected({ instance, ownerId: oppId, zone: 'Void' })} />
+        <PlayerStatusChips state={state} playerId={viewerTopId} onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Void' })} />
         <div className="flex items-center gap-3 text-[11px] text-white/50 shrink-0">
           <span>
             Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
@@ -379,18 +388,18 @@ export default function GameBoard() {
             Reset
           </button>
         </div>
-        <PlayerStatusChips state={state} playerId={activeId} onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Void' })} />
+        <PlayerStatusChips state={state} playerId={viewerBottomId} onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Void' })} />
       </div>
 
       {/* Row 2: opponent board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
-          playerId={oppId}
+          playerId={viewerTopId}
           flipped
           onApexClick={oppApexClick}
           apexHighlight={oppApexHighlight}
-          onInspectCard={(instance) => setInspected({ instance, ownerId: oppId, zone: 'Field' })}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Field' })}
         />
       </div>
 
@@ -398,7 +407,7 @@ export default function GameBoard() {
       <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
         <RiftPanel rift={state.riftSpace} />
 
-        {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && (
+        {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
           <div className="rounded-lg border border-blue-400/30 bg-black/50 px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
             <span className="text-blue-300 shrink-0">Control Conflict - lock a Support for +1 Momentum?</span>
             {activePlayer.supportSlots.filter(Boolean).map((s) => (
@@ -434,7 +443,7 @@ export default function GameBoard() {
           />
         )}
 
-        {state.phase === 'Main' && (
+        {state.phase === 'Main' && !aiIsActing && (
           <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
             <div className="flex items-center gap-2 flex-wrap">
               <button type="button"
@@ -543,22 +552,27 @@ export default function GameBoard() {
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
-          playerId={activeId}
-          onApexClick={ownApexClick}
-          onSupportClick={ownSupportClick}
-          apexHighlight={ownApexHighlight}
-          apexDisabled={ownApexDisabled}
+          playerId={viewerBottomId}
+          onApexClick={bottomIsActingPlayer ? ownApexClick : undefined}
+          onSupportClick={bottomIsActingPlayer ? ownSupportClick : undefined}
+          apexHighlight={bottomIsActingPlayer ? ownApexHighlight : undefined}
+          apexDisabled={bottomIsActingPlayer ? ownApexDisabled : () => true}
           selectedApexId={
             mode.kind === 'attackerChosen' || mode.kind === 'attackAwaitingTarget' ? mode.attackerId : null
           }
           selectedSupportId={mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain' ? mode.returnId : null}
-          supportDisabled={() => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle'}
-          onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Field' })}
+          supportDisabled={bottomIsActingPlayer ? () => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle' : () => true}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Field' })}
         />
       </div>
 
       {/* Row 5: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5">
+      <div className="shrink-0 flex flex-col gap-1.5 relative">
+        {toast && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 px-3 py-1.5 rounded-lg border border-red-400/50 bg-black/90 text-red-200 text-xs shadow-lg whitespace-nowrap pointer-events-none">
+            {toast}
+          </div>
+        )}
         <div className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 flex items-center gap-2 flex-wrap">
           {state.phase === 'Start' && (
             <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
@@ -587,19 +601,13 @@ export default function GameBoard() {
         </div>
 
         <Hand
-          cards={activePlayer.hand}
+          cards={state.players[viewerBottomId].hand}
           selectedId={selectedCard?.instanceId ?? null}
-          onSelect={state.phase === 'Main' && !aiIsActing ? selectHandCard : undefined}
+          onSelect={state.phase === 'Main' && bottomIsActingPlayer && !aiIsActing ? selectHandCard : undefined}
           disabledIds={handDisabledIds}
-          onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Hand' })}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Hand' })}
         />
       </div>
-
-      {toast && (
-        <div className="fixed bottom-[180px] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg border border-red-400/50 bg-black/90 text-red-200 text-xs shadow-lg animate-pulse pointer-events-none">
-          {toast}
-        </div>
-      )}
 
       {inspected && (
         <CardInspectModal
@@ -728,9 +736,27 @@ function OpeningApexScreen() {
   const state = useGameStore();
   const selectOpeningApex = useGameStore((s) => s.selectOpeningApex);
   const pid = state.openingApexSelectionPlayerId;
+  const isAITurn = state.vsAI && pid === 'player2';
+
+  useEffect(() => {
+    if (!isAITurn || !pid) return;
+    const apexCards = state.players[pid].hand.filter((c) => c.type === 'Apex');
+    if (apexCards.length === 0) return;
+    const t = setTimeout(() => selectOpeningApex(pid, apexCards[0].instanceId), 500);
+    return () => clearTimeout(t);
+  }, [isAITurn, pid, state.players, selectOpeningApex]);
+
   if (!pid) return null;
   const player = state.players[pid];
   const apexCards = player.hand.filter((c) => c.type === 'Apex');
+
+  if (isAITurn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-fuchsia-300/80 italic animate-pulse text-sm">{player.faction} AI is choosing its opening Apex...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
