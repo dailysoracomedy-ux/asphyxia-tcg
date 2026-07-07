@@ -80,7 +80,7 @@ function fixtureState(p1: PlayerState, p2: PlayerState, extra: Partial<GameState
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
     debugMode: false,
-    gameOverReason: null,
+    gameOverReason: null, vsAI: false,
     ...extra,
   };
 }

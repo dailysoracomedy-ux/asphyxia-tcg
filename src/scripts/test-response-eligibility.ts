@@ -70,7 +70,7 @@ function fixtureState(p1: PlayerState, p2: PlayerState): GameState {
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
     debugMode: false,
-    gameOverReason: null,
+    gameOverReason: null, vsAI: false,
   };
 }
 

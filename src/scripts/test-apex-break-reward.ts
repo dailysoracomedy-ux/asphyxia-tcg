@@ -95,7 +95,7 @@ function setupCombat(opts: {
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
     debugMode: false,
-    gameOverReason: null,
+    gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   return { p1ApexId: p1Apex.instanceId, p2ApexId: p2Apex?.instanceId };

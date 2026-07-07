@@ -85,7 +85,7 @@ function setupCombat(opts: { p1DefId: string; p2DefId: string; p1Overrides?: Par
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
     debugMode: false,
-    gameOverReason: null,
+    gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   return { p1ApexId: p1Apex.instanceId, p2ApexId: p2Apex.instanceId };
@@ -142,7 +142,7 @@ console.log('=== No Gods in the Gutters: momentum+primed-bonus at O2 <= 4, not a
       reconfigureAwaitingPlay: false,
       startPhasePending: false,
       debugMode: false,
-      gameOverReason: null,
+      gameOverReason: null, vsAI: false,
     };
     useGameStore.setState(state);
   }
@@ -187,7 +187,7 @@ console.log('=== Echo Riot rift: Apex Break Reward grants +2 Momentum at O2 <= 6
       reconfigureAwaitingPlay: false,
       startPhasePending: false,
       debugMode: false,
-      gameOverReason: null,
+      gameOverReason: null, vsAI: false,
     };
     useGameStore.setState(state);
     return { p1ApexId: p1Apex.instanceId, p2ApexId: p2Apex.instanceId };

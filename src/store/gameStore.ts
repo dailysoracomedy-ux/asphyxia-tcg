@@ -106,6 +106,7 @@ function initialState(): GameState {
     startPhasePending: false,
     debugMode: false,
     gameOverReason: null,
+    vsAI: false,
   };
 }
 
@@ -164,7 +165,7 @@ function runStartPhase(draft: GameState) {
   const oppId = otherPlayer(playerId);
   const opp = draft.players[oppId];
 
-  logMsg(draft, `--- Turn ${draft.turnNumber}: ${playerId} (${player.faction}) - Start Phase ---`, 'phase');
+  logMsg(draft, `--- Turn ${draft.turnNumber}: ${playerId} (${player.faction}) - Draw Phase ---`, 'phase');
 
   drawCardsFn(draft, playerId, 1);
 
@@ -745,7 +746,7 @@ function maybeLogActionResolved(draft: GameState) {
 // ==========================================================================
 
 interface GameStore extends GameState {
-  startNewGame: (p1: Faction, p2: Faction) => void;
+  startNewGame: (p1: Faction, p2: Faction, vsAI?: boolean) => void;
   selectOpeningApex: (playerId: PlayerId, cardInstanceId: string) => void;
   advancePhase: (phase: Phase) => void;
   endTurn: () => void;
@@ -769,10 +770,11 @@ function mutate(set: (fn: (state: GameStore) => Partial<GameStore> | GameStore) 
 export const useGameStore = create<GameStore>((set) => ({
   ...initialState(),
 
-  startNewGame: (p1Faction, p2Faction) =>
+  startNewGame: (p1Faction, p2Faction, vsAI) =>
     mutate(set, (draft) => {
       Object.assign(draft, initialState());
       draft.selectedFactions = { player1: p1Faction, player2: p2Faction };
+      draft.vsAI = !!vsAI;
 
       for (const [pid, faction] of [
         ['player1', p1Faction],

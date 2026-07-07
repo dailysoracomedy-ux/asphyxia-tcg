@@ -18,11 +18,20 @@ interface PlayerBoardProps {
   supportDisabled?: (instanceId: string) => boolean;
   selectedApexId?: string | null;
   selectedSupportId?: string | null;
+  onInspectCard?: (instance: CardInstance) => void;
 }
 
 /** Compact single-line player status chips - O2/MOM/DECK/VOID/HAND - meant for the
  *  top status bar so the board rows below only need to show Apex/Support slots. */
-export function PlayerStatusChips({ state, playerId }: { state: GameState; playerId: PlayerId }) {
+export function PlayerStatusChips({
+  state,
+  playerId,
+  onInspectCard,
+}: {
+  state: GameState;
+  playerId: PlayerId;
+  onInspectCard?: (instance: CardInstance) => void;
+}) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
@@ -51,12 +60,17 @@ export function PlayerStatusChips({ state, playerId }: { state: GameState; playe
             <div className="text-white/40 italic">Void is empty.</div>
           ) : (
             <div className="space-y-0.5">
-              {player.voidZone.map((c, i) => {
+              {[...player.voidZone].reverse().map((c, i) => {
                 const d = getCardDef(c.defId);
                 return (
-                  <div key={`${c.instanceId}-${i}`} className="truncate text-white/70">
+                  <button
+                    type="button"
+                    key={`${c.instanceId}-${i}`}
+                    onClick={() => onInspectCard?.(c)}
+                    className="block w-full text-left truncate text-white/70 hover:text-white hover:bg-white/5 rounded px-0.5"
+                  >
                     {d.name} <span className="text-white/40">({d.type}{d.faction ? `, ${d.faction}` : ''})</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -78,6 +92,7 @@ export default function PlayerBoard({
   supportDisabled,
   selectedApexId,
   selectedSupportId,
+  onInspectCard,
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
@@ -101,6 +116,7 @@ export default function PlayerBoard({
               onClick={onSupportClick}
               disabled={support ? supportDisabled?.(support.instanceId) : false}
               selected={support ? selectedSupportId === support.instanceId : false}
+              onInspect={onInspectCard}
             />
           ))}
         </div>
@@ -115,6 +131,7 @@ export default function PlayerBoard({
               highlight={apex ? apexHighlight?.(apex.instanceId) ?? null : null}
               disabled={apex ? apexDisabled?.(apex.instanceId) : false}
               selected={apex ? selectedApexId === apex.instanceId : false}
+              onInspect={onInspectCard}
             />
           ))}
         </div>
@@ -139,6 +156,7 @@ function ApexSlot({
   highlight,
   disabled,
   selected,
+  onInspect,
 }: {
   apex: CardInstance | null;
   state: GameState;
@@ -147,6 +165,7 @@ function ApexSlot({
   highlight: 'valid-target' | 'attacked' | 'locked' | null;
   disabled?: boolean;
   selected?: boolean;
+  onInspect?: (instance: CardInstance) => void;
 }) {
   if (!apex) {
     return (
@@ -176,6 +195,7 @@ function ApexSlot({
       effectiveDef={effDef}
       attackPreviews={attackPreviews}
       onClick={onClick ? () => onClick(apex.instanceId) : undefined}
+      onInspect={onInspect ? () => onInspect(apex) : undefined}
       highlight={apex.hasAttacked ? 'attacked' : highlight}
       disabled={disabled}
       selected={selected}
@@ -197,6 +217,7 @@ function SupportSlot({
   onClick,
   disabled,
   selected,
+  onInspect,
 }: {
   support: CardInstance | null;
   state: GameState;
@@ -204,6 +225,7 @@ function SupportSlot({
   onClick?: (id: string) => void;
   disabled?: boolean;
   selected?: boolean;
+  onInspect?: (instance: CardInstance) => void;
 }) {
   if (!support) {
     return (
@@ -220,6 +242,7 @@ function SupportSlot({
       size="supportBoard"
       compact
       onClick={onClick ? () => onClick(support.instanceId) : undefined}
+      onInspect={onInspect ? () => onInspect(support) : undefined}
       disabled={disabled}
       selected={selected}
       footer={

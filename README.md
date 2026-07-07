@@ -470,6 +470,105 @@ Two focused follow-ups to Commit 13's grid layout, both from screenshot feedback
   of drifting to the outer edges of their tall board rows - the "facing off across the
   line" feel that was requested.
 
+## Commit 16: Card Inspect, invalid-action toast, readability polish
+
+**Card Inspect - the centerpiece feature.** Every card (hand, board Apex, board
+Support, and now Void entries too) has a small "i" button in its corner - a sibling
+overlay button next to the card, not a change to the card's own click handler, so it
+never conflicts with normal gameplay actions (playing, attacking, chaining, etc.).
+Opens `CardInspectModal`: name/faction/type/zone/tags/cost, full rules text, and then
+type-specific detail - for Apexes, current vs. base DEF, every attack with its live
+`base → current` damage and modifier breakdown (the same `getPreviewAttackDamage` the
+board and selector already use, so it can never disagree), counters, attached Equip,
+chained Support; for Supports, chain/lock status and full Sync Ability text, including
+whether it's Reconfigure-locked this turn; for Equips, which Apex (if any) it's
+attached to (found by scanning both players' boards). Closes via the X button, the
+Escape key, or clicking the backdrop - `fixed inset-0` overlay, so it can never affect
+page height or reopen browser scroll.
+
+**Void inspection was already implemented** (Commit 11's clickable Void chip) - each
+entry is now also a button that opens the same Card Inspect modal, read-only as
+required (no way to remove/reorder from the popover).
+
+**Invalid-action feedback** moved out of being log-only: a lightweight `useEffect`
+watches for new `'info'`-kind log entries (the existing "No empty Support slot",
+"Cannot Reconfigure locked Support," etc. messages - no new call sites needed, since
+every invalid-action path already logged with kind `'info'`) and surfaces the latest
+one as a `fixed`-position toast near the hand for ~3.5 seconds. The message still also
+lands in the Battle Log as before, for anyone who wants the full history.
+
+**Rift strip shortened** to the requested one-line summaries, with the full rule text
+preserved for the game-start log and available in the strip via a small "i" toggle
+(expands inline) plus a hover tooltip - added a new `shortDescription` field to
+`RiftSpace` alongside the existing `description` rather than replacing it, so nothing
+that already depended on the full text (the game-start log, for one) needed to change.
+
+**Selected-card clarity**: the confirmation prompts for playing an Apex/Support/Equip/
+Special now name the actual card ("Selected: Spark-Plug — ...") instead of a generic
+"Play this Support?" - cheap change, meaningfully less ambiguous once more than one
+card has been played in a turn.
+
+**Already covered by earlier commits, verified rather than rebuilt**: attack preview
+(Commit 9's `getAttackOutcomePreview`, shown per-target while choosing where to
+attack), legal-target highlighting (existing `ownApexHighlight`/`oppApexHighlight`
+logic across Equip/chain/attack/target modes), the Battle Log drawer (Commit 12,
+already has the "New" badge, Copy Log, internal scroll), and active-player/phase
+display (top status bar's "Turn N · Phase" plus each `PlayerStatusChips` glowing when
+that player is active).
+
+## Commit 17: AI opponent + automatic Draw Phase
+
+**Draw Phase automation.** Kept the internal `Phase` enum value as `'Start'`
+(explicitly lower-risk per the request), but all player-facing text now says "Draw
+Phase" via a new `PHASE_LABEL` map. A new `useEffect` in `GameBoard.tsx` watches game
+state and auto-calls `advancePhase('Start')` then `advancePhase('Main')` in sequence
+(small delays for readability) - except when Control Conflict's optional lock
+decision is available, which pauses on a "Continue to Main Phase" button so the
+choice isn't skipped instantly. The old manual Start/Main phase buttons are gone;
+only Combat Phase and End Turn remain. This applies uniformly to both players in both
+modes - Hotseat still requires manual Main/Combat/End, only the draw itself auto-resolves.
+
+**AI opponent** (`src/game/ai.ts`) - a new `vsAI` flag on `GameState`, selected at the
+main menu. The AI always calls the *exact same store actions* a human uses
+(`playApexCard`, `declareAttack`, `resolveResponse`, etc.) - it never bypasses
+legality checks or duplicates combat math, reusing `getAttackOutcomePreview` for
+combat scoring and `getEligibleResponses` for response legality (the same functions
+the UI itself calls). A `useEffect` in `GameBoard.tsx` re-evaluates on every state
+change and, when it's player2's turn (Vs AI mode) and no human response is pending,
+schedules exactly one AI action via `setTimeout` (600-700ms) - which mutates state and
+naturally re-triggers the effect for the next decision, forming a queue-free
+"decide one thing, wait, re-evaluate" loop. Human response windows are completely
+unaffected - the driver checks `respondingPlayerId`/`negatingPlayerId` before acting
+and does nothing at all when it's the human's turn to respond, so the pause is
+enforced by the same `pendingResponseQueue` gate everything else already respects.
+
+**A genuine deadlock bug, caught by testing before it ever reached a real game.**
+The AI's combat logic originally checked attack affordability against
+`computeAvailableSync()` - a static formula based on Support count. But
+`declareAttack` actually validates against `player.availableSync`, a stateful field
+that *decrements as attacks are made* during the turn. Since the AI never saw that
+decrement, it kept proposing the same now-unaffordable attack every cycle, forever -
+confirmed by a full AI-vs-AI simulation test hanging in Combat Phase across all 5
+runs. Fixed by reading `player.availableSync` directly, the same field the engine
+itself checks. Without the AI-vs-AI simulation test, this would have shipped as a
+guaranteed hang the moment a real game reached a second attack in one Combat Phase.
+
+**AI heuristics**: Main Phase priority is Apex → Support (chained if a target exists,
+else unchained) → Equip → Special-with-a-legal-target, one action per cycle. Combat
+scores every legal (attacker, attack, target) combination via `getAttackOutcomePreview`
+- lethal beats destroy-with-overflow beats clean destroy beats raw damage - and
+executes the single best one. Civil War/Human Error choose the attack bonus when an
+Apex can still attack (or Momentum is capped), Momentum otherwise. Control Conflict
+locks when Momentum isn't capped. Responses are deliberately conservative: only used
+when O2 is low or an Apex hasn't attacked yet, otherwise pass - Reconfigure is
+intentionally skipped for this first AI pass, exactly as the request allowed.
+
+**Known limitations, stated plainly:** the AI does not use Reconfigure, does not plan
+multi-turn setups, and its response-window judgment is a simple heuristic rather than
+real damage-race calculation - it will occasionally hold a defensive card too long or
+use one too early. It also doesn't evaluate Equip targeting beyond "first Apex without
+one." This is intentionally the "functional, not strong" bar the request asked for.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -51,6 +51,7 @@ export default function NewGameMenu() {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const [p1, setP1] = useState<Faction>('Neon Underground');
   const [p2, setP2] = useState<Faction>('Dark White');
+  const [vsAI, setVsAI] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
@@ -66,20 +67,44 @@ export default function NewGameMenu() {
           </span>
         </div>
 
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <span className="text-xs uppercase tracking-widest text-white/40 mr-2">Mode</span>
+          <button
+            type="button"
+            onClick={() => setVsAI(false)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
+              !vsAI ? 'border-cyan-400 text-cyan-200 bg-cyan-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
+            }`}
+          >
+            Hotseat (2 Player)
+          </button>
+          <button
+            type="button"
+            onClick={() => setVsAI(true)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
+              vsAI ? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
+            }`}
+          >
+            Vs AI
+          </button>
+        </div>
+
         <div className="flex gap-6 flex-wrap justify-center">
           <FactionPicker label="Player 1" value={p1} onChange={setP1} />
-          <FactionPicker label="Player 2" value={p2} onChange={setP2} />
+          <FactionPicker label={vsAI ? 'Player 2 (AI)' : 'Player 2'} value={p2} onChange={setP2} />
         </div>
 
         <button type="button"
-          onClick={() => startNewGame(p1, p2)}
+          onClick={() => startNewGame(p1, p2, vsAI)}
           className="mt-8 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
         >
           START NEW GAME
         </button>
 
         <p className="text-center text-white/25 text-[10px] mt-4">
-          Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.
+          {vsAI
+            ? 'You play as Player 1. The built-in AI controls Player 2 and takes its turns automatically.'
+            : 'Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.'}
         </p>
       </div>
     </div>

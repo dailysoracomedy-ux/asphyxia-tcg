@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
-import type { ApexDef, SpecialDef, PlayerId, GameState } from '@/types/game';
+import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
 import PlayerBoard, { PlayerStatusChips } from './PlayerBoard';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
@@ -11,8 +11,12 @@ import GameLog from './GameLog';
 import CombatControls from './CombatControls';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
+import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
+import { aiPlayOneMainPhaseAction, aiPlayOneCombatAction, aiDecideControlConflict, aiChooseBinaryRiftBonus, aiChooseResponse } from '@/game/ai';
+
+const PHASE_LABEL: Record<string, string> = { Start: 'Draw', Main: 'Main', Combat: 'Combat', End: 'End' };
 
 type Mode =
   | { kind: 'idle' }
@@ -32,6 +36,103 @@ export default function GameBoard() {
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [logOpen, setLogOpen] = useState(false);
+  const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const lastLogSeenRef = useRef(0);
+
+  useEffect(() => {
+    if (state.log.length > lastLogSeenRef.current) {
+      const newEntries = state.log.slice(lastLogSeenRef.current);
+      const infoEntry = [...newEntries].reverse().find((e) => e.kind === 'info');
+      lastLogSeenRef.current = state.log.length;
+      if (infoEntry) {
+        setToast(infoEntry.message);
+        const t = setTimeout(() => setToast(null), 3500);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [state.log]);
+
+  // Draw Phase is automatic: resolve the draw itself, then move straight to Main Phase,
+  // except when Control Conflict's optional lock decision is available - that pauses
+  // here (a "Continue to Main Phase" button lets the player move on explicitly, and the
+  // AI driver below makes its own lock/skip decision and advances the phase itself).
+  useEffect(() => {
+    if (state.status !== 'playing') return;
+    if (state.pendingResponseQueue.length > 0) return;
+    if (state.phase === 'Start' && state.startPhasePending) {
+      const t = setTimeout(() => useGameStore.getState().advancePhase('Start'), 300);
+      return () => clearTimeout(t);
+    }
+    if (state.phase === 'Start' && !state.startPhasePending) {
+      const active = state.players[state.activePlayerId];
+      const controlConflictPause =
+        state.riftSpace?.id === 'ControlConflict' && active.supportSlots.some(Boolean) && !active.lockedSupportInstanceId;
+      if (!controlConflictPause) {
+        const t = setTimeout(() => useGameStore.getState().advancePhase('Main'), 300);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [state]);
+
+  // AI driver: only active in Vs AI mode, and only ever acts for player2. Re-runs on
+  // every state change (since each AI action mutates the store and produces a new
+  // state reference), which naturally forms a "decide one thing, wait, re-evaluate"
+  // loop without needing a manual queue. Every branch bails out immediately if it's
+  // not player2's turn, the game has ended, or a human response is pending - so the
+  // AI can never act while the human needs to make a choice.
+  useEffect(() => {
+    if (!state.vsAI || state.status !== 'playing') return;
+
+    // A response window may need EITHER player - only act if it's specifically AI's turn to respond.
+    if (state.pendingResponseQueue.length > 0) {
+      const item = state.pendingResponseQueue[0];
+      if (item.stage === 'reactionChoice' && item.respondingPlayerId === 'player2') {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse('player2', item)), 700);
+        return () => clearTimeout(t);
+      }
+      if (item.stage === 'negateWindow' && item.negatingPlayerId === 'player2') {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse('player2', item)), 700);
+        return () => clearTimeout(t);
+      }
+      if (item.stage === 'civilWarChoice' && item.playerId === 'player2') {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse({ type: 'civilWar', pick: aiChooseBinaryRiftBonus('player2') }), 600);
+        return () => clearTimeout(t);
+      }
+      if (item.stage === 'humanErrorChoice' && item.playerId === 'player2') {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse({ type: 'humanError', pick: aiChooseBinaryRiftBonus('player2') }), 600);
+        return () => clearTimeout(t);
+      }
+      return; // some other response is pending (likely awaiting the human) - AI waits
+    }
+
+    if (state.activePlayerId !== 'player2') return; // not AI's turn
+
+    if (state.phase === 'Start' && !state.startPhasePending && state.riftSpace?.id === 'ControlConflict') {
+      const active = state.players.player2;
+      if (active.supportSlots.some(Boolean) && !active.lockedSupportInstanceId) {
+        const t = setTimeout(() => aiDecideControlConflict('player2'), 600);
+        return () => clearTimeout(t);
+      }
+      return; // otherwise let the shared Draw Phase effect above auto-advance to Main
+    }
+
+    if (state.phase === 'Main') {
+      const t = setTimeout(() => {
+        const acted = aiPlayOneMainPhaseAction('player2');
+        if (!acted) useGameStore.getState().advancePhase('Combat');
+      }, 650);
+      return () => clearTimeout(t);
+    }
+
+    if (state.phase === 'Combat') {
+      const t = setTimeout(() => {
+        const acted = aiPlayOneCombatAction('player2');
+        if (!acted) useGameStore.getState().endTurn();
+      }, 650);
+      return () => clearTimeout(t);
+    }
+  }, [state]);
   const [lastSeenLogCount, setLastSeenLogCount] = useState(0);
 
   /**
@@ -66,6 +167,7 @@ export default function GameBoard() {
   if (state.status !== 'playing') return null;
 
   const activeId = state.activePlayerId;
+  const aiIsActing = state.vsAI && activeId === 'player2' && !state.debugMode;
   const oppId: PlayerId = activeId === 'player1' ? 'player2' : 'player1';
   const activePlayer = state.players[activeId];
   const oppPlayer = state.players[oppId];
@@ -252,10 +354,10 @@ export default function GameBoard() {
 
       {/* Row 1: top status bar - both players' compact chips + turn/phase + Battle Log */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <PlayerStatusChips state={state} playerId={oppId} />
+        <PlayerStatusChips state={state} playerId={oppId} onInspectCard={(instance) => setInspected({ instance, ownerId: oppId, zone: 'Void' })} />
         <div className="flex items-center gap-3 text-[11px] text-white/50 shrink-0">
           <span>
-            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
+            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
             <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
           </span>
           <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
@@ -277,12 +379,19 @@ export default function GameBoard() {
             Reset
           </button>
         </div>
-        <PlayerStatusChips state={state} playerId={activeId} />
+        <PlayerStatusChips state={state} playerId={activeId} onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Void' })} />
       </div>
 
       {/* Row 2: opponent board */}
       <div className="min-h-0 overflow-hidden">
-        <PlayerBoard state={state} playerId={oppId} flipped onApexClick={oppApexClick} apexHighlight={oppApexHighlight} />
+        <PlayerBoard
+          state={state}
+          playerId={oppId}
+          flipped
+          onApexClick={oppApexClick}
+          apexHighlight={oppApexHighlight}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: oppId, zone: 'Field' })}
+        />
       </div>
 
       {/* Row 3: Rift / prompt / action-context area - compact, only as tall as its content needs */}
@@ -302,6 +411,12 @@ export default function GameBoard() {
                 lock {getCardDef(s!.defId).name}
               </button>
             ))}
+            <button type="button"
+              onClick={scrollSafeClick(() => state.advancePhase('Main'))}
+              className="px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 text-white/60 ml-auto"
+            >
+              Continue to Main Phase
+            </button>
           </div>
         )}
 
@@ -323,7 +438,7 @@ export default function GameBoard() {
           <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
             <div className="flex items-center gap-2 flex-wrap">
               <button type="button"
-                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn'}
+                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
                 onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
                 className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
               >
@@ -380,21 +495,21 @@ export default function GameBoard() {
 
         {mode.kind === 'apexReady' && (
           <ConfirmBar
-            text="Play this Apex into an empty Front Line slot?"
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
             onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
             onCancel={resetMode}
           />
         )}
         {mode.kind === 'supportReady' && (
           <ConfirmBar
-            text="Play this Support into an empty Support slot?"
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — play into an empty Support slot?`}
             onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
             onCancel={resetMode}
           />
         )}
         {mode.kind === 'supportChooseChain' && (
           <ConfirmBar
-            text="Click one of your Apexes above to chain this Ability Support, or play it unchained as a vanilla Sync source."
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — click one of your Apexes above to chain it, or play it unchained as a vanilla Sync source.`}
             confirmLabel="Play Unchained"
             onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
             onCancel={resetMode}
@@ -404,18 +519,21 @@ export default function GameBoard() {
           <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
         )}
         {mode.kind === 'equipReady' && (
-          <ConfirmBar text="Click one of your Apexes above (without an Equip) to attach this." onCancel={resetMode} />
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Equip'} — click one of your Apexes above (without an Equip) to attach this.`}
+            onCancel={resetMode}
+          />
         )}
         {mode.kind === 'specialReady' && !mode.requiresTarget && (
           <ConfirmBar
-            text="Play this Special?"
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — play it now?`}
             onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
             onCancel={resetMode}
           />
         )}
         {mode.kind === 'specialReady' && mode.requiresTarget && (
           <ConfirmBar
-            text={`Click a valid target (${mode.requiresTarget}) above.`}
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — click a valid target (${mode.requiresTarget}) above.`}
             onCancel={resetMode}
           />
         )}
@@ -435,34 +553,31 @@ export default function GameBoard() {
           }
           selectedSupportId={mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain' ? mode.returnId : null}
           supportDisabled={() => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle'}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Field' })}
         />
       </div>
 
       {/* Row 5: hand + phase controls - always visible, fixed bottom area */}
       <div className="shrink-0 flex flex-col gap-1.5">
         <div className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 flex items-center gap-2 flex-wrap">
-          <PhaseButton
-            label="Start Phase"
-            active={state.phase === 'Start'}
-            enabled={state.phase === 'Start' && state.startPhasePending}
-            onClick={() => state.advancePhase('Start')}
-          />
-          <PhaseButton
-            label="Main Phase"
-            active={state.phase === 'Main'}
-            enabled={state.phase === 'Start' && !state.startPhasePending}
-            onClick={() => state.advancePhase('Main')}
-          />
+          {state.phase === 'Start' && (
+            <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
+          )}
+          {aiIsActing && (
+            <span className="text-[11px] text-fuchsia-300/80 italic px-1 animate-pulse">
+              {state.players.player2.faction} AI is taking its turn...
+            </span>
+          )}
           <PhaseButton
             label="Combat Phase"
             active={state.phase === 'Combat'}
-            enabled={state.phase === 'Main'}
+            enabled={state.phase === 'Main' && !aiIsActing}
             onClick={() => state.advancePhase('Combat')}
           />
           <button
             type="button"
             onClick={scrollSafeClick(() => state.endTurn())}
-            disabled={state.phase !== 'Combat'}
+            disabled={state.phase !== 'Combat' || aiIsActing}
             className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
               state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
             }`}
@@ -474,10 +589,27 @@ export default function GameBoard() {
         <Hand
           cards={activePlayer.hand}
           selectedId={selectedCard?.instanceId ?? null}
-          onSelect={state.phase === 'Main' ? selectHandCard : undefined}
+          onSelect={state.phase === 'Main' && !aiIsActing ? selectHandCard : undefined}
           disabledIds={handDisabledIds}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: activeId, zone: 'Hand' })}
         />
       </div>
+
+      {toast && (
+        <div className="fixed bottom-[180px] left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg border border-red-400/50 bg-black/90 text-red-200 text-xs shadow-lg animate-pulse pointer-events-none">
+          {toast}
+        </div>
+      )}
+
+      {inspected && (
+        <CardInspectModal
+          instance={inspected.instance}
+          state={state}
+          ownerId={inspected.ownerId}
+          zone={inspected.zone}
+          onClose={() => setInspected(null)}
+        />
+      )}
 
       {logOpen && (
         <BattleLogDrawer log={state.log} onClose={() => setLogOpen(false)} />

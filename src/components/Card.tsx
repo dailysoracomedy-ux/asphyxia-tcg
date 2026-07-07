@@ -21,6 +21,9 @@ interface CardProps {
   /** Per-attack damage preview, keyed by attack id - computed via getPreviewAttackDamage
    *  so the board display always agrees with the attack selector and combat resolution. */
   attackPreviews?: Record<string, AttackDamagePreview>;
+  /** Opens a full detail view for this card - separate from onClick so it never
+   *  conflicts with the card's normal gameplay action. */
+  onInspect?: () => void;
 }
 
 const BOOST_GREEN = '#4ade80';
@@ -38,6 +41,7 @@ export default function Card({
   footer,
   effectiveDef,
   attackPreviews,
+  onInspect,
 }: CardProps) {
   if (faceDown) {
     return (
@@ -76,6 +80,7 @@ export default function Card({
     : '';
 
   return (
+    <div className="relative inline-block shrink-0">
     <button
       type="button"
       onClick={onClick}
@@ -166,5 +171,19 @@ export default function Card({
 
       {footer}
     </button>
+    {onInspect && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onInspect();
+        }}
+        title="View full card details"
+        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 border border-white/30 text-white/70 text-[9px] leading-none flex items-center justify-center hover:bg-black/90 hover:text-white z-10"
+      >
+        i
+      </button>
+    )}
+    </div>
   );
 }

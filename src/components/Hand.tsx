@@ -9,9 +9,10 @@ interface HandProps {
   onSelect?: (instanceId: string) => void;
   disabledIds?: Set<string>;
   label?: string;
+  onInspectCard?: (instance: CardInstance) => void;
 }
 
-export default function Hand({ cards, selectedId, onSelect, disabledIds, label }: HandProps) {
+export default function Hand({ cards, selectedId, onSelect, disabledIds, label, onInspectCard }: HandProps) {
   return (
     <div className="rounded-lg border border-white/10 bg-black/40 p-1.5 max-h-[168px] shrink-0">
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
@@ -25,6 +26,7 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label }
             selected={selectedId === c.instanceId}
             disabled={disabledIds?.has(c.instanceId)}
             onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
+            onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
           />
         ))}
       </div>

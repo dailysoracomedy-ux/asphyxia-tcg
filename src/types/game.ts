@@ -318,6 +318,9 @@ export interface RiftSpace {
   id: RiftSpaceId;
   name: string;
   description: string;
+  /** Short one-line summary for the compact Rift strip - full text stays in `description`
+   *  for the game-start log and the strip's hover tooltip. */
+  shortDescription: string;
 }
 
 export type LogKind =
@@ -439,4 +442,6 @@ export interface GameState {
   startPhasePending: boolean;
   debugMode: boolean; // when true, verbose response-eligibility checks are logged
   gameOverReason: string | null;
+  /** When true, player2 is controlled by the simple built-in AI instead of a human. */
+  vsAI: boolean;
 }

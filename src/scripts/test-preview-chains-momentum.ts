@@ -91,7 +91,7 @@ function setupCombat(opts: { p1DefId: string; p2DefId: string; p1Overrides?: Par
     reconfigureAwaitingPlay: false,
     startPhasePending: false,
     debugMode: false,
-    gameOverReason: null,
+    gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   return { p1ApexId: p1Apex.instanceId, p2ApexId: p2Apex.instanceId };
@@ -199,13 +199,13 @@ console.log('=== Test 9: Momentum cannot exceed 3 from Civil War ===');
   const p2Apex = createInstance('dw-overseer-prime', 'Apex');
   const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { o2: 4, momentum: 3 });
   const p2 = fixturePlayer('player2', 'Dark White', p2Apex, { o2: 12 });
-  const civilWar = { id: 'CivilWar' as const, name: 'Civil War', description: '' };
+  const civilWar = { id: 'CivilWar' as const, name: 'Civil War', description: '', shortDescription: '' };
   const state: GameState = {
     status: 'playing', players: { player1: p1, player2: p2 }, activePlayerId: 'player1', firstPlayerId: 'player1',
     turnNumber: 3, phase: 'Start', riftSpace: civilWar, log: [], winnerId: null, pendingResponseQueue: [],
     isFirstTurnOverall: false, selectedFactions: { player1: 'Neon Underground', player2: 'Dark White' },
     openingApexSelectionPlayerId: null, reconfigureAwaitingPlay: false, startPhasePending: true,
-    debugMode: false, gameOverReason: null,
+    debugMode: false, gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   useGameStore.getState().advancePhase('Start');
@@ -234,7 +234,7 @@ console.log('=== Test 11: Momentum cannot exceed 3 from card effects (direct hel
     turnNumber: 2, phase: 'Main', riftSpace: null, log: [], winnerId: null, pendingResponseQueue: [],
     isFirstTurnOverall: false, selectedFactions: { player1: 'Neon Underground', player2: 'Dark White' },
     openingApexSelectionPlayerId: null, reconfigureAwaitingPlay: false, startPhasePending: false,
-    debugMode: false, gameOverReason: null,
+    debugMode: false, gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   gainMomentumFn(useGameStore.getState(), 'player1', 5); // wildly over-gain from a hypothetical card effect
@@ -251,7 +251,7 @@ console.log('=== Test 12: Spending Momentum still works after being capped at 3 
     turnNumber: 2, phase: 'Main', riftSpace: null, log: [], winnerId: null, pendingResponseQueue: [],
     isFirstTurnOverall: false, selectedFactions: { player1: 'Neon Underground', player2: 'Dark White' },
     openingApexSelectionPlayerId: null, reconfigureAwaitingPlay: false, startPhasePending: false,
-    debugMode: false, gameOverReason: null,
+    debugMode: false, gameOverReason: null, vsAI: false,
   };
   useGameStore.setState(state);
   loseMomentumFn(useGameStore.getState(), 'player1', 2);
