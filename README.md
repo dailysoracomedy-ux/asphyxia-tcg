@@ -390,6 +390,66 @@ criterion (no *browser-level* scroll) is met by the fixed-height shell regardles
 where content sits inside it; a dedicated sticky bottom bar for hand+actions specifically
 would be a further layout change beyond what this pass covers.
 
+## Commit 13: true no-scroll game grid
+
+Commit 12's fix (`overflow: hidden` shell + one internal scrolling region) was a real
+improvement but didn't budget vertical space tightly enough - a `flex-col` stack of
+full-size board rows could still exceed a 1366×768 viewport before its `overflow-y-auto`
+region kicked in, which doesn't help if the *board itself* is what's too tall.
+
+**Rebuilt as a real 5-row CSS grid** (`grid-template-rows: auto minmax(0,1fr) auto
+minmax(0,1fr) auto`) instead of one big scrollable flex column:
+1. Top status bar (auto) - both players' compact stat chips plus turn/phase/Battle Log
+2. Opponent board (`minmax(0,1fr)`)
+3. Rift/prompt/action-context area (auto, capped at `max-h-[40vh]` with its own scroll)
+4. Player board (`minmax(0,1fr)`)
+5. Hand + phase controls (auto)
+
+The two board rows use `minmax(0,1fr)` specifically so they *compress* to whatever
+space is actually left after the auto rows claim what they need, rather than pushing
+the grid taller - `min-height: 0` + `overflow: hidden` on both is what makes that
+work; without `min-height: 0` a grid/flex item won't shrink below its content size.
+
+**Player stats moved out of the board rows entirely.** O2/Momentum/Deck/Void/Hand
+chips were previously rendered *inside* each `PlayerBoard`, adding a full header row
+to both the opponent and player board sections. They're now a new
+`PlayerStatusChips` component (exported from `PlayerBoard.tsx`) rendered twice in
+the row 1 status bar instead - freeing both board rows to be nothing but Apex/Support
+slots.
+
+**Apex and Support slots now sit side-by-side horizontally instead of stacked
+vertically** - this was the single biggest space win. Stacking a 152px Apex row above
+a 100px Support row cost 252px of height per board (504px for both boards combined,
+which alone almost exceeds a 768px-tall viewport once the status bar, Rift panel, and
+hand are added). Side-by-side, the row height is just the taller of the two (152px),
+roughly halving each board's footprint.
+
+**New compact board-card sizing, distinct from hand cards** (`Card.tsx` gained
+`apexBoard` ~128×152, `supportBoard` ~96×100, and `hand` ~118×148 size variants,
+plus a `compact` prop that suppresses full rulesText - previously Support/Equip board
+cards were silently rendering their entire rules paragraph). Apex board cards never
+showed rulesText to begin with (unaffected); Support/Equip board cards now correctly
+show only compact tactical info (chain status, LOCKED, equip name) - full text remains
+available on hand cards, which aren't compacted.
+
+**RiftPanel and Control Conflict's lock UI condensed to single lines** instead of a
+centered multi-line card, matching the "short one-line effect text" requirement -
+full Rift text is still available via the `title` tooltip attribute rather than always
+being on-screen.
+
+**`html`/`body` already had a hard `100dvh` + `overflow: hidden` cap from Commit 12**
+and didn't need further changes - the actual remaining overflow was inside
+`GameBoard`'s own layout, not the page shell.
+
+**Known limitation:** because board cards use fixed pixel dimensions rather than
+viewport-relative sizing, a viewport shorter than roughly 768px tall (after browser
+chrome) may clip part of the board within its `overflow: hidden` row rather than
+shrinking the cards further - it will never cause *page* scroll (the hard requirement),
+but very short/unusual viewports could hide part of the board rather than show a
+scrollbar for it. I was not able to visually verify actual pixel budgets in a real
+browser at 1366×768 from here - this is worth a direct look before treating the
+laptop target as fully confirmed.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

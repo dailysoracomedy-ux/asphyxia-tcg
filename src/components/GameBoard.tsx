@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState } from '@/types/game';
-import PlayerBoard from './PlayerBoard';
+import PlayerBoard, { PlayerStatusChips } from './PlayerBoard';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
@@ -244,18 +244,23 @@ export default function GameBoard() {
   const theme = factionTheme(activePlayer.faction);
 
   return (
-    <div className="h-full max-h-full overflow-hidden flex flex-col p-2 gap-2 max-w-[1400px] mx-auto w-full">
+    <div
+      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1400px] mx-auto w-full"
+      style={{ gridTemplateRows: 'auto minmax(0,1fr) auto minmax(0,1fr) auto' }}
+    >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
-      <div className="flex items-center justify-between text-white/50 text-xs shrink-0">
-        <div>
-          Turn {state.turnNumber} · Phase: <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
-          <span className="text-white/20 ml-2 font-mono">{BUILD_VERSION}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
+      {/* Row 1: top status bar - both players' compact chips + turn/phase + Battle Log */}
+      <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <PlayerStatusChips state={state} playerId={oppId} />
+        <div className="flex items-center gap-3 text-[11px] text-white/50 shrink-0">
+          <span>
+            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
+            <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
+          </span>
+          <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
             <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
-            debug log
+            debug
           </label>
           <button
             type="button"
@@ -266,208 +271,212 @@ export default function GameBoard() {
             className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
           >
             Battle Log
-            {state.log.length > lastSeenLogCount && (
-              <span className="ml-1 text-fuchsia-300">• New</span>
-            )}
+            {state.log.length > lastSeenLogCount && <span className="ml-1 text-fuchsia-300">• New</span>}
           </button>
           <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
-            Reset to menu
+            Reset
           </button>
         </div>
+        <PlayerStatusChips state={state} playerId={activeId} />
       </div>
 
-      <RiftPanel rift={state.riftSpace} />
-
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
+      {/* Row 2: opponent board */}
+      <div className="min-h-0 overflow-hidden">
         <PlayerBoard state={state} playerId={oppId} flipped onApexClick={oppApexClick} apexHighlight={oppApexHighlight} />
+      </div>
 
-        <div className="flex gap-3">
-        <div className="flex-1 flex flex-col gap-3">
-          <PlayerBoard
-            state={state}
-            playerId={activeId}
-            onApexClick={ownApexClick}
-            onSupportClick={ownSupportClick}
-            apexHighlight={ownApexHighlight}
-            apexDisabled={ownApexDisabled}
-            selectedApexId={
-              mode.kind === 'attackerChosen' || mode.kind === 'attackAwaitingTarget' ? mode.attackerId : null
-            }
-            selectedSupportId={mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain' ? mode.returnId : null}
-            supportDisabled={() => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle'}
-          />
+      {/* Row 3: Rift / prompt / action-context area - compact, only as tall as its content needs */}
+      <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
+        <RiftPanel rift={state.riftSpace} />
 
-          {/* Phase controls */}
-          <div className="rounded-lg border border-white/10 bg-black/50 p-2 flex items-center gap-2 flex-wrap">
-            <PhaseButton
-              label="Start Phase"
-              active={state.phase === 'Start'}
-              enabled={state.phase === 'Start' && state.startPhasePending}
-              onClick={() => state.advancePhase('Start')}
-            />
-            <PhaseButton
-              label="Main Phase"
-              active={state.phase === 'Main'}
-              enabled={state.phase === 'Start' && !state.startPhasePending}
-              onClick={() => state.advancePhase('Main')}
-            />
-            <PhaseButton
-              label="Combat Phase"
-              active={state.phase === 'Combat'}
-              enabled={state.phase === 'Main'}
-              onClick={() => state.advancePhase('Combat')}
-            />
-            <button
-              type="button"
-              onClick={scrollSafeClick(() => state.endTurn())}
-              disabled={state.phase !== 'Combat'}
-              className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
-                state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
-              }`}
-            >
-              End Turn
-            </button>
-
-            {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && (
-              <div className="flex items-center gap-1 ml-2 border-l border-white/10 pl-2">
-                <span className="text-[10px] text-blue-300">Control Conflict:</span>
-                {activePlayer.supportSlots.filter(Boolean).map((s) => (
-                  <button type="button"
-                    key={s!.instanceId}
-                    disabled={!!activePlayer.lockedSupportInstanceId}
-                    onClick={scrollSafeClick(() => state.lockSupportControlConflict(s!.instanceId))}
-                    className="text-[10px] px-1.5 py-0.5 rounded border border-blue-400/50 hover:bg-blue-400/10 disabled:opacity-30"
-                  >
-                    lock {getCardDef(s!.defId).name}
-                  </button>
-                ))}
-              </div>
-            )}
+        {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && (
+          <div className="rounded-lg border border-blue-400/30 bg-black/50 px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
+            <span className="text-blue-300 shrink-0">Control Conflict - lock a Support for +1 Momentum?</span>
+            {activePlayer.supportSlots.filter(Boolean).map((s) => (
+              <button type="button"
+                key={s!.instanceId}
+                disabled={!!activePlayer.lockedSupportInstanceId}
+                onClick={scrollSafeClick(() => state.lockSupportControlConflict(s!.instanceId))}
+                className="px-1.5 py-0.5 rounded border border-blue-400/50 hover:bg-blue-400/10 disabled:opacity-30"
+              >
+                lock {getCardDef(s!.defId).name}
+              </button>
+            ))}
           </div>
+        )}
 
-          {state.phase === 'Combat' && (
-            <CombatControls
-              apexDef={attackerDef}
-              state={state}
-              attackerInstanceId={attackerApex ? attackerApex.instanceId : null}
-              availableSync={activePlayer.availableSync}
-              hasAttacked={!!attackerApex && !!attackerApex.hasAttacked}
-              selectedAttackId={mode.kind === 'attackAwaitingTarget' ? mode.attackId : null}
-              onChooseAttack={chooseAttack}
-              onCancel={resetMode}
-              awaitingTarget={mode.kind === 'attackAwaitingTarget'}
-            />
-          )}
+        {state.phase === 'Combat' && (
+          <CombatControls
+            apexDef={attackerDef}
+            state={state}
+            attackerInstanceId={attackerApex ? attackerApex.instanceId : null}
+            availableSync={activePlayer.availableSync}
+            hasAttacked={!!attackerApex && !!attackerApex.hasAttacked}
+            selectedAttackId={mode.kind === 'attackAwaitingTarget' ? mode.attackId : null}
+            onChooseAttack={chooseAttack}
+            onCancel={resetMode}
+            awaitingTarget={mode.kind === 'attackAwaitingTarget'}
+          />
+        )}
 
-          {state.phase === 'Main' && (
-            <div className="rounded-lg border border-teal-500/30 bg-black/50 p-2 text-xs">
-              <div className="flex items-center gap-2 flex-wrap">
-                <button type="button"
-                  disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn'}
-                  onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-                  className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
-                >
-                  Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
+        {state.phase === 'Main' && (
+          <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button"
+                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn'}
+                onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
+                className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
+              >
+                Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
+              </button>
+              {mode.kind === 'reconfigureReturn' && (
+                <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
+              )}
+              {mode.kind === 'reconfigurePlay' && (
+                <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                  Skip — finish Reconfigure
                 </button>
-                {mode.kind === 'reconfigureReturn' && (
-                  <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
-                )}
-                {mode.kind === 'reconfigurePlay' && (
-                  <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
-                    Skip — finish Reconfigure
-                  </button>
-                )}
-                {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-                  <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
-                    cancel
-                  </button>
-                )}
-              </div>
-              {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
-                <div className="mt-2 text-white/40 italic">
-                  Already played a Support this turn - this Reconfigure can only return a card, not play one in.
-                </div>
               )}
-              {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
-                <div className="mt-2 flex gap-2 flex-wrap">
-                  {eligibleReconfigurePlays.map((c) => {
-                    const def = getCardDef(c.defId);
-                    return (
-                      <button type="button"
-                        key={c.instanceId}
-                        onClick={() => {
-                          if (mode.kind !== 'reconfigurePlay') return;
-                          if (c.type === 'AbilitySupport') {
-                            setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
-                          } else {
-                            state.reconfigure(mode.returnId, c.instanceId);
-                            resetMode();
-                          }
-                        }}
-                        className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
-                      >
-                        play {def.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {mode.kind === 'reconfigureChain' && (
-                <div className="mt-2 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
+              {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
+                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
+                  cancel
+                </button>
               )}
             </div>
-          )}
+            {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
+              <div className="mt-1 text-white/40 italic">
+                Already played a Support this turn - this Reconfigure can only return a card, not play one in.
+              </div>
+            )}
+            {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
+              <div className="mt-1 flex gap-2 flex-wrap">
+                {eligibleReconfigurePlays.map((c) => {
+                  const def = getCardDef(c.defId);
+                  return (
+                    <button type="button"
+                      key={c.instanceId}
+                      onClick={() => {
+                        if (mode.kind !== 'reconfigurePlay') return;
+                        if (c.type === 'AbilitySupport') {
+                          setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
+                        } else {
+                          state.reconfigure(mode.returnId, c.instanceId);
+                          resetMode();
+                        }
+                      }}
+                      className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
+                    >
+                      play {def.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {mode.kind === 'reconfigureChain' && (
+              <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
+            )}
+          </div>
+        )}
 
-          <Hand
-            cards={activePlayer.hand}
-            selectedId={selectedCard?.instanceId ?? null}
-            onSelect={state.phase === 'Main' ? selectHandCard : undefined}
-            disabledIds={handDisabledIds}
+        {mode.kind === 'apexReady' && (
+          <ConfirmBar
+            text="Play this Apex into an empty Front Line slot?"
+            onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
           />
-
-          {mode.kind === 'apexReady' && (
-            <ConfirmBar
-              text="Play this Apex into an empty Front Line slot?"
-              onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
-              onCancel={resetMode}
-            />
-          )}
-          {mode.kind === 'supportReady' && (
-            <ConfirmBar
-              text="Play this Support into an empty Support slot?"
-              onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-              onCancel={resetMode}
-            />
-          )}
-          {mode.kind === 'supportChooseChain' && (
-            <ConfirmBar
-              text="Click one of your Apexes above to chain this Ability Support, or play it unchained as a vanilla Sync source."
-              confirmLabel="Play Unchained"
-              onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-              onCancel={resetMode}
-            />
-          )}
-          {mode.kind === 'rechainSelectApex' && (
-            <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
-          )}
-          {mode.kind === 'equipReady' && (
-            <ConfirmBar text="Click one of your Apexes above (without an Equip) to attach this." onCancel={resetMode} />
-          )}
-          {mode.kind === 'specialReady' && !mode.requiresTarget && (
-            <ConfirmBar
-              text="Play this Special?"
-              onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
-              onCancel={resetMode}
-            />
-          )}
-          {mode.kind === 'specialReady' && mode.requiresTarget && (
-            <ConfirmBar
-              text={`Click a valid target (${mode.requiresTarget}) above.`}
-              onCancel={resetMode}
-            />
-          )}
-        </div>
+        )}
+        {mode.kind === 'supportReady' && (
+          <ConfirmBar
+            text="Play this Support into an empty Support slot?"
+            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'supportChooseChain' && (
+          <ConfirmBar
+            text="Click one of your Apexes above to chain this Ability Support, or play it unchained as a vanilla Sync source."
+            confirmLabel="Play Unchained"
+            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'rechainSelectApex' && (
+          <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
+        )}
+        {mode.kind === 'equipReady' && (
+          <ConfirmBar text="Click one of your Apexes above (without an Equip) to attach this." onCancel={resetMode} />
+        )}
+        {mode.kind === 'specialReady' && !mode.requiresTarget && (
+          <ConfirmBar
+            text="Play this Special?"
+            onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'specialReady' && mode.requiresTarget && (
+          <ConfirmBar
+            text={`Click a valid target (${mode.requiresTarget}) above.`}
+            onCancel={resetMode}
+          />
+        )}
       </div>
+
+      {/* Row 4: player board */}
+      <div className="min-h-0 overflow-hidden">
+        <PlayerBoard
+          state={state}
+          playerId={activeId}
+          onApexClick={ownApexClick}
+          onSupportClick={ownSupportClick}
+          apexHighlight={ownApexHighlight}
+          apexDisabled={ownApexDisabled}
+          selectedApexId={
+            mode.kind === 'attackerChosen' || mode.kind === 'attackAwaitingTarget' ? mode.attackerId : null
+          }
+          selectedSupportId={mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain' ? mode.returnId : null}
+          supportDisabled={() => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle'}
+        />
+      </div>
+
+      {/* Row 5: hand + phase controls - always visible, fixed bottom area */}
+      <div className="shrink-0 flex flex-col gap-1.5">
+        <div className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 flex items-center gap-2 flex-wrap">
+          <PhaseButton
+            label="Start Phase"
+            active={state.phase === 'Start'}
+            enabled={state.phase === 'Start' && state.startPhasePending}
+            onClick={() => state.advancePhase('Start')}
+          />
+          <PhaseButton
+            label="Main Phase"
+            active={state.phase === 'Main'}
+            enabled={state.phase === 'Start' && !state.startPhasePending}
+            onClick={() => state.advancePhase('Main')}
+          />
+          <PhaseButton
+            label="Combat Phase"
+            active={state.phase === 'Combat'}
+            enabled={state.phase === 'Main'}
+            onClick={() => state.advancePhase('Combat')}
+          />
+          <button
+            type="button"
+            onClick={scrollSafeClick(() => state.endTurn())}
+            disabled={state.phase !== 'Combat'}
+            className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
+              state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
+            }`}
+          >
+            End Turn
+          </button>
+        </div>
+
+        <Hand
+          cards={activePlayer.hand}
+          selectedId={selectedCard?.instanceId ?? null}
+          onSelect={state.phase === 'Main' ? selectHandCard : undefined}
+          disabledIds={handDisabledIds}
+        />
       </div>
 
       {logOpen && (

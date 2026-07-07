@@ -20,6 +20,53 @@ interface PlayerBoardProps {
   selectedSupportId?: string | null;
 }
 
+/** Compact single-line player status chips - O2/MOM/DECK/VOID/HAND - meant for the
+ *  top status bar so the board rows below only need to show Apex/Support slots. */
+export function PlayerStatusChips({ state, playerId }: { state: GameState; playerId: PlayerId }) {
+  const player = state.players[playerId];
+  const theme = factionTheme(player.faction);
+  const isActive = state.activePlayerId === playerId && state.status === 'playing';
+  const [voidOpen, setVoidOpen] = useState(false);
+
+  return (
+    <div className="relative flex items-center gap-2 text-[11px] font-mono flex-wrap">
+      <span
+        className={`font-bold tracking-wide px-1.5 py-0.5 rounded shrink-0 ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
+        style={{ color: theme.primary, border: `1px solid ${theme.border}` }}
+      >
+        {player.faction}
+        {isActive ? ' ◂' : ''}
+      </span>
+      <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 4} />
+      <Stat label="MOM" value={`${player.momentum}/${MAX_MOMENTUM}`} colorClass="text-yellow-300" />
+      <Stat label="DECK" value={player.deck.length} colorClass="text-white/50" />
+      <button type="button" onClick={() => setVoidOpen((v) => !v)} className="hover:opacity-80">
+        <Stat label="VOID" value={player.voidZone.length} colorClass="text-white/50" />
+      </button>
+      <Stat label="HAND" value={player.hand.length} colorClass="text-white/50" />
+      {state.phase === 'Combat' && isActive && <Stat label="SYNC" value={player.availableSync} colorClass="text-fuchsia-300" />}
+      {voidOpen && (
+        <div className="absolute top-full left-0 mt-1 z-20 w-56 rounded border border-white/15 bg-black/90 p-2 text-[10px] max-h-40 overflow-y-auto">
+          {player.voidZone.length === 0 ? (
+            <div className="text-white/40 italic">Void is empty.</div>
+          ) : (
+            <div className="space-y-0.5">
+              {player.voidZone.map((c, i) => {
+                const d = getCardDef(c.defId);
+                return (
+                  <div key={`${c.instanceId}-${i}`} className="truncate text-white/70">
+                    {d.name} <span className="text-white/40">({d.type}{d.faction ? `, ${d.faction}` : ''})</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PlayerBoard({
   state,
   playerId,
@@ -34,88 +81,40 @@ export default function PlayerBoard({
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
-  const isActive = state.activePlayerId === playerId && state.status === 'playing';
-  const [voidOpen, setVoidOpen] = useState(false);
 
   return (
     <div
-      className="rounded-lg border p-2 scanlines"
+      className="rounded-lg border p-1.5 scanlines h-full min-h-0 flex flex-col"
       style={{ borderColor: `${theme.border}55`, background: 'rgba(5,5,12,0.55)' }}
     >
-      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-xs font-bold tracking-widest px-2 py-0.5 rounded ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
-            style={{ color: theme.primary, border: `1px solid ${theme.border}` }}
-          >
-            {playerId === 'player1' ? 'PLAYER 1' : 'PLAYER 2'} · {player.faction}
-            {isActive ? ' ◂ ACTIVE' : ''}
-          </span>
-          {state.firstPlayerId === playerId && <span className="text-[10px] text-white/40">(went first)</span>}
+      <div className={`flex-1 min-h-0 flex gap-3 items-start ${flipped ? 'flex-row-reverse' : ''}`}>
+        <div className="flex gap-1.5 shrink-0">
+          {player.apexSlots.map((apex, i) => (
+            <ApexSlot
+              key={i}
+              apex={apex}
+              state={state}
+              playerId={playerId}
+              onClick={onApexClick}
+              highlight={apex ? apexHighlight?.(apex.instanceId) ?? null : null}
+              disabled={apex ? apexDisabled?.(apex.instanceId) : false}
+              selected={apex ? selectedApexId === apex.instanceId : false}
+            />
+          ))}
         </div>
-        <div className="flex items-center gap-3 text-xs font-mono">
-          <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 4} />
-          <Stat label="MOM" value={`${player.momentum}/${MAX_MOMENTUM}`} colorClass="text-yellow-300" />
-          <Stat label="DECK" value={player.deck.length} colorClass="text-white/50" />
-          <button type="button" onClick={() => setVoidOpen((v) => !v)} className="hover:opacity-80">
-            <Stat label="VOID" value={player.voidZone.length} colorClass="text-white/50" />
-          </button>
-          <Stat label="HAND" value={player.hand.length} colorClass="text-white/50" />
-          {state.phase === 'Combat' && isActive && <Stat label="SYNC" value={player.availableSync} colorClass="text-fuchsia-300" />}
-        </div>
-      </div>
-      {voidOpen && (
-        <div className="mb-2 rounded border border-white/15 bg-black/50 p-2 text-[10px] max-h-28 overflow-y-auto">
-          {player.voidZone.length === 0 ? (
-            <div className="text-white/40 italic">Void is empty.</div>
-          ) : (
-            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-              {player.voidZone.map((c, i) => {
-                const d = getCardDef(c.defId);
-                return (
-                  <div key={`${c.instanceId}-${i}`} className="truncate text-white/70">
-                    {d.name} <span className="text-white/40">({d.type}{d.faction ? `, ${d.faction}` : ''})</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className={`flex gap-4 ${flipped ? 'flex-col-reverse' : 'flex-col'}`}>
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Front Line - Apex</div>
-          <div className="flex gap-2">
-            {player.apexSlots.map((apex, i) => (
-              <ApexSlot
-                key={i}
-                apex={apex}
-                state={state}
-                playerId={playerId}
-                onClick={onApexClick}
-                highlight={apex ? apexHighlight?.(apex.instanceId) ?? null : null}
-                disabled={apex ? apexDisabled?.(apex.instanceId) : false}
-                selected={apex ? selectedApexId === apex.instanceId : false}
-              />
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Support Grid</div>
-          <div className="flex gap-2">
-            {player.supportSlots.map((support, i) => (
-              <SupportSlot
-                key={i}
-                support={support}
-                state={state}
-                playerId={playerId}
-                onClick={onSupportClick}
-                disabled={support ? supportDisabled?.(support.instanceId) : false}
-                selected={support ? selectedSupportId === support.instanceId : false}
-              />
-            ))}
-          </div>
+        <div className="w-px self-stretch bg-white/10 shrink-0" />
+        <div className="flex gap-1.5 shrink-0">
+          {player.supportSlots.map((support, i) => (
+            <SupportSlot
+              key={i}
+              support={support}
+              state={state}
+              playerId={playerId}
+              onClick={onSupportClick}
+              disabled={support ? supportDisabled?.(support.instanceId) : false}
+              selected={support ? selectedSupportId === support.instanceId : false}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -149,7 +148,7 @@ function ApexSlot({
 }) {
   if (!apex) {
     return (
-      <div className="w-[144px] h-[204px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[10px] text-white/25">
+      <div className="w-[128px] h-[152px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1">
         empty Apex slot
       </div>
     );
@@ -170,6 +169,8 @@ function ApexSlot({
   return (
     <Card
       instance={apex}
+      size="apexBoard"
+      compact
       effectiveDef={effDef}
       attackPreviews={attackPreviews}
       onClick={onClick ? () => onClick(apex.instanceId) : undefined}
@@ -179,7 +180,7 @@ function ApexSlot({
       footer={
         chainedSupport ? (
           <div className="mt-0.5 px-1 rounded bg-black/40 border border-teal-400/40 text-teal-300 truncate">
-            Chained Support: {getCardDef(chainedSupport.defId).name}
+            Sup: {getCardDef(chainedSupport.defId).name}
           </div>
         ) : undefined
       }
@@ -204,7 +205,7 @@ function SupportSlot({
 }) {
   if (!support) {
     return (
-      <div className="w-[104px] h-[148px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25">
+      <div className="w-[96px] h-[100px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1">
         empty Support slot
       </div>
     );
@@ -214,19 +215,17 @@ function SupportSlot({
   return (
     <Card
       instance={support}
-      size="sm"
+      size="supportBoard"
+      compact
       onClick={onClick ? () => onClick(support.instanceId) : undefined}
       disabled={disabled}
       selected={selected}
       footer={
-        <div className="mt-0.5 text-[8px] leading-tight opacity-80 space-y-0.5">
+        <div className="mt-0.5 text-[7.5px] leading-tight opacity-80 space-y-0.5">
           {chainLabel && (
             <div className={chainLabel === 'Unchained' ? 'text-red-300' : 'text-emerald-300'}>{chainLabel}</div>
           )}
           {support.lockedByControlConflict && <div className="text-blue-300">LOCKED</div>}
-          {support.enteredViaReconfigureTurn !== null && support.enteredViaReconfigureTurn !== undefined && (
-            <div className="text-white/40">via Reconfigure</div>
-          )}
         </div>
       }
     />

@@ -10,7 +10,10 @@ interface CardProps {
   onClick?: () => void;
   selected?: boolean;
   disabled?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'apexBoard' | 'supportBoard' | 'hand';
+  /** Suppresses full rulesText and other long-form info - used for on-board cards,
+   *  which are game pieces (compact tactical info only), not full card previews. */
+  compact?: boolean;
   faceDown?: boolean;
   highlight?: 'valid-target' | 'attacked' | 'locked' | null;
   footer?: React.ReactNode;
@@ -29,6 +32,7 @@ export default function Card({
   selected,
   disabled,
   size = 'md',
+  compact,
   faceDown,
   highlight,
   footer,
@@ -51,8 +55,17 @@ export default function Card({
   const isApex = def.type === 'Apex';
   const apexDef = isApex ? (def as ApexDef) : null;
 
-  const widthClass = size === 'sm' ? 'w-[104px] h-[148px]' : size === 'lg' ? 'w-[200px] h-[280px]' : 'w-[144px] h-[204px]';
-  const textScale = size === 'sm' ? 'text-[9px]' : size === 'lg' ? 'text-[13px]' : 'text-[10.5px]';
+  const SIZE_MAP: Record<string, { w: number; h: number; text: string }> = {
+    sm: { w: 104, h: 148, text: 'text-[9px]' },
+    md: { w: 144, h: 204, text: 'text-[10.5px]' },
+    lg: { w: 200, h: 280, text: 'text-[13px]' },
+    // Board sizes are deliberately compact - board cards are game pieces, not full
+    // previews. Hand cards get a bit more room since they're the "read the card" view.
+    apexBoard: { w: 128, h: 152, text: 'text-[9.5px]' },
+    supportBoard: { w: 96, h: 100, text: 'text-[8.5px]' },
+    hand: { w: 118, h: 148, text: 'text-[9.5px]' },
+  };
+  const { w, h, text: textScale } = SIZE_MAP[size];
 
   const ringClass = selected
     ? 'ring-2 ring-yellow-300 ring-offset-1 ring-offset-black'
@@ -67,15 +80,17 @@ export default function Card({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`relative flex flex-col text-left rounded-md border-2 p-1.5 overflow-hidden shrink-0 transition-transform ${widthClass} ${textScale} ${ringClass} ${
-        disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
-      } ${highlight === 'attacked' ? 'opacity-50' : ''}`}
       style={{
+        width: w,
+        height: h,
         background: theme.bg,
         borderColor: theme.border,
         color: theme.text,
         boxShadow: selected ? `0 0 10px ${theme.primary}` : `0 0 4px ${theme.primary}66`,
       }}
+      className={`relative flex flex-col text-left rounded-md border-2 p-1.5 overflow-hidden shrink-0 transition-transform ${textScale} ${ringClass} ${
+        disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
+      } ${highlight === 'attacked' ? 'opacity-50' : ''}`}
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-bold leading-tight truncate" style={{ color: theme.primary }}>
@@ -125,7 +140,7 @@ export default function Card({
         </div>
       )}
 
-      {!apexDef && (
+      {!apexDef && !compact && (
         <div className="mt-1 flex-1 overflow-y-auto leading-tight opacity-85">{def.rulesText}</div>
       )}
 
