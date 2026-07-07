@@ -307,7 +307,62 @@ rather than left dead in the codebase.
 All Momentum gains still funnel through the single `gainMomentumFn` and respect the
 3-cap automatically - no rift needed its own capping logic.
 
+## Commit 11: Void zone, Void Recycle, Rift choices, card fixes
+
+- **Void zone.** The `discard` field is renamed to `voidZone` throughout (an ordered
+  array, not a counter) and every player-facing surface says "Void" - no more
+  "Discard"/"Graveyard". Deck and Void counters now both show in the player header,
+  with Void clickable to expand a simple inspector (name/type/faction per card).
+- **Void Recycle.** Drawing from an empty Deck now shuffles that player's Void back
+  into their Deck first (emptying the Void), then draws; if both are empty, that
+  player loses immediately. No-Apex Recovery uses the same recycle step when the Deck
+  has no Apex but the Void does, before finally declaring a loss if no Apex exists
+  anywhere. Both log clearly ("Void Recycle: playerX shuffles their Void into their
+  Deck.").
+- **Clean state on Apex death - a real gap closed.** Destroyed Apexes previously kept
+  their *entire* live state (counters, armed bonuses, protections, temp buffs,
+  hasAttacked) when pushed to Void - harmless today since nothing reads from Void yet,
+  but exactly the kind of ghost-state bug that would bite the moment any future card
+  cares about Void contents. Now only `{instanceId, defId, type}` survives into Void.
+  Attached Equip still follows a destroyed Apex to Void; a chained Ability Support
+  does not - it stays on the field and becomes Unchained.
+- **Feedback Loop rewritten.** The old "cancel + 100 damage" clause was flavor-only
+  (identical situation to a couple of other cards found in earlier sessions - the log
+  said it happened, no code ever did it). Now: cancel a Special or Reaction, then its
+  controller loses 1 direct O2 (can be lethal, declares a winner immediately if so).
+- **Spark-Plug retimed.** Previously armed +200 for the chained Apex's *next* attack
+  (a whole extra tracked state field, `armedBonus`, plus a "arms next turn" log).
+  Now it's a live modifier - `+200 damage on the current attack, every time, only
+  while validly chained and unlocked` - computed the same way as any other modifier
+  in `getPreviewAttackDamage`, with no separate armed/consumed state to track at all.
+  Juice-Box was checked against the same request and already matched spec exactly
+  (post-attack DEF buff until the end of the opponent's next turn) - no changes needed.
+- **Civil War is now a real choice**, matching Human Error and Control Conflict:
+  behind on O2 at the start of your turn opens a prompt (Momentum vs. +100 on your
+  first Apex attack this turn) instead of auto-granting Momentum. Built by mirroring
+  Human Error's existing choice-window infrastructure exactly (same
+  `PendingResponseItem` pattern, same resolution shape) rather than inventing a new
+  mechanism.
+- Control Conflict and Human Error already matched the requested design (visible,
+  actionable, momentum-granting, properly blocking Reconfigure/Sync Abilities on
+  locked Supports) and needed no changes beyond verification.
+- Game-over lock was already solid: `GameOverScreen` fully replaces the board on
+  `status === 'gameover'`, so every action (phase buttons, attacks, hand, Reconfigure)
+  is inaccessible, not just disabled - combined with the existing `gameAlreadyOver`
+  guard in `finalizeAttackEffects` from an earlier session, post-lethal triggers
+  (Support abilities, Momentum, O2 healing) are already fully suppressed.
+
 ## Verifying it yourself
+
+`npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
+checks) for this commit: destroyed Apexes and their attached Equips going to Void,
+chained Supports surviving their Apex's death and becoming Unchained, resolved
+Specials/Reactions/Negates and canceled cards going to Void, Reconfigure/locked
+Supports correctly *not* going to Void, No-Apex Recovery correctly shuffling
+non-Apex reveals back into the Deck (not Void), Deck/Void counters, Void Recycle on
+both an empty-Deck draw and inside No-Apex Recovery (including the full loss
+condition when nothing is left anywhere), and the rewritten Feedback Loop (O2 loss
+instead of Apex damage, including a lethal case).
 
 `npx tsx src/scripts/test-trait-removal-and-rifts.ts` is a targeted test suite (52
 checks) covering this whole patch: every removed Apex trait no longer affects
