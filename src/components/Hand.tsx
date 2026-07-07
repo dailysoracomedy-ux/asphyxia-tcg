@@ -15,7 +15,7 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label }
   return (
     <div className="rounded-lg border border-white/10 bg-black/40 p-1.5 max-h-[168px] shrink-0">
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
-      <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1">
+      <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 justify-center">
         {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
         {cards.map((c) => (
           <Card

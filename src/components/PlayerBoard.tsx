@@ -87,8 +87,24 @@ export default function PlayerBoard({
       className="rounded-lg border p-1.5 scanlines h-full min-h-0 flex flex-col"
       style={{ borderColor: `${theme.border}55`, background: 'rgba(5,5,12,0.55)' }}
     >
-      <div className={`flex-1 min-h-0 flex gap-3 items-start justify-center ${flipped ? 'flex-row-reverse' : ''}`}>
-        <div className="flex gap-1.5 shrink-0">
+      <div
+        className="flex-1 min-h-0 grid gap-3 items-start"
+        style={{ gridTemplateColumns: '1fr auto 1fr' }}
+      >
+        <div className={`flex gap-1.5 ${flipped ? 'col-start-1 justify-end' : 'col-start-3 justify-start'}`}>
+          {player.supportSlots.map((support, i) => (
+            <SupportSlot
+              key={i}
+              support={support}
+              state={state}
+              playerId={playerId}
+              onClick={onSupportClick}
+              disabled={support ? supportDisabled?.(support.instanceId) : false}
+              selected={support ? selectedSupportId === support.instanceId : false}
+            />
+          ))}
+        </div>
+        <div className="flex gap-1.5 col-start-2 justify-self-center">
           {player.apexSlots.map((apex, i) => (
             <ApexSlot
               key={i}
@@ -99,20 +115,6 @@ export default function PlayerBoard({
               highlight={apex ? apexHighlight?.(apex.instanceId) ?? null : null}
               disabled={apex ? apexDisabled?.(apex.instanceId) : false}
               selected={apex ? selectedApexId === apex.instanceId : false}
-            />
-          ))}
-        </div>
-        <div className="w-px self-stretch bg-white/10 shrink-0" />
-        <div className="flex gap-1.5 shrink-0">
-          {player.supportSlots.map((support, i) => (
-            <SupportSlot
-              key={i}
-              support={support}
-              state={state}
-              playerId={playerId}
-              onClick={onSupportClick}
-              disabled={support ? supportDisabled?.(support.instanceId) : false}
-              selected={support ? selectedSupportId === support.instanceId : false}
             />
           ))}
         </div>
