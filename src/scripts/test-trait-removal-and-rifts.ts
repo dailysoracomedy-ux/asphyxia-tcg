@@ -230,7 +230,7 @@ console.log('=== Test 11b: Civil War +100 attack choice works ===');
   check('choosing +100 damage is visible on the next attack preview', preview.modifiedDamage === preview.baseDamage + 100);
 }
 
-console.log('=== Test 12: Civil War destroy-while-behind attack bonus works ===');
+console.log('=== Test 12: Civil War does NOT arm an extra bonus after destroying an Apex (Commit 12 hotfix) ===');
 {
   const civilWar: RiftSpace = determineRiftSpace('Neon Underground', 'Dark White');
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
@@ -240,9 +240,10 @@ console.log('=== Test 12: Civil War destroy-while-behind attack bonus works ==='
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Combat', riftSpace: civilWar }));
   useGameStore.getState().declareAttack(p1Apex.instanceId, 'mob-charge', p2Apex.instanceId);
   const log = useGameStore.getState().log.map((l) => l.message);
-  check('destroying while behind on O2 arms +100 for the next attack', log.some((m) => m.includes('Civil War arms +100 damage')));
+  check('the target was destroyed', useGameStore.getState().players.player2.apexSlots[0] === null);
+  check('no old "arms +100 damage" destroy-triggered bonus fires anymore', !log.some((m) => m.includes('Civil War arms')));
   const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'pipe-swing')!;
-  check('the +100 bonus is now visible on a subsequent attack preview', preview.modifiedDamage === preview.baseDamage + 100);
+  check('no lingering +100 bonus is visible on a subsequent attack preview', preview.modifiedDamage === preview.baseDamage);
 }
 
 // ============================================================

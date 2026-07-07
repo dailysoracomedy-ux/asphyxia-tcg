@@ -12,8 +12,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className="h-full antialiased overflow-hidden">
+      <body className="h-full max-h-full flex flex-col overflow-hidden">{children}</body>
     </html>
   );
 }

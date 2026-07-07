@@ -107,7 +107,7 @@ export const nuJuiceBox: AbilitySupportDef = {
   syncAbilityText: 'Arm +200 DEF for the chained Apex, applied at End Phase.',
   syncAbility: (ctx) => {
     ctx.helpers.markPendingEndPhaseBuff(ctx.chainedApexId, 200);
-    ctx.helpers.log('Juice-Box arms +200 DEF for its chained Apex.', 'support');
+    ctx.helpers.log('Juice-Box will grant +200 DEF to its chained Apex at End Phase.', 'support');
   },
 };
 

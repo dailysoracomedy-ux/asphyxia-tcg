@@ -5,7 +5,7 @@ const RIFT_DEFS: Record<RiftSpaceId, RiftSpace> = {
     id: 'CivilWar',
     name: 'Civil War',
     description:
-      'At the start of your turn, if your O2 is lower than your opponent\u2019s, gain 1 Momentum. Once per turn, when you destroy an enemy Apex while your O2 is lower than your opponent\u2019s, your next attack this turn deals +100 damage.',
+      'At the start of your turn, if your O2 is lower than your opponent\u2019s, choose one: gain 1 Momentum, or your first Apex attack this turn deals +100 damage.',
   },
   HumanError: {
     id: 'HumanError',

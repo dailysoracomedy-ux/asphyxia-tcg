@@ -352,6 +352,44 @@ All Momentum gains still funnel through the single `gainMomentumFn` and respect 
   guard in `finalizeAttackEffects` from an earlier session, post-lethal triggers
   (Support abilities, Momentum, O2 healing) are already fully suppressed.
 
+## Commit 12: no-scroll layout, Battle Log drawer, Commit 11 hotfixes
+
+**Hotfixes (found a genuine leftover bug):** Civil War's Commit 11 conversion to a
+choice was incomplete - the old "destroy an enemy Apex while behind on O2 arms +100"
+code was still live in `gameStore.ts` *alongside* the new start-of-turn choice, and
+the rift's game-start description text still described the old automatic-Momentum
+version. Both are now fully removed/updated; Civil War is exclusively the
+start-of-turn choice. Also added the "Civil War: playerX is behind on O2." log before
+the prompt, and a generic "primed attack bonus expires unused" log wherever an unused
+Civil War/Human Error/Overclock bonus gets cleared at the next Start Phase. Juice-Box's
+intermediate log no longer says "arms" (now "will grant... at End Phase"); its final
+grant log already correctly said "gains," not "arms." Spark-Plug and the Deck/Void
+counters were verified against spec with no changes needed (both already correct from
+Commit 11).
+
+**Layout: fixed-height shell, no page scroll.** `html`/`body` and the root layout now
+use a hard `height: 100dvh` cap with `overflow: hidden` (previously `min-height:
+100vh`, which let the page grow past the viewport). `GameBoard`'s outer container
+matches (`h-full max-h-full overflow-hidden flex flex-col`), with the gameplay content
+(opponent board, active board, phase/combat controls, prompts, hand) in a single
+`flex-1 min-h-0 overflow-y-auto` region - so if a viewport is ever too short for
+everything at once, *that* inner region scrolls, never the browser page itself.
+
+**Battle Log moved to a drawer.** The log is no longer a permanent 320px sidebar - a
+"Battle Log" button in the top bar (with a "• New" indicator when unread entries
+exist) opens `BattleLogDrawer`, a `fixed inset-0` overlay with a backdrop and a
+right-side panel (full-width on mobile) containing its own `GameLog` instance, Copy
+Log button (reusing the existing clipboard-with-textarea-fallback logic from the
+game-over screen), and a Close button. It never affects board layout since it's
+positioned outside the normal document flow.
+
+Hand (already a horizontal `overflow-x-auto` row from earlier work) and phase/combat
+controls remain in their existing position within the scrollable gameplay region
+rather than being pulled into a separate always-pinned bar - the primary acceptance
+criterion (no *browser-level* scroll) is met by the fixed-height shell regardless of
+where content sits inside it; a dedicated sticky bottom bar for hand+actions specifically
+would be a further layout change beyond what this pass covers.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

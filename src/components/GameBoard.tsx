@@ -31,6 +31,8 @@ type Mode =
 export default function GameBoard() {
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
+  const [logOpen, setLogOpen] = useState(false);
+  const [lastSeenLogCount, setLastSeenLogCount] = useState(0);
 
   /**
    * Root-cause fix for the "click a phase button and the page jumps to the top" bug.
@@ -242,10 +244,10 @@ export default function GameBoard() {
   const theme = factionTheme(activePlayer.faction);
 
   return (
-    <div className="min-h-screen p-3 flex flex-col gap-3 max-w-[1400px] mx-auto">
+    <div className="h-full max-h-full overflow-hidden flex flex-col p-2 gap-2 max-w-[1400px] mx-auto w-full">
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
-      <div className="flex items-center justify-between text-white/50 text-xs">
+      <div className="flex items-center justify-between text-white/50 text-xs shrink-0">
         <div>
           Turn {state.turnNumber} · Phase: <span style={{ color: theme.primary }} className="font-bold">{state.phase}</span>
           <span className="text-white/20 ml-2 font-mono">{BUILD_VERSION}</span>
@@ -255,6 +257,19 @@ export default function GameBoard() {
             <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
             debug log
           </label>
+          <button
+            type="button"
+            onClick={() => {
+              setLogOpen(true);
+              setLastSeenLogCount(state.log.length);
+            }}
+            className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
+          >
+            Battle Log
+            {state.log.length > lastSeenLogCount && (
+              <span className="ml-1 text-fuchsia-300">• New</span>
+            )}
+          </button>
           <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
             Reset to menu
           </button>
@@ -263,9 +278,10 @@ export default function GameBoard() {
 
       <RiftPanel rift={state.riftSpace} />
 
-      <PlayerBoard state={state} playerId={oppId} flipped onApexClick={oppApexClick} apexHighlight={oppApexHighlight} />
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
+        <PlayerBoard state={state} playerId={oppId} flipped onApexClick={oppApexClick} apexHighlight={oppApexHighlight} />
 
-      <div className="flex gap-3">
+        <div className="flex gap-3">
         <div className="flex-1 flex flex-col gap-3">
           <PlayerBoard
             state={state}
@@ -451,11 +467,12 @@ export default function GameBoard() {
             />
           )}
         </div>
-
-        <div className="w-[320px] shrink-0">
-          <GameLog log={state.log} />
-        </div>
       </div>
+      </div>
+
+      {logOpen && (
+        <BattleLogDrawer log={state.log} onClose={() => setLogOpen(false)} />
+      )}
     </div>
   );
 }
@@ -483,6 +500,58 @@ function PhaseButton({ label, active, enabled, onClick }: { label: string; activ
     >
       {label}
     </button>
+  );
+}
+
+function BattleLogDrawer({ log, onClose }: { log: GameState['log']; onClose: () => void }) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [showFallback, setShowFallback] = useState(false);
+
+  async function handleCopyLog() {
+    const text = formatLogAsText(log);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        setCopyStatus('copied');
+        setShowFallback(false);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      setCopyStatus('failed');
+      setShowFallback(true);
+    }
+    setTimeout(() => setCopyStatus('idle'), 2500);
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-full sm:w-[420px] h-full bg-[#0a0512] border-l border-white/15 flex flex-col p-3 gap-2">
+        <div className="flex items-center justify-between shrink-0">
+          <div className="text-xs uppercase tracking-widest text-white/50">Battle Log</div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={handleCopyLog} className="text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
+              {copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed' : 'Copy Log'}
+            </button>
+            <button type="button" onClick={onClose} className="text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0">
+          <GameLog log={log} />
+        </div>
+        {showFallback && (
+          <textarea
+            readOnly
+            value={formatLogAsText(log)}
+            className="w-full h-24 shrink-0 text-[10px] bg-black/60 border border-white/20 rounded p-1"
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+          />
+        )}
+      </div>
+    </div>
   );
 }
 

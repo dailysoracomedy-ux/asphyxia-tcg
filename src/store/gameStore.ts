@@ -172,6 +172,7 @@ function runStartPhase(draft: GameState) {
     switch (draft.riftSpace.id) {
       case 'CivilWar':
         if (player.o2 < opp.o2) {
+          logMsg(draft, `Civil War: ${playerId} is behind on O2.`, 'rift');
           draft.pendingResponseQueue.push({ id: newId('cw'), stage: 'civilWarChoice', playerId });
         }
         break;
@@ -189,6 +190,9 @@ function runStartPhase(draft: GameState) {
   }
 
   pruneExpiredModifiers(draft);
+  if (player.pendingAttackBonus > 0) {
+    logMsg(draft, `${playerId}'s primed attack bonus expires unused.`, 'rift');
+  }
   player.pendingAttackBonus = 0;
   player.pendingTargetedAttackBonus = null;
 
@@ -666,20 +670,6 @@ function finalizeAttackEffects(
         }
       } else if (!dealtO2Damage) {
         logMsg(draft, 'Apex Break Reward does not trigger - overflow damage was prevented by a Reaction.', 'momentum');
-      }
-    }
-
-    // Civil War rift: once per turn, destroying an enemy Apex while behind on O2 arms
-    // +100 damage for the attacker's next attack this turn.
-    if (destroyedTarget && draft.riftSpace?.id === 'CivilWar') {
-      const attackerPlayer = draft.players[trigger.attackerId];
-      if (!attackerPlayer.turnFlags.civilWarBonusArmedThisTurn) {
-        const opponentId = otherPlayer(trigger.attackerId);
-        if (attackerPlayer.o2 < draft.players[opponentId].o2) {
-          attackerPlayer.turnFlags.civilWarBonusArmedThisTurn = true;
-          attackerPlayer.pendingAttackBonus += 100;
-          logMsg(draft, `Civil War arms +100 damage for ${trigger.attackerId}'s next attack this turn.`, 'rift');
-        }
       }
     }
   }
