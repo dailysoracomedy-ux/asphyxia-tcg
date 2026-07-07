@@ -47,7 +47,7 @@ function fixturePlayer(
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [apex, null],
     supportSlots: [null, null, null],
     o2: 12,
@@ -203,7 +203,7 @@ console.log('=== Test 10: Unchained Ability Supports do not activate their Sync 
 // ============================================================
 // 11-12: Civil War
 // ============================================================
-console.log('=== Test 11: Civil War Momentum trigger works ===');
+console.log('=== Test 11: Civil War Momentum trigger works (choice-based) ===');
 {
   const civilWar: RiftSpace = determineRiftSpace('Neon Underground', 'Dark White');
   check('Neon vs Dark White resolves to Civil War', civilWar.id === 'CivilWar');
@@ -211,7 +211,23 @@ console.log('=== Test 11: Civil War Momentum trigger works ===');
   const p2 = fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'), { o2: 12 });
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Start', startPhasePending: true, riftSpace: civilWar }));
   useGameStore.getState().advancePhase('Start');
-  check('player1 gains 1 Momentum for trailing on O2 at Start Phase', useGameStore.getState().players.player1.momentum === 1);
+  const choiceItem = useGameStore.getState().pendingResponseQueue[0];
+  check('a Civil War choice window opens when behind on O2', choiceItem?.stage === 'civilWarChoice');
+  useGameStore.getState().resolveResponse({ type: 'civilWar', pick: 'momentum' });
+  check('choosing Momentum grants player1 1 Momentum', useGameStore.getState().players.player1.momentum === 1);
+}
+
+console.log('=== Test 11b: Civil War +100 attack choice works ===');
+{
+  const civilWar: RiftSpace = determineRiftSpace('Neon Underground', 'Dark White');
+  const p1Apex = createInstance('nu-riot-runner', 'Apex');
+  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { o2: 4 });
+  const p2 = fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'), { o2: 12 });
+  useGameStore.setState(fixtureState(p1, p2, { phase: 'Start', startPhasePending: true, riftSpace: civilWar }));
+  useGameStore.getState().advancePhase('Start');
+  useGameStore.getState().resolveResponse({ type: 'civilWar', pick: 'damage' });
+  const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'pipe-swing')!;
+  check('choosing +100 damage is visible on the next attack preview', preview.modifiedDamage === preview.baseDamage + 100);
 }
 
 console.log('=== Test 12: Civil War destroy-while-behind attack bonus works ===');
@@ -440,7 +456,9 @@ console.log('=== Test 26: Momentum never exceeds 3, even from rift effects ===')
   const p2 = fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'), { o2: 12 });
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Start', startPhasePending: true, riftSpace: civilWar }));
   useGameStore.getState().advancePhase('Start');
+  useGameStore.getState().resolveResponse({ type: 'civilWar', pick: 'momentum' });
   check('Momentum stays at 3 even when Civil War would grant more', useGameStore.getState().players.player1.momentum === MAX_MOMENTUM);
+  check('log notes player is already at max Momentum', useGameStore.getState().log.some((l) => l.message.includes('already at max Momentum')));
 }
 
 console.log(`\n=== FINAL RESULTS: ${passed} passed, ${failed} failed ===`);

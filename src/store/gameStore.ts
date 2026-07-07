@@ -61,7 +61,8 @@ export type ResponseChoice =
   | { type: 'pass' }
   | { type: 'reaction'; cardInstanceId: string }
   | { type: 'negate'; cardInstanceId: string }
-  | { type: 'humanError'; pick: 'momentum' | 'damage' };
+  | { type: 'humanError'; pick: 'momentum' | 'damage' }
+  | { type: 'civilWar'; pick: 'momentum' | 'damage' };
 
 function freshPlayer(id: PlayerId, faction: Faction): PlayerState {
   return {
@@ -69,7 +70,7 @@ function freshPlayer(id: PlayerId, faction: Faction): PlayerState {
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
     o2: STARTING_O2,
@@ -171,8 +172,7 @@ function runStartPhase(draft: GameState) {
     switch (draft.riftSpace.id) {
       case 'CivilWar':
         if (player.o2 < opp.o2) {
-          gainMomentumFn(draft, playerId, 1);
-          logMsg(draft, `Civil War grants ${playerId} 1 Momentum.`, 'rift');
+          draft.pendingResponseQueue.push({ id: newId('cw'), stage: 'civilWarChoice', playerId });
         }
         break;
       case 'ControlConflict':
@@ -303,7 +303,7 @@ export function searchPileForApex(pile: CardInstance[]): { apex: CardInstance | 
 }
 
 /** No-Apex Recovery Rule: if the active player controls zero Apexes at the start of their
- *  Main Phase, force-recover one from hand, then deck, then discard (reshuffled in), or
+ *  Main Phase, force-recover one from hand, then deck, then voidZone (reshuffled in), or
  *  else they lose - this is a safety valve against a permanent no-board death spiral. */
 export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) {
   const player = draft.players[playerId];
@@ -320,18 +320,19 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
     return;
   }
 
-  // Step 2: reveal from the deck until an Apex turns up; everything else is shuffled back in.
-  logMsg(draft, `${playerId} controls no Apex and has none in hand - revealing from the deck.`, 'info');
+  // Step 2: reveal from the Deck until an Apex turns up; everything else is shuffled back in.
+  logMsg(draft, `${playerId} controls no Apex and has none in hand - revealing from the Deck.`, 'info');
   let result = searchPileForApex(player.deck);
   player.deck = result.remainder;
 
-  // Step 3: deck exhausted with no Apex found - fall back to the discard pile.
+  // Step 3: Deck exhausted with no Apex found - Void Recycle, then continue the search.
   if (!result.apex) {
-    const discardHasApex = player.discard.some((c) => c.type === 'Apex');
-    if (discardHasApex) {
-      logMsg(draft, `${playerId}'s deck ran out with no Apex found - shuffling the discard pile in and continuing the search.`, 'info');
-      const combined = shuffle([...player.deck, ...player.discard]);
-      player.discard = [];
+    const voidHasApex = player.voidZone.some((c) => c.type === 'Apex');
+    if (voidHasApex) {
+      logMsg(draft, `${playerId} has no Apex in hand or Deck.`, 'info');
+      logMsg(draft, `Void Recycle: ${playerId} shuffles their Void into their Deck.`, 'rift');
+      const combined = shuffle([...player.deck, ...player.voidZone]);
+      player.voidZone = [];
       result = searchPileForApex(combined);
       player.deck = result.remainder;
     }
@@ -345,11 +346,11 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
     return;
   }
 
-  // Step 4: no Apex in hand, deck, or discard - safety-valve loss.
+  // Step 4: no Apex in hand, Deck, or Void - safety-valve loss.
   draft.status = 'gameover';
   draft.winnerId = otherPlayer(playerId);
   draft.gameOverReason = `${playerId} has no Apex remaining anywhere and loses.`;
-  logMsg(draft, `${playerId} has no Apex remaining anywhere and loses.`, 'win');
+  logMsg(draft, `${playerId} has no Apex in hand, Deck, or Void and loses.`, 'win');
 }
 
 // ==========================================================================
@@ -628,6 +629,7 @@ function finalizeAttackEffects(
         if (support.lockedByControlConflict) continue;
         if (support.enteredViaReconfigureTurn === draft.turnNumber) continue;
         const supportDef = getCardDef(support.defId) as AbilitySupportDef;
+        if (supportDef.chainedAttackBonus) continue; // already applied live during damage calculation
         supportDef.syncAbility({ ...ctx, chainedApexId: trigger.attackerInstanceId });
         if (support.defId === 'sa-drone-choir' && apexDef.faction === 'Synth Ascendancy') {
           helpers.armAttackBonus(trigger.attackerInstanceId, 100);
@@ -1057,7 +1059,7 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       player.hand.splice(idx, 1);
-      player.discard.push(card);
+      player.voidZone.push(card);
       player.turnFlags.cardsPlayedThisTurn += 1;
       player.turnFlags.specialsPlayedThisTurn += 1;
       logMsg(draft, `${playerId} plays ${def.name}.`, 'play');
@@ -1116,8 +1118,8 @@ export const useGameStore = create<GameStore>((set) => ({
       const def = getCardDef(returned.defId);
       logMsg(draft, `${playerId} returns ${def.name} to hand (Reconfigure).`, 'support');
 
-      if (def.type === 'BatterySupport' && def.onReconfigureDiscard) {
-        def.onReconfigureDiscard({ helpers: createHelpers(draft), ownerId: playerId, cardInstanceId: returned.instanceId });
+      if (def.type === 'BatterySupport' && def.onReconfigureReturn) {
+        def.onReconfigureReturn({ helpers: createHelpers(draft), ownerId: playerId, cardInstanceId: returned.instanceId });
       }
 
       if (!playInstanceId) return;
@@ -1354,7 +1356,7 @@ export const useGameStore = create<GameStore>((set) => ({
             return;
           }
           player.hand.splice(idx, 1);
-          player.discard.push(cardInstance);
+          player.voidZone.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
           player.turnFlags.instantsPlayedThisTurn += 1;
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
@@ -1418,7 +1420,7 @@ export const useGameStore = create<GameStore>((set) => ({
             negateDef.canCancel(item.cardType, item.cardFaction)
           ) {
             player.hand.splice(idx, 1);
-            player.discard.push(negateInstance);
+            player.voidZone.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
             player.turnFlags.instantsPlayedThisTurn += 1;
             logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
@@ -1430,7 +1432,7 @@ export const useGameStore = create<GameStore>((set) => ({
               cancelledFaction: item.cardFaction,
             });
             if (item.cardType === 'Equip' && item.pendingCardInstance) {
-              draft.players[item.cardOwnerId].discard.push(item.pendingCardInstance);
+              draft.players[item.cardOwnerId].voidZone.push(item.pendingCardInstance);
             }
             if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
               // The Reaction itself never applies - the original event still needs to finish,
@@ -1468,9 +1470,21 @@ export const useGameStore = create<GameStore>((set) => ({
       if (item.stage === 'humanErrorChoice') {
         if (choice.type === 'humanError' && choice.pick === 'momentum') {
           gainMomentumFn(draft, item.playerId, 1);
+          logMsg(draft, `Human Error: ${item.playerId} chooses +1 Momentum.`, 'rift');
         } else {
           draft.players[item.playerId].pendingAttackBonus += 100;
-          logMsg(draft, `${item.playerId} primes their next attack this turn for +100 damage (Human Error).`, 'rift');
+          logMsg(draft, `Human Error: ${item.playerId} primes their next Apex attack this turn for +100 damage.`, 'rift');
+        }
+        return;
+      }
+
+      if (item.stage === 'civilWarChoice') {
+        if (choice.type === 'civilWar' && choice.pick === 'momentum') {
+          gainMomentumFn(draft, item.playerId, 1);
+          logMsg(draft, `Civil War: ${item.playerId} chooses +1 Momentum.`, 'rift');
+        } else {
+          draft.players[item.playerId].pendingAttackBonus += 100;
+          logMsg(draft, `Civil War: ${item.playerId} chooses +100 damage for their first Apex attack this turn.`, 'rift');
         }
         return;
       }

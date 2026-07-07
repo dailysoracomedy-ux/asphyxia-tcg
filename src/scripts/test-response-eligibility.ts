@@ -25,7 +25,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
     o2: MAX_O2,

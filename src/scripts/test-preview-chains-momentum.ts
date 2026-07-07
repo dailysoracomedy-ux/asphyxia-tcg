@@ -52,7 +52,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, apex: ReturnType<typeof c
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [apex, null],
     supportSlots: [null, null, null],
     o2: 12,
@@ -209,6 +209,7 @@ console.log('=== Test 9: Momentum cannot exceed 3 from Civil War ===');
   };
   useGameStore.setState(state);
   useGameStore.getState().advancePhase('Start');
+  useGameStore.getState().resolveResponse({ type: 'civilWar', pick: 'momentum' });
   check('Momentum stays at 3 despite Civil War trying to grant more (already trailing on O2)', useGameStore.getState().players.player1.momentum === 3);
   check('log notes player is already at max Momentum', useGameStore.getState().log.some((l) => l.message.includes('already at max Momentum')));
 }

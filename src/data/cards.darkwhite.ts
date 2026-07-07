@@ -152,8 +152,8 @@ export const dwReserveGrid: BatterySupportDef = {
   name: 'Reserve Grid',
   faction: F,
   type: 'BatterySupport',
-  rulesText: 'When this Support is discarded by Reconfigure, the next damage your O2 would take this turn is reduced by 1.',
-  onReconfigureDiscard: (ctx) => {
+  rulesText: 'When this Support is returned to hand by Reconfigure, the next damage your O2 would take this turn is reduced by 1.',
+  onReconfigureReturn: (ctx) => {
     const state = ctx.helpers.getState();
     state.players[ctx.ownerId].reserveGridShield += 1;
     ctx.helpers.log('Reserve Grid primes an O2 shield for this turn.', 'support');

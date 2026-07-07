@@ -1,8 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
+import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport, MAX_MOMENTUM } from '@/game/rules';
 import Card from './Card';
 import { factionTheme } from '@/lib/theme';
 
@@ -34,6 +35,7 @@ export default function PlayerBoard({
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
+  const [voidOpen, setVoidOpen] = useState(false);
 
   return (
     <div
@@ -53,13 +55,33 @@ export default function PlayerBoard({
         </div>
         <div className="flex items-center gap-3 text-xs font-mono">
           <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 4} />
-          <Stat label="MOM" value={player.momentum} colorClass="text-yellow-300" />
+          <Stat label="MOM" value={`${player.momentum}/${MAX_MOMENTUM}`} colorClass="text-yellow-300" />
           <Stat label="DECK" value={player.deck.length} colorClass="text-white/50" />
-          <Stat label="DISC" value={player.discard.length} colorClass="text-white/50" />
+          <button type="button" onClick={() => setVoidOpen((v) => !v)} className="hover:opacity-80">
+            <Stat label="VOID" value={player.voidZone.length} colorClass="text-white/50" />
+          </button>
           <Stat label="HAND" value={player.hand.length} colorClass="text-white/50" />
           {state.phase === 'Combat' && isActive && <Stat label="SYNC" value={player.availableSync} colorClass="text-fuchsia-300" />}
         </div>
       </div>
+      {voidOpen && (
+        <div className="mb-2 rounded border border-white/15 bg-black/50 p-2 text-[10px] max-h-28 overflow-y-auto">
+          {player.voidZone.length === 0 ? (
+            <div className="text-white/40 italic">Void is empty.</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+              {player.voidZone.map((c, i) => {
+                const d = getCardDef(c.defId);
+                return (
+                  <div key={`${c.instanceId}-${i}`} className="truncate text-white/70">
+                    {d.name} <span className="text-white/40">({d.type}{d.faction ? `, ${d.faction}` : ''})</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={`flex gap-4 ${flipped ? 'flex-col-reverse' : 'flex-col'}`}>
         <div>
@@ -100,7 +122,7 @@ export default function PlayerBoard({
   );
 }
 
-function Stat({ label, value, colorClass, danger }: { label: string; value: number; colorClass: string; danger?: boolean }) {
+function Stat({ label, value, colorClass, danger }: { label: string; value: number | string; colorClass: string; danger?: boolean }) {
   return (
     <span className={danger ? 'text-red-400 animate-pulse' : colorClass}>
       {label} <b>{value}</b>

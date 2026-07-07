@@ -1,4 +1,5 @@
 import type {
+  AbilitySupportDef,
   CardInstance,
   CounterType,
   EngineHelpers,
@@ -10,6 +11,7 @@ import type {
 } from '@/types/game';
 import { RESPONSE_EVENT_TAG } from '@/types/game';
 import { getCardDef } from '@/data/cards';
+import { shuffle } from '@/data/decks';
 
 export const MAX_SYNC = 3;
 // Rebalanced per request: 100 damage = 1 O2 loss (was 200), with the total O2 pool
@@ -209,6 +211,22 @@ export function getPreviewAttackDamage(
     modifiers.push({ label: 'primed effect vs this target', amount: player.pendingTargetedAttackBonus.amount });
   }
 
+  // Ability Support chainedAttackBonus: an immediate bonus applied to this exact attack
+  // (e.g. Spark-Plug), only while validly chained, unlocked, and not Reconfigure-locked.
+  for (const support of player.supportSlots) {
+    if (!support || support.type !== 'AbilitySupport') continue;
+    if (support.chainedApexId !== attackerInstanceId) continue;
+    if (support.lockedByControlConflict) continue;
+    if (support.enteredViaReconfigureTurn === state.turnNumber) continue;
+    const supportDef = getCardDef(support.defId) as AbilitySupportDef;
+    if (!supportDef.chainedAttackBonus) continue;
+    const bonus = supportDef.chainedAttackBonus(ctx);
+    if (bonus) {
+      total += bonus;
+      modifiers.push({ label: supportDef.name, amount: bonus });
+    }
+  }
+
   // Choke Counter penalty: -100 damage per Choke Counter (0 CHK: none, 1: -100, 2: -200,
   // 3: -300, ...). Defined in the original card-pool spec but never actually wired into
   // damage resolution until this patch made it visible/testable.
@@ -376,6 +394,23 @@ export function otherPlayer(playerId: PlayerId): PlayerId {
 
 export function drawOneCard(draft: GameState, playerId: PlayerId): CardInstance | null {
   const player = draft.players[playerId];
+  if (player.deck.length === 0) {
+    if (player.voidZone.length > 0) {
+      logMsg(draft, `${playerId} would draw from an empty Deck.`, 'draw');
+      logMsg(draft, `Void Recycle: ${playerId} shuffles their Void into their Deck.`, 'rift');
+      player.deck = shuffle(player.voidZone);
+      player.voidZone = [];
+    } else {
+      logMsg(draft, `${playerId} has no cards in Deck or Void and loses.`, 'draw');
+      if (draft.status !== 'gameover') {
+        draft.status = 'gameover';
+        draft.winnerId = otherPlayer(playerId);
+        draft.gameOverReason = `${playerId} had no cards left in Deck or Void.`;
+        logMsg(draft, `${draft.winnerId} wins! ${playerId} ran out of cards.`, 'win');
+      }
+      return null;
+    }
+  }
   const card = player.deck.shift();
   if (!card) {
     logMsg(draft, `${player.faction} (${playerId}) has no cards left to draw!`, 'draw');
@@ -581,7 +616,7 @@ export function discardFromHandFn(draft: GameState, playerId: PlayerId, cardInst
   const idx = player.hand.findIndex((c) => c.instanceId === cardInstanceId);
   if (idx === -1) return false;
   const [card] = player.hand.splice(idx, 1);
-  player.discard.push(card);
+  player.voidZone.push(card);
   return true;
 }
 
@@ -606,14 +641,17 @@ export function destroyApexFn(draft: GameState, apexInstanceId: string) {
     if (equipDef.type === 'Equip' && equipDef.onEquippedDestroyed) {
       equipDef.onEquippedDestroyed({ helpers: createHelpers(draft), ownerId, apexInstanceId });
     }
-    player.discard.push(apex.equip);
+    player.voidZone.push(apex.equip);
   }
 
   unchainSupportsFor(draft, ownerId, apexInstanceId);
 
   const slotIdx = player.apexSlots.findIndex((a) => a?.instanceId === apexInstanceId);
   if (slotIdx !== -1) player.apexSlots[slotIdx] = null;
-  player.discard.push({ ...apex, equip: undefined });
+  // Send a clean copy to Void - strip every piece of temporary/runtime state (counters,
+  // armed bonuses, protections, hasAttacked, etc.) so nothing carries over as a ghost
+  // buff/bug if this card is ever recovered from Void in the future.
+  player.voidZone.push({ instanceId: apex.instanceId, defId: apex.defId, type: apex.type });
 
   logMsg(draft, `${def.name} is destroyed.`, 'destroy');
 }

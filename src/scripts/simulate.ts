@@ -15,7 +15,7 @@ function rand<T>(arr: T[]): T | undefined {
 function totalCards(playerId: PlayerId): number {
   const p = useGameStore.getState().players[playerId];
   const equips = p.apexSlots.filter(Boolean).reduce((n, a) => n + (a!.equip ? 1 : 0), 0);
-  return p.deck.length + p.hand.length + p.discard.length + p.apexSlots.filter(Boolean).length + p.supportSlots.filter(Boolean).length + equips;
+  return p.deck.length + p.hand.length + p.voidZone.length + p.apexSlots.filter(Boolean).length + p.supportSlots.filter(Boolean).length + equips;
 }
 
 /** Builds the same ResponseEvent shape the real engine uses, from a pending queue item -
@@ -71,6 +71,8 @@ function resolvePending(): boolean {
     }
   } else if (item.stage === 'humanErrorChoice') {
     s.resolveResponse({ type: 'humanError', pick: Math.random() < 0.5 ? 'momentum' : 'damage' });
+  } else if (item.stage === 'civilWarChoice') {
+    s.resolveResponse({ type: 'civilWar', pick: Math.random() < 0.5 ? 'momentum' : 'damage' });
   }
   return true;
 }

@@ -165,12 +165,17 @@ export interface AbilitySupportDef extends BaseCardDef {
   /** Fires after the chained Apex attacks (if allowed to activate) */
   syncAbility: (ctx: AttackContext & { chainedApexId: string; destroyedTarget: boolean; dealtO2Damage: boolean }) => void;
   syncAbilityText: string;
+  /** Flat damage bonus applied immediately to the chained Apex's CURRENT attack (evaluated
+   *  live during damage calculation, same as any other modifier) - distinct from
+   *  syncAbility, which fires only after the attack has already resolved. Respects
+   *  chained/locked/Reconfigure-locked state exactly like syncAbility does. */
+  chainedAttackBonus?: (ctx: AttackContext) => number;
 }
 
 export interface BatterySupportDef extends BaseCardDef {
   type: 'BatterySupport';
   /** Fires when discarded/returned via Reconfigure */
-  onReconfigureDiscard?: (ctx: EffectContext) => void;
+  onReconfigureReturn?: (ctx: EffectContext) => void;
 }
 
 export interface EquipDef extends BaseCardDef {
@@ -286,7 +291,7 @@ export interface PlayerState {
   faction: Faction;
   deck: CardInstance[];
   hand: CardInstance[];
-  discard: CardInstance[];
+  voidZone: CardInstance[];
   apexSlots: (CardInstance | null)[]; // length 2
   supportSlots: (CardInstance | null)[]; // length 3
   o2: number;
@@ -408,7 +413,13 @@ export interface HumanErrorChoiceWindow {
   playerId: PlayerId;
 }
 
-export type PendingResponseItem = ReactionChoiceWindow | NegateWindow | HumanErrorChoiceWindow;
+export interface CivilWarChoiceWindow {
+  id: string;
+  stage: 'civilWarChoice';
+  playerId: PlayerId;
+}
+
+export type PendingResponseItem = ReactionChoiceWindow | NegateWindow | HumanErrorChoiceWindow | CivilWarChoiceWindow;
 
 export interface GameState {
   status: 'menu' | 'mulligan' | 'selectingOpeningApex' | 'playing' | 'gameover';

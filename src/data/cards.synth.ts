@@ -142,10 +142,10 @@ export const saEmergencyShell: BatterySupportDef = {
   faction: F,
   type: 'BatterySupport',
   rulesText:
-    'When this Support is discarded by Reconfigure, choose one Apex. That Apex gains +100 DEF until the end of your opponent\u2019s next turn.',
+    'When this Support is returned to hand by Reconfigure, choose one Apex. That Apex gains +100 DEF until the end of your opponent\u2019s next turn.',
   // NOTE: demo simplification - auto-targets the controller's first Apex on board (cleanest practical
-  // behavior per spec; a manual target picker for a passive discard trigger is out of scope for this pass).
-  onReconfigureDiscard: (ctx) => {
+  // behavior per spec; a manual target picker for a passive return-to-hand trigger is out of scope for this pass).
+  onReconfigureReturn: (ctx) => {
     const p = ctx.helpers.getPlayer(ctx.ownerId);
     const apex = p.apexSlots.find(Boolean);
     if (apex) {

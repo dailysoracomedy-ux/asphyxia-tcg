@@ -2,7 +2,7 @@
    - Specials/Supports/Instants limited to 1 per player turn
    - Reconfigure shares the Support budget
    - Ability Support same-Apex double-chain prevention
-   - No-Apex recovery rule (hand -> deck -> discard -> loss)
+   - No-Apex recovery rule (hand -> deck -> voidZone -> loss)
    - O2 capped at 6
    - Game log persists after game end
    Uses useGameStore.setState directly to deterministically inject fixture cards into
@@ -47,7 +47,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, overrides: Partial<Player
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
     o2: MAX_O2,
@@ -131,20 +131,20 @@ console.log('=== Test 1 & 2: Specials limited to 1/turn; blocked card stays in h
   injectIntoHand(active, [dataThief, noGods]);
 
   const handBefore = useGameStore.getState().players[active].hand.length;
-  const discardBefore = useGameStore.getState().players[active].discard.length;
+  const discardBefore = useGameStore.getState().players[active].voidZone.length;
 
   useGameStore.getState().playSpecialCard(dataThief.instanceId);
   check('first Special (Data Thief) is played (leaves hand)', !useGameStore.getState().players[active].hand.some((c) => c.instanceId === dataThief.instanceId));
   check('specialsPlayedThisTurn is now 1', useGameStore.getState().players[active].turnFlags.specialsPlayedThisTurn === 1);
 
   const handSizeAfterFirst = useGameStore.getState().players[active].hand.length;
-  const discardSizeAfterFirst = useGameStore.getState().players[active].discard.length;
+  const discardSizeAfterFirst = useGameStore.getState().players[active].voidZone.length;
 
   useGameStore.getState().playSpecialCard(noGods.instanceId);
   const afterSecondAttempt = useGameStore.getState().players[active];
   check('second Special (No Gods) is blocked - stays in hand', afterSecondAttempt.hand.some((c) => c.instanceId === noGods.instanceId));
   check('second Special did not change hand size', afterSecondAttempt.hand.length === handSizeAfterFirst);
-  check('second Special did not get discarded (not resolved)', afterSecondAttempt.discard.length === discardSizeAfterFirst);
+  check('second Special did not get discarded (not resolved)', afterSecondAttempt.voidZone.length === discardSizeAfterFirst);
   check('specialsPlayedThisTurn still 1 (not incremented by the blocked attempt)', afterSecondAttempt.turnFlags.specialsPlayedThisTurn === 1);
   void handBefore;
   void discardBefore;
@@ -264,20 +264,20 @@ console.log('=== Test 8: No-Apex recovery - Apex found by revealing the deck ===
   check('game did not end', state.status === 'playing');
 }
 
-console.log('=== Test 9: No-Apex recovery - deck exhausted, Apex recovered from discard ===');
+console.log('=== Test 9: No-Apex recovery - deck exhausted, Apex recovered from voidZone ===');
 {
   const p1 = fixturePlayer('player1', 'Neon Underground');
   const apexInDiscard = createInstance('nu-static-jack', 'Apex');
   const discardJunk = createInstance('nu-data-thief', 'Special');
   p1.hand = [];
   p1.deck = []; // fully empty
-  p1.discard = [discardJunk, apexInDiscard];
+  p1.voidZone = [discardJunk, apexInDiscard];
   const p2 = fixturePlayer('player2', 'Dark White');
   const state = fixtureState(p1, p2);
 
   maybeRunEmergencyApexDraw(state, 'player1');
-  check('Apex recovered from discard after shuffling it into the deck', state.players.player1.apexSlots[0]?.defId === 'nu-static-jack');
-  check('discard pile was emptied by the shuffle-in', state.players.player1.discard.length === 0);
+  check('Apex recovered from voidZone after shuffling it into the deck', state.players.player1.apexSlots[0]?.defId === 'nu-static-jack');
+  check('voidZone pile was emptied by the shuffle-in', state.players.player1.voidZone.length === 0);
   check('game did not end', state.status === 'playing');
 }
 
@@ -286,7 +286,7 @@ console.log('=== Test 10: No-Apex recovery - no Apex anywhere -> player loses ==
   const p1 = fixturePlayer('player1', 'Neon Underground');
   p1.hand = [createInstance('nu-dead-battery', 'BatterySupport')];
   p1.deck = [createInstance('nu-overclock', 'Special')];
-  p1.discard = [createInstance('nu-data-thief', 'Special')];
+  p1.voidZone = [createInstance('nu-data-thief', 'Special')];
   const p2 = fixturePlayer('player2', 'Dark White');
   const state = fixtureState(p1, p2);
 

@@ -116,13 +116,12 @@ export const nuSparkPlug: AbilitySupportDef = {
   name: 'Spark-Plug',
   faction: F,
   type: 'AbilitySupport',
-  rulesText:
-    'After the chained Apex attacks, arm it for +200 damage. During your next turn, that Apex\u2019s next attack deals +200 damage.',
-  syncAbilityText: 'Arm the chained Apex for +200 damage on its next attack.',
-  syncAbility: (ctx) => {
-    ctx.helpers.armAttackBonus(ctx.chainedApexId, 200);
-    ctx.helpers.log('Spark-Plug arms +200 damage for its chained Apex.', 'support');
-  },
+  rulesText: 'When chained Apex attacks, that attack deals +200 damage.',
+  syncAbilityText: 'The chained Apex\u2019s attacks deal +200 damage immediately.',
+  // No post-attack trigger anymore - the bonus is applied live via chainedAttackBonus below,
+  // to the same attack that's currently resolving, not a future one.
+  syncAbility: () => {},
+  chainedAttackBonus: () => 200,
 };
 
 export const nuDeadBattery: BatterySupportDef = {
@@ -138,8 +137,8 @@ export const nuBlackMarketCell: BatterySupportDef = {
   name: 'Black-Market Cell',
   faction: F,
   type: 'BatterySupport',
-  rulesText: 'When this Support is discarded by Reconfigure, gain 1 Momentum.',
-  onReconfigureDiscard: (ctx) => {
+  rulesText: 'When this Support is returned to hand by Reconfigure, gain 1 Momentum.',
+  onReconfigureReturn: (ctx) => {
     ctx.helpers.gainMomentum(ctx.ownerId, 1);
     ctx.helpers.log('Black-Market Cell pays out 1 Momentum.', 'support');
   },
@@ -244,10 +243,12 @@ export const nuFeedbackLoop: NegateDef = {
   type: 'Negate',
   cost: 2,
   tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED'],
-  rulesText: 'Cancel an enemy Special or Reaction. Then deal 100 damage to one enemy Apex.',
+  rulesText: 'Cancel target Special or Reaction. Then that card\u2019s controller loses 1 O2.',
   canCancel: (type) => type === 'Special' || type === 'Reaction',
   resolve: (ctx) => {
-    ctx.helpers.log('Feedback Loop cancels the effect and crackles for 100 damage.', 'response');
+    const cancelledControllerId = ctx.helpers.getOpponentId(ctx.ownerId);
+    ctx.helpers.loseO2(cancelledControllerId, 1);
+    ctx.helpers.log(`${cancelledControllerId} loses 1 O2 from Feedback Loop.`, 'o2');
   },
 };
 

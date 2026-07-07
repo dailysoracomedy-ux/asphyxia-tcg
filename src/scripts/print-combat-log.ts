@@ -28,6 +28,7 @@ function resolvePending() {
     if (eligible.length > 0 && Math.random() < 0.5) s.resolveResponse({ type: respondType, cardInstanceId: eligible[0].instanceId } as never);
     else s.resolveResponse({ type: 'pass' });
   } else if (item.stage === 'humanErrorChoice') s.resolveResponse({ type: 'humanError', pick: 'momentum' });
+  else if (item.stage === 'civilWarChoice') s.resolveResponse({ type: 'civilWar', pick: 'momentum' });
   return true;
 }
 function rand<T>(arr: T[]): T | undefined { return arr.length === 0 ? undefined : arr[Math.floor(Math.random() * arr.length)]; }

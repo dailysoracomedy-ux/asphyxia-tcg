@@ -53,7 +53,7 @@ function fixturePlayer(
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [apex, null],
     supportSlots: [support, null, null],
     o2: 12,
@@ -153,105 +153,86 @@ console.log('=== Test 5 & 6: Combat resolution uses the same number as the previ
   check('log shows the Choke Counter modifier by name', log.some((m) => m.includes('Choke Counter x3')));
 }
 
-console.log('=== Test 7-11: Spark-Plug armed bonus - full end-to-end lifecycle ===');
+console.log('=== Test 7: Spark-Plug adds +200 damage immediately to the current attack ===');
 {
-  // Test 7 & 9: bonus applies on the NEXT attack, not the same attack that armed it.
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
   const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
   sparkPlug.chainedApexId = p1Apex.instanceId;
   const p2Apex = createInstance('dw-glass-warden', 'Apex');
   useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex, sparkPlug), fixturePlayer('player2', 'Dark White', p2Apex)));
 
-  const previewBeforeFirstAttack = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
-  check('before Spark-Plug has triggered, no armed bonus is present', previewBeforeFirstAttack.modifiedDamage === previewBeforeFirstAttack.baseDamage);
+  const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
+  check('the +200 is visible in the preview before the attack is even declared', preview.modifiedDamage === preview.baseDamage + 200);
+  check('the modifier is attributed to Spark-Plug by name', preview.modifiers.some((m) => m.label === 'Spark-Plug' && m.amount === 200));
 
   useGameStore.getState().declareAttack(p1Apex.instanceId, 'mob-charge', p2Apex.instanceId);
-  const firstAttackLog = useGameStore.getState().log.map((l) => l.message);
-  check(
-    'the attack that triggered Spark-Plug did NOT itself get the +200 (armed bonus applies next attack only)',
-    !firstAttackLog.some((m) => m.includes('gains 200 attack') || m.includes('armed bonus'))
-  );
-  check("Spark-Plug's Sync Ability actually triggered", firstAttackLog.some((m) => m.includes("Spark-Plug's Sync Ability triggers")));
-
-  const apexAfterFirstAttack = useGameStore.getState().players.player1.apexSlots[0];
-  check('armedBonus is now genuinely set to 200 on the apex (the actual bug fix)', apexAfterFirstAttack?.armedBonus === 200);
-
-  // Advance through a *real* turn boundary (End Turn -> opponent's full turn -> back to
-  // player1's Start Phase, which is what actually resets hasAttacked) rather than patching
-  // fields directly, so this genuinely exercises "during its controller's next turn."
-  useGameStore.getState().endTurn(); // player1's turn ends, player2's turn begins
-  useGameStore.getState().advancePhase('Start');
-  useGameStore.getState().advancePhase('Main');
-  useGameStore.getState().advancePhase('Combat');
-  useGameStore.getState().endTurn(); // player2's turn ends, back to player1
-  useGameStore.getState().advancePhase('Start');
-  useGameStore.getState().advancePhase('Main');
-  useGameStore.getState().advancePhase('Combat');
-
-  check("hasAttacked was reset for player1's new turn", useGameStore.getState().players.player1.apexSlots[0]?.hasAttacked === false);
-  const previewNextTurn = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
-  check('on the next turn, the +200 armed bonus is visible in the preview', previewNextTurn.modifiedDamage === previewNextTurn.baseDamage + 200);
-
-  useGameStore.getState().declareAttack(p1Apex.instanceId, 'mob-charge', p2Apex.instanceId);
-  const secondAttackLog = useGameStore.getState().log.map((l) => l.message);
-  check(
-    'the +200 armed bonus was actually consumed and applied to the second attack\'s damage',
-    secondAttackLog.some((m) => m.includes('gains 200 attack (armed bonus)'))
-  );
-  // Spark-Plug's Sync Ability fires again after every attack by its chained Apex (per its own
-  // text: "After the chained Apex attacks, arm it..."), so the bonus is correctly re-armed to
-  // 200 for a *future* third attack - it is not meant to stay at 0 forever after one use.
-  const apexAfterSecondAttack = useGameStore.getState().players.player1.apexSlots[0];
-  check(
-    "armed bonus is consumed then correctly re-armed by Spark-Plug's Sync Ability (not stuck or double-counted)",
-    apexAfterSecondAttack?.armedBonus === 200
-  );
+  const log = useGameStore.getState().log.map((l) => l.message);
+  check('the log shows the bonus applying to THIS attack, not a future one', log.some((m) => m.includes('gains 200 attack (Spark-Plug)')));
+  check('the old "arms a future attack" log no longer appears', !log.some((m) => m.includes('arms +200 damage')));
+  check('no lingering armedBonus is left on the Apex (nothing to consume - it was never armed)', (useGameStore.getState().players.player1.apexSlots[0]?.armedBonus ?? 0) === 0);
 }
 
-console.log('=== Test 8 (isolated): armed bonus is consumed after use, with no chained Support to re-arm it ===');
+console.log('=== Test 8: Spark-Plug does not persist to a second attack (does not arm a future one) ===');
 {
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
-  p1Apex.armedBonus = 200; // armed directly, no Spark-Plug involved, so nothing re-arms it
+  const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
+  sparkPlug.chainedApexId = p1Apex.instanceId;
   const p2Apex = createInstance('dw-glass-warden', 'Apex');
-  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex), fixturePlayer('player2', 'Dark White', p2Apex)));
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex, sparkPlug), fixturePlayer('player2', 'Dark White', p2Apex)));
   useGameStore.getState().declareAttack(p1Apex.instanceId, 'mob-charge', p2Apex.instanceId);
-  const apexAfter = useGameStore.getState().players.player1.apexSlots[0];
-  check('armed bonus is consumed down to 0 with nothing to re-arm it', (apexAfter?.armedBonus ?? 0) === 0);
+
+  // Cycle a full real turn boundary so hasAttacked resets, then check the SAME chained
+  // apex still gets +200 on its next attack too (since Spark-Plug applies to every attack
+  // while chained, not a one-shot arm) - the key distinction is it's never a *stored*,
+  // separately-consumable value; it's recomputed fresh from chaining state each time.
+  useGameStore.getState().endTurn();
+  useGameStore.getState().advancePhase('Start');
+  useGameStore.getState().advancePhase('Main');
+  useGameStore.getState().advancePhase('Combat');
+  useGameStore.getState().endTurn();
+  useGameStore.getState().advancePhase('Start');
+  useGameStore.getState().advancePhase('Main');
+  useGameStore.getState().advancePhase('Combat');
+
+  const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
+  check('still chained, so still +200 on the next attack too (recomputed live, not a one-shot)', preview.modifiedDamage === preview.baseDamage + 200);
 }
 
-console.log('=== Test 10: Spark-Plug bonus does not apply to the wrong Apex ===');
+console.log('=== Test 9: Spark-Plug does not trigger when Unchained ===');
+{
+  const p1Apex = createInstance('nu-riot-runner', 'Apex');
+  const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport'); // chainedApexId left null
+  const p2Apex = createInstance('dw-glass-warden', 'Apex');
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex, sparkPlug), fixturePlayer('player2', 'Dark White', p2Apex)));
+  const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
+  check('unchained Spark-Plug gives no bonus', preview.modifiedDamage === preview.baseDamage);
+}
+
+console.log('=== Test 10: Spark-Plug does not apply to the wrong Apex ===');
 {
   const p1ApexA = createInstance('nu-riot-runner', 'Apex');
   const p1ApexB = createInstance('nu-street-beast', 'Apex');
   const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
   sparkPlug.chainedApexId = p1ApexA.instanceId; // chained to A, not B
-  const p2Apex = createInstance('dw-glass-warden', 'Apex');
   const p1 = fixturePlayer('player1', 'Neon Underground', p1ApexA, sparkPlug);
   p1.apexSlots = [p1ApexA, p1ApexB];
-  useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Dark White', p2Apex)));
+  useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'))));
 
-  useGameStore.getState().declareAttack(p1ApexA.instanceId, 'mob-charge', p2Apex.instanceId);
-  const apexAAfter = useGameStore.getState().players.player1.apexSlots.find((a) => a?.instanceId === p1ApexA.instanceId);
-  const apexBAfter = useGameStore.getState().players.player1.apexSlots.find((a) => a?.instanceId === p1ApexB.instanceId);
-  check('the chained Apex (A) gets the armed bonus', apexAAfter?.armedBonus === 200);
-  check('the unchained Apex (B) does NOT get the armed bonus', (apexBAfter?.armedBonus ?? 0) === 0);
+  const previewA = getPreviewAttackDamage(useGameStore.getState(), p1ApexA.instanceId, 'mob-charge')!;
+  const previewB = getPreviewAttackDamage(useGameStore.getState(), p1ApexB.instanceId, 'razor-swipe')!;
+  check('the chained Apex (A) gets the +200 bonus', previewA.modifiedDamage === previewA.baseDamage + 200);
+  check('the unchained Apex (B) does NOT get the bonus', previewB.modifiedDamage === previewB.baseDamage);
 }
 
-console.log('=== Test 11: Spark-Plug armed bonus is cleared safely if the Apex leaves play ===');
+console.log('=== Test 11: Spark-Plug does not trigger if locked (Control Conflict or Reconfigure) ===');
 {
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
-  p1Apex.armedBonus = 200;
-  const p2Apex = createInstance('dw-overseer-prime', 'Apex'); // 400 DEF, exact match for a lethal test hit
-  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex), fixturePlayer('player2', 'Dark White', p2Apex)));
-  // Destroy the armed Apex directly (simulating it leaving play) and confirm nothing throws
-  // and no stray reference to it remains armed anywhere reachable.
-  useGameStore.setState(
-    produce(useGameStore.getState(), (s) => {
-      s.players.player1.apexSlots[0] = null;
-      s.players.player1.discard.push(p1Apex);
-    })
-  );
-  check('no crash occurs and the Apex is cleanly off the board', useGameStore.getState().players.player1.apexSlots[0] === null);
+  const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
+  sparkPlug.chainedApexId = p1Apex.instanceId;
+  sparkPlug.lockedByControlConflict = true;
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex, sparkPlug), fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'))));
+  const preview = getPreviewAttackDamage(useGameStore.getState(), p1Apex.instanceId, 'mob-charge')!;
+  check('a locked Spark-Plug gives no bonus even while chained', preview.modifiedDamage === preview.baseDamage);
 }
 
 console.log('=== Test 12 & 13: Equip + Choke stack correctly, and damage floors at 0 ===');

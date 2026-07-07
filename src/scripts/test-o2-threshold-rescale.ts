@@ -46,7 +46,7 @@ function fixturePlayer(id: PlayerId, faction: Faction, apex: ReturnType<typeof c
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [apex, null],
     supportSlots: [null, null, null],
     o2: 12,

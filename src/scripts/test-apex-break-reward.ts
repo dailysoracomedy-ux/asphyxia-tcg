@@ -48,7 +48,7 @@ function fixturePlayer(
     faction,
     deck: [],
     hand: [],
-    discard: [],
+    voidZone: [],
     apexSlots: [apex, null],
     supportSlots: [null, null, null],
     o2: MAX_O2,

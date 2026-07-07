@@ -53,6 +53,7 @@ export default function ResponseModal({ state, onAfterChoose }: ResponseModalPro
         )}
         {item.stage === 'negateWindow' && <NegatePrompt state={state} item={item} onChoose={resolveResponse} />}
         {item.stage === 'humanErrorChoice' && <HumanErrorPrompt item={item} onChoose={resolveResponse} />}
+        {item.stage === 'civilWarChoice' && <CivilWarPrompt item={item} onChoose={resolveResponse} />}
       </div>
     </div>
   );
@@ -182,6 +183,35 @@ function HumanErrorPrompt({
           className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
         >
           Next Apex attack this turn deals +100 damage
+        </button>
+      </div>
+    </>
+  );
+}
+
+function CivilWarPrompt({
+  item,
+  onChoose,
+}: {
+  item: Extract<GameState['pendingResponseQueue'][number], { stage: 'civilWarChoice' }>;
+  onChoose: (choice: ResponseChoice) => void;
+}) {
+  return (
+    <>
+      <div className="text-[10px] uppercase tracking-widest text-orange-300/70 mb-1">Civil War · {item.playerId}</div>
+      <div className="text-sm text-white/80 mb-4">You are behind on O2. Choose your uprising bonus:</div>
+      <div className="space-y-2">
+        <button type="button"
+          onClick={() => onChoose({ type: 'civilWar', pick: 'momentum' })}
+          className="w-full text-left px-3 py-2 rounded border border-orange-400/50 hover:bg-orange-400/10 text-xs font-bold"
+        >
+          Gain 1 Momentum
+        </button>
+        <button type="button"
+          onClick={() => onChoose({ type: 'civilWar', pick: 'damage' })}
+          className="w-full text-left px-3 py-2 rounded border border-orange-400/50 hover:bg-orange-400/10 text-xs font-bold"
+        >
+          First Apex attack this turn deals +100 damage
         </button>
       </div>
     </>
