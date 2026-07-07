@@ -246,7 +246,7 @@ export default function GameBoard() {
   return (
     <div
       className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1400px] mx-auto w-full"
-      style={{ gridTemplateRows: 'auto minmax(0,1fr) auto minmax(0,1fr) auto' }}
+      style={{ gridTemplateRows: 'auto minmax(0,auto) auto minmax(0,auto) auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
