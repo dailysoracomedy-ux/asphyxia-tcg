@@ -174,7 +174,101 @@ misfiring. Two new tests in `test-apex-break-reward.ts` lock this in, including 
 exact scenario from the report (Riot Runner's Mob Charge into Pale Executioner: 400
 damage vs 300 DEF → destroyed, 100 overflow, exactly 1 O2 lost, no reward).
 
+## Quick polish patch: attack preview, chain indicators, Momentum cap
+
+- **The Combat Phase attack selector now shows real modified damage, not just the
+  printed base number.** Each attack option shows the final expected damage plus a
+  compact modifier breakdown (e.g. `+200 armed bonus`, `+100 Plasma Edge`, `-100
+  Choke Counter penalty`), color-coded green/red. Built via a new
+  `getPreviewAttackDamage(state, attackerInstanceId, attackId, targetInstanceId?)` in
+  `src/game/rules.ts`, and - per the request - `declareAttack` itself was refactored
+  to call this *same* helper rather than keep a separate parallel calculation, so the
+  preview and the actual resolved damage can never drift apart (short of an opponent
+  Reaction like Glitch Step modifying it afterward, which is expected and unavoidable
+  since it happens after the attack is declared).
+  - This also surfaced a genuine gap from the original card-pool spec: Choke Counters
+    were only ever checked as a *condition* by other cards, but the actual "-100
+    damage while choked" self-penalty (explicitly defined in the original counters
+    spec) had never been wired into damage resolution at all. It's implemented now,
+    consistently in both the preview and real combat.
+- **Chained Ability Support ↔ Apex indicators.** Support cards show `Chain -> {Apex
+  name}` or `Unchained`; Apex cards show `Chained Support: {Support name}` when one is
+  chained to them. Battery Supports show nothing (they're never chained). Built as two
+  small pure functions (`getChainedSupportFor`, `getChainLabelForSupport` in
+  `rules.ts`) instead of inline JSX logic, specifically so they're independently
+  testable and reused by both card types rather than duplicated.
+- **Momentum is now capped at 3**, enforced in the single existing `gainMomentumFn`
+  helper that every Momentum gain already routed through (Civil War, Apex Break
+  Reward, card/Support effects, Reconfigure payouts, Rift effects) - so the cap
+  applies everywhere at once with no new call sites to keep in sync. Logs distinguish
+  a normal gain, a gain that got capped mid-way (`"gains 1 Momentum (now 3). Momentum
+  capped at 3."`), and a no-op at max (`"is already at max Momentum."`). Spending
+  Momentum is untouched and still works normally down to 0.
+
+## Centralized damage calculation patch (a real bug found along the way)
+
+**The most important fix in this patch was found while implementing it, not asked for
+directly.** Every Ability Support's Sync Ability (Juice-Box, Spark-Plug, Gatekeeper
+Drone, Logic Bloom, Drone Choir - 5 of the 6 Ability Supports in the game) was being
+called with the wrong instance ID: `chainedApexId: support.instanceId` passed the
+*Support's own* card ID instead of the Apex it's chained to. Every one of those five
+cards' effects (`ctx.helpers.armAttackBonus(ctx.chainedApexId, ...)`,
+`markPendingEndPhaseBuff`, `markPendingEndPhaseProtection`) looks up an Apex by that ID
+- since a Support's ID never matches anything in `apexSlots`, the lookup silently
+failed every time. The log line ("Spark-Plug arms +200 damage...") fires *before* the
+broken call, so it looked like it worked while doing nothing at all - exactly the
+symptom reported. One-line fix in `gameStore.ts`: pass `trigger.attackerInstanceId`
+(the actual chained Apex) instead. This existed since the original build and was
+never caught before because every earlier armed-bonus test set `apex.armedBonus`
+directly rather than actually triggering the Sync Ability through a real attack.
+
+**Choke Counter penalty was also flat instead of scaling.** Commit 8 added Choke
+Counters as a damage penalty for the first time (a real gap from the original spec),
+but implemented it as a flat -100 regardless of stack size. This patch's explicit
+clarification (0/1/2/3 CHK = 0/-100/-200/-300) made the intended per-counter scaling
+unambiguous, so it's fixed to `-100 * chokeCount`, with the modifier breakdown now
+labeled `"Choke Counter x3"` instead of a generic penalty.
+
+**One central helper, used everywhere, per the request.** `getPreviewAttackDamage`
+(added in Commit 8) is now the *only* place attack damage math happens - the board
+card display (`Card.tsx`, via a new per-attack `attackPreviews` map built in
+`PlayerBoard.tsx`) and `declareAttack`'s actual combat resolution both call it
+directly, and the older, incomplete `getApexAttackBonusPreview` (which applied one
+flat number to every attack line and didn't know about Choke or each attack's own
+conditional bonus) was retired entirely rather than left as a second, drifting
+implementation.
+
+**New: target/outcome preview** (`getAttackOutcomePreview`), shown once an attack is
+chosen and while picking a target - final damage, target's current DEF, whether it
+would be destroyed, expected overflow, expected O2 loss, and whether Apex Break
+Reward would trigger. Purely informational; no attack is ever disabled for being
+"weak," only for genuine illegality (Sync, already attacked, no valid target, etc.).
+
+Board card attack numbers now show `base → current` (e.g. `600 → 500`) whenever
+modified, colored green/red, with the same modifier breakdown shown in the selector
+and the combat log - all three read from the identical calculation.
+
 ## Verifying it yourself
+
+`npx tsx src/scripts/test-combat-damage-patch.ts` is a targeted test suite (36 checks)
+covering this patch, most importantly the Ability Support `chainedApexId` bug fix
+verified through the *real* Sync Ability invocation path (unlike earlier tests that
+set `armedBonus` directly and so never actually exercised the broken code): the bonus
+doesn't apply to the same attack that armed it, correctly applies on the chained
+Apex's next attack after a real turn-cycle, is consumed and correctly re-armed by
+further attacks, never applies to the wrong Apex, and is handled safely if the Apex
+leaves play. Also covers the corrected per-counter Choke scaling (3 CHK on a 600
+attack → 300, matching the exact request example), Equip+Choke stacking, the damage
+floor at 0, failed attacks not punishing the attacker, and all 4 outcome-preview
+scenarios (no break / exact break with reward / overflow / no reward when O2 is dealt).
+
+`npx tsx src/scripts/test-preview-chains-momentum.ts` is a targeted test suite (19
+checks) for this patch: the attack selector preview matching armed bonuses, Equip
+bonuses, and Choke Counter penalties; the preview matching actual resolved damage;
+both directions of the chain indicator (Support→Apex and Apex→Support); Battery
+Supports showing no chain info; unchained Supports showing "Unchained"; and the
+Momentum cap holding at 3 from Civil War, Apex Break Reward, and direct card-effect
+gains, while spending still works normally afterward.
 
 `npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (33 checks)
 for the 6 original required scenarios (exact-lethal grants the reward, overflow O2
