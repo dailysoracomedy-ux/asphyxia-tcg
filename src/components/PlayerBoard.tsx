@@ -88,10 +88,10 @@ export default function PlayerBoard({
       style={{ borderColor: `${theme.border}55`, background: 'rgba(5,5,12,0.55)' }}
     >
       <div
-        className="flex-1 min-h-0 grid gap-3 items-start"
-        style={{ gridTemplateColumns: '1fr auto 1fr' }}
+        className="flex-1 min-h-0 grid gap-3"
+        style={{ gridTemplateColumns: '1fr auto 1fr', alignItems: flipped ? 'end' : 'start' }}
       >
-        <div className={`flex gap-1.5 ${flipped ? 'col-start-1 justify-end' : 'col-start-3 justify-start'}`}>
+        <div className={`flex gap-1.5 row-start-1 ${flipped ? 'col-start-1 justify-end' : 'col-start-3 justify-start'}`}>
           {player.supportSlots.map((support, i) => (
             <SupportSlot
               key={i}
@@ -104,7 +104,7 @@ export default function PlayerBoard({
             />
           ))}
         </div>
-        <div className="flex gap-1.5 col-start-2 justify-self-center">
+        <div className="flex gap-1.5 row-start-1 col-start-2 justify-self-center">
           {player.apexSlots.map((apex, i) => (
             <ApexSlot
               key={i}

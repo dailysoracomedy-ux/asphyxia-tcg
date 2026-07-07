@@ -450,6 +450,26 @@ scrollbar for it. I was not able to visually verify actual pixel budgets in a re
 browser at 1366×768 from here - this is worth a direct look before treating the
 laptop target as fully confirmed.
 
+## Commits 14-15: board alignment fixes
+
+Two focused follow-ups to Commit 13's grid layout, both from screenshot feedback:
+
+- **Centering**: the Apex+Support "fighter cluster" was packed against the left edge
+  of each board row instead of centered in the available width. Fixed with
+  `justify-center` on the row.
+- **Cross-board Apex alignment (Commit 15)**: because the opponent's row mirrors
+  (Support-then-Apex) while the player's row doesn't (Apex-then-Support), and those
+  two blocks have different total widths, simple flex centering put each row's Apex
+  slots at a *different* horizontal position - they didn't line up with each other.
+  Rebuilt as a 3-column grid (`1fr auto 1fr`) with Apex pinned to the fixed middle
+  column for both rows (identical position regardless of flip) and Support sliding to
+  whichever outer column matches that side. Also forced both children onto an
+  explicit `row-start-1` to remove any grid auto-placement ambiguity, and made the
+  opponent's row bottom-align (`alignItems: 'end'`) while the player's stays
+  top-aligned, so both sides' cards sit near the shared Rift-panel center line instead
+  of drifting to the outer edges of their tall board rows - the "facing off across the
+  line" feel that was requested.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
