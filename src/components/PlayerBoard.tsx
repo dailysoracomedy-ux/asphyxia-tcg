@@ -87,7 +87,7 @@ export default function PlayerBoard({
       className="rounded-lg border p-1.5 scanlines h-full min-h-0 flex flex-col"
       style={{ borderColor: `${theme.border}55`, background: 'rgba(5,5,12,0.55)' }}
     >
-      <div className={`flex-1 min-h-0 flex gap-3 items-start ${flipped ? 'flex-row-reverse' : ''}`}>
+      <div className={`flex-1 min-h-0 flex gap-3 items-start justify-center ${flipped ? 'flex-row-reverse' : ''}`}>
         <div className="flex gap-1.5 shrink-0">
           {player.apexSlots.map((apex, i) => (
             <ApexSlot
