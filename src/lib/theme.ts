@@ -40,12 +40,25 @@ export function factionTheme(faction: Faction): FactionTheme {
   return FACTION_THEMES[faction];
 }
 
-export const CARD_TYPE_LABEL: Record<string, string> = {
-  Apex: 'APEX',
-  AbilitySupport: 'ABILITY SUPPORT',
-  BatterySupport: 'BATTERY SUPPORT',
-  Equip: 'EQUIP',
-  Special: 'SPECIAL',
-  Reaction: 'REACTION',
-  Negate: 'NEGATE',
-};
+// ASPHYXIA's 5 card types for display purposes: Apex, Engine, Equip, Special, React.
+// "Engine" and "React" are umbrella labels - AbilitySupport/BatterySupport and
+// cancel-style Reacts (NEGATE tag) still behave differently internally, but players
+// only need to think in terms of 5 types. See the CardType doc comment in types/game.ts.
+export function getCardTypeLabel(def: { type: string; tags?: string[] }): string {
+  switch (def.type) {
+    case 'Apex':
+      return 'APEX';
+    case 'AbilitySupport':
+      return 'ENGINE — ABILITY';
+    case 'BatterySupport':
+      return 'ENGINE — BATTERY';
+    case 'Equip':
+      return 'EQUIP';
+    case 'Special':
+      return 'SPECIAL';
+    case 'Reaction':
+      return def.tags?.includes('NEGATE') ? 'REACT — NEGATE' : 'REACT';
+    default:
+      return def.type.toUpperCase();
+  }
+}

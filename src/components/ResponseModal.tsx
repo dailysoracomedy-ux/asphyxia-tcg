@@ -119,9 +119,9 @@ function NegatePrompt({
   const player = state.players[item.negatingPlayerId];
   const targetDef = getCardDef(item.cardDefId);
   const eligible = player.hand.filter((c) => {
-    if (c.type !== 'Negate') return false;
+    if (c.type !== 'Reaction') return false;
     const def = getCardDef(c.defId);
-    if (def.type !== 'Negate') return false;
+    if (def.type !== 'Reaction' || typeof def.canCancel !== 'function') return false;
     return player.momentum >= def.cost && def.canCancel(item.cardType, item.cardFaction);
   });
 
@@ -133,12 +133,12 @@ function NegatePrompt({
       <div className="text-sm text-white/80 mb-4">
         {item.cardOwnerId} plays <b>{targetDef.name}</b> ({item.cardType}). Cancel it?
       </div>
-      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible Negates</div>
+      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible React — Negate cards</div>
       <div className="space-y-2 mb-4">
-        {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible Negate in hand.</div>}
+        {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible React — Negate in hand.</div>}
         {eligible.map((c) => {
           const def = getCardDef(c.defId);
-          if (def.type !== 'Negate') return null;
+          if (def.type !== 'Reaction' || typeof def.canCancel !== 'function') return null;
           return (
             <button type="button"
               key={c.instanceId}

@@ -4,14 +4,20 @@
 
 export type Faction = 'Neon Underground' | 'Dark White' | 'Synth Ascendancy';
 
+// ASPHYXIA has 5 card types: Apex, Engine, Equip, Special, React.
+// "Engine" is the umbrella term for AbilitySupport/BatterySupport (still mechanically
+// distinct internally - chaining only applies to AbilitySupport). "React" is the
+// umbrella term for Reaction (still internally just 'Reaction') - cancel-style Reacts
+// (formerly the separate 'Negate' type) are identified by the NEGATE tag, not a
+// separate CardType. See getCardTypeLabel() in lib/theme.ts for the display strings
+// ("Engine — Ability", "React — Negate", etc.) used throughout the UI.
 export type CardType =
   | 'Apex'
   | 'AbilitySupport'
   | 'BatterySupport'
   | 'Equip'
   | 'Special'
-  | 'Reaction'
-  | 'Negate';
+  | 'Reaction';
 
 export type SyncCost = 0 | 1 | 2 | 3;
 
@@ -193,18 +199,18 @@ export interface SpecialDef extends BaseCardDef {
   requiresTarget?: 'enemyApex' | 'ownApex' | 'enemyApexWithChoke' | 'ownApexWithUpgrade';
 }
 
+// A React (internally still 'Reaction') is either attack-triggered (sets `trigger`,
+// no `canCancel`) or cancel-style (sets `canCancel`, no `trigger`, tagged NEGATE) -
+// never both. This single interface replaces the old separate NegateDef; the NEGATE
+// tag is what the UI/engine use to tell the two flavors apart, not the CardType.
 export interface ReactionDef extends BaseCardDef {
   type: 'Reaction';
   cost: number;
-  trigger: 'enemyApexAttacks' | 'opponentAttackDealsO2Damage' | 'ownApexWouldBeDestroyed';
-  resolve: (ctx: EffectContext & { eventData?: Record<string, unknown> }) => Record<string, unknown> | void;
-}
-
-export interface NegateDef extends BaseCardDef {
-  type: 'Negate';
-  cost: number;
-  canCancel: (targetCardType: CardType, targetFaction: Faction) => boolean;
-  resolve: (ctx: EffectContext & { cancelledCardInstanceId: string; cancelledFaction: Faction }) => void;
+  trigger?: 'enemyApexAttacks' | 'opponentAttackDealsO2Damage' | 'ownApexWouldBeDestroyed';
+  canCancel?: (targetCardType: CardType, targetFaction: Faction) => boolean;
+  resolve: (
+    ctx: EffectContext & { eventData?: Record<string, unknown>; cancelledCardInstanceId?: string; cancelledFaction?: Faction }
+  ) => Record<string, unknown> | void;
 }
 
 export type CardDef =
@@ -213,8 +219,7 @@ export type CardDef =
   | BatterySupportDef
   | EquipDef
   | SpecialDef
-  | ReactionDef
-  | NegateDef;
+  | ReactionDef;
 
 // --------------------------------------------------------------------------
 // Runtime instances

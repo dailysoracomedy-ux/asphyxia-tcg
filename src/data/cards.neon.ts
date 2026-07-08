@@ -1,4 +1,4 @@
-import type { ApexDef, AbilitySupportDef, BatterySupportDef, EquipDef, SpecialDef, ReactionDef, NegateDef } from '@/types/game';
+import type { ApexDef, AbilitySupportDef, BatterySupportDef, EquipDef, SpecialDef, ReactionDef } from '@/types/game';
 
 const F = 'Neon Underground' as const;
 
@@ -247,11 +247,11 @@ export const nuGlitchStep: ReactionDef = {
   },
 };
 
-export const nuFeedbackLoop: NegateDef = {
+export const nuFeedbackLoop: ReactionDef = {
   id: 'nu-feedback-loop',
   name: 'Feedback Loop',
   faction: F,
-  type: 'Negate',
+  type: 'Reaction',
   cost: 2,
   tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED'],
   rulesText: 'Cancel target Special or Reaction. Then that card\u2019s controller loses 1 O2.',

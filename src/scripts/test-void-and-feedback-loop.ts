@@ -4,7 +4,7 @@ import { createInstance } from '../data/decks';
 import { getCardDef } from '../data/cards';
 import { drawOneCard } from '../game/rules';
 import { produce } from 'immer';
-import type { GameState, PlayerState, PlayerId, Faction, NegateDef } from '../types/game';
+import type { GameState, PlayerState, PlayerId, Faction, ReactionDef } from '../types/game';
 
 let passed = 0;
 let failed = 0;
@@ -155,7 +155,7 @@ console.log('=== Test 4, 5, 6: Resolved Special/Reaction/Negate all go to Void =
 {
   // Negate: Absolute Refusal cancels a Special, then both go to Void.
   const noGods = createInstance('nu-no-gods', 'Special');
-  const absoluteRefusal = createInstance('dw-absolute-refusal', 'Negate');
+  const absoluteRefusal = createInstance('dw-absolute-refusal', 'Reaction');
   const p1 = fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex'), { hand: [noGods] });
   const p2 = fixturePlayer('player2', 'Dark White', createInstance('dw-glass-warden', 'Apex'), { hand: [absoluteRefusal], momentum: 2 });
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Main' }));
@@ -260,7 +260,7 @@ console.log('=== Test 19-24: Feedback Loop rewrite ===');
 {
   // 19 & 21 & 22: cancels a Special and the controller loses 1 O2 (not 100 Apex damage).
   const noGods = createInstance('nu-no-gods', 'Special');
-  const feedbackLoop = createInstance('nu-feedback-loop', 'Negate');
+  const feedbackLoop = createInstance('nu-feedback-loop', 'Reaction');
   const p1 = fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex'), { hand: [noGods], o2: 12 });
   const p2 = fixturePlayer('player2', 'Neon Underground', createInstance('nu-street-beast', 'Apex'), { hand: [feedbackLoop], momentum: 2 });
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Main', selectedFactions: { player1: 'Neon Underground', player2: 'Neon Underground' } }));
@@ -279,14 +279,14 @@ console.log('=== Test 19-24: Feedback Loop rewrite ===');
 }
 {
   // 20: cancels a Reaction too (canCancel includes 'Reaction').
-  const feedbackLoop = createInstance('nu-feedback-loop', 'Negate');
-  const feedbackLoopDef = getCardDef(feedbackLoop.defId) as NegateDef;
-  check('Feedback Loop can still cancel a Reaction per canCancel', feedbackLoopDef.canCancel('Reaction', 'Neon Underground'));
+  const feedbackLoop = createInstance('nu-feedback-loop', 'Reaction');
+  const feedbackLoopDef = getCardDef(feedbackLoop.defId) as ReactionDef;
+  check('Feedback Loop can still cancel a Reaction per canCancel', feedbackLoopDef.canCancel!('Reaction', 'Neon Underground'));
 }
 {
   // 23: can cause lethal O2 loss.
   const noGods = createInstance('nu-no-gods', 'Special');
-  const feedbackLoop = createInstance('nu-feedback-loop', 'Negate');
+  const feedbackLoop = createInstance('nu-feedback-loop', 'Reaction');
   const p1 = fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex'), { hand: [noGods], o2: 1 });
   const p2 = fixturePlayer('player2', 'Neon Underground', createInstance('nu-street-beast', 'Apex'), { hand: [feedbackLoop], momentum: 2 });
   useGameStore.setState(fixtureState(p1, p2, { phase: 'Main', selectedFactions: { player1: 'Neon Underground', player2: 'Neon Underground' } }));

@@ -3,7 +3,7 @@
 import type { ApexDef, CardInstance } from '@/types/game';
 import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
-import { factionTheme, CARD_TYPE_LABEL } from '@/lib/theme';
+import { factionTheme, getCardTypeLabel } from '@/lib/theme';
 
 interface CardProps {
   instance: CardInstance;
@@ -103,7 +103,7 @@ export default function Card({
         </span>
       </div>
       <div className="flex items-center justify-between mt-0.5 opacity-80" style={{ color: theme.secondary }}>
-        <span className="tracking-wider">{CARD_TYPE_LABEL[def.type]}</span>
+        <span className="tracking-wider">{getCardTypeLabel(def)}</span>
         {apexDef &&
           (() => {
             const shownDef = effectiveDef ?? apexDef.baseDef;

@@ -124,7 +124,7 @@ console.log('=== Scenario 3: attack would deal O2 damage, defender has Emergency
 
 console.log('=== Scenario 4: Player 1 plays Overclock (a Special), Player 2 has Feedback Loop + 2 Momentum ===');
 {
-  const feedbackLoop = createInstance('nu-feedback-loop', 'Negate');
+  const feedbackLoop = createInstance('nu-feedback-loop', 'Reaction');
   const p1 = fixturePlayer('player1', 'Neon Underground', { momentum: 5 });
   const p2 = fixturePlayer('player2', 'Dark White', { momentum: 2, hand: [feedbackLoop] });
   const state = fixtureState(p1, p2);
@@ -139,8 +139,8 @@ console.log('=== Scenario 4: Player 1 plays Overclock (a Special), Player 2 has 
 
 console.log('=== Scenario 5: Player 1 plays an Equip, Player 2 has Absolute Refusal / Logic Denial + 2 Momentum ===');
 {
-  const absoluteRefusal = createInstance('dw-absolute-refusal', 'Negate');
-  const logicDenial = createInstance('sa-logic-denial', 'Negate');
+  const absoluteRefusal = createInstance('dw-absolute-refusal', 'Reaction');
+  const logicDenial = createInstance('sa-logic-denial', 'Reaction');
   const p1 = fixturePlayer('player1', 'Neon Underground', { momentum: 5 });
   for (const [label, card] of [
     ['Absolute Refusal', absoluteRefusal],

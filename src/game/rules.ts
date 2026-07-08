@@ -5,7 +5,6 @@ import type {
   EngineHelpers,
   GameState,
   LogKind,
-  NegateDef,
   PlayerId,
   ResponseEvent,
 } from '@/types/game';
@@ -751,9 +750,9 @@ export function getEligibleResponses(
   const requiredTag = RESPONSE_EVENT_TAG[event.kind];
 
   return player.hand.filter((card) => {
-    if (card.type !== 'Reaction' && card.type !== 'Negate') return false;
+    if (card.type !== 'Reaction') return false;
     const def = getCardDef(card.defId);
-    if (def.type !== 'Reaction' && def.type !== 'Negate') return false;
+    if (def.type !== 'Reaction') return false;
 
     const tags = def.tags ?? [];
     if (!tags.includes('INSTANT')) return false;
@@ -764,11 +763,10 @@ export function getEligibleResponses(
     if (player.turnFlags.instantsPlayedThisTurn >= 1) return false;
 
     // Target/effect legality checks beyond simple tag + cost matching:
-    if (def.type === 'Negate' && (event.kind === 'SPECIAL_PLAYED' || event.kind === 'EQUIP_PLAYED' || event.kind === 'REACTION_PLAYED')) {
-      const negateDef = def as NegateDef;
-      if (!negateDef.canCancel(event.data.cardType, event.data.cardFaction)) return false;
+    if (def.canCancel && (event.kind === 'SPECIAL_PLAYED' || event.kind === 'EQUIP_PLAYED' || event.kind === 'REACTION_PLAYED')) {
+      if (!def.canCancel(event.data.cardType, event.data.cardFaction)) return false;
     }
-    if (def.type === 'Reaction' && event.kind === 'O2_DAMAGE_PENDING') {
+    if (def.type === 'Reaction' && !def.canCancel && event.kind === 'O2_DAMAGE_PENDING') {
       if (event.data.amount <= 0) return false; // must actually deal at least 1 O2 damage
     }
 

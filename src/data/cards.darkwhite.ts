@@ -1,4 +1,4 @@
-import type { ApexDef, AbilitySupportDef, BatterySupportDef, EquipDef, SpecialDef, ReactionDef, NegateDef } from '@/types/game';
+import type { ApexDef, AbilitySupportDef, BatterySupportDef, EquipDef, SpecialDef, ReactionDef } from '@/types/game';
 
 const F = 'Dark White' as const;
 
@@ -257,11 +257,11 @@ export const dwEmergencyAuthority: ReactionDef = {
   },
 };
 
-export const dwAbsoluteRefusal: NegateDef = {
+export const dwAbsoluteRefusal: ReactionDef = {
   id: 'dw-absolute-refusal',
   name: 'Absolute Refusal',
   faction: F,
-  type: 'Negate',
+  type: 'Reaction',
   cost: 2,
   tags: ['INSTANT', 'NEGATE', 'ON_SPECIAL_PLAYED', 'ON_REACTION_PLAYED', 'ON_EQUIP_PLAYED'],
   rulesText: 'Cancel an enemy Special, Reaction, or Equip. If the canceled card was Neon Underground, gain 1 Momentum.',

@@ -738,6 +738,51 @@ runaway spam, the same card plays normally once its precondition is later satisf
 and a full AI turn still completes when the hand contains one initially-unplayable
 Special alongside other legal plays.
 
+## Commit 18.4: Negate merged into React (5 card types)
+
+**ASPHYXIA now has 5 card types: Apex, Engine, Equip, Special, React.** "Engine" is
+the umbrella label for AbilitySupport/BatterySupport and "React" is the umbrella
+label for Reaction - both stay mechanically distinct internally (Engine subtypes
+still have different chaining rules; cancel-style Reacts are still identified
+separately), but players only need to think in terms of 5 types now. See the
+`CardType` doc comment in `types/game.ts` for the authoritative reference.
+
+**`NegateDef` is gone**; its fields folded into `ReactionDef` as optional -
+`trigger` (attack-based Reacts set it) and `canCancel` (cancel-style Reacts set it
+instead) are now mutually-exclusive-in-practice optional fields on one interface,
+rather than two separate card types. Feedback Loop, Absolute Refusal, and Logic
+Denial are now `type: 'Reaction'`, distinguished as cancel-style by the NEGATE tag
+they already carried plus the presence of `canCancel`. A new `getCardTypeLabel()`
+helper in `lib/theme.ts` replaced the old static label map, since telling "React"
+from "React — Negate" (or "Engine — Ability" from "Engine — Battery") now requires
+looking at tags, not just the bare type string.
+
+**Kept exactly as directed:** the `negateWindow`/`reactionChoice` window-stage split
+is untouched - only the card *type* merged, not response timing. Deck construction
+was already fully type-agnostic (every card in a faction file gets 2 copies,
+regardless of type), so there was nothing to change there at all, confirming the
+low-risk read from the design discussion before this build started.
+
+**The specific risk I'd flagged and traced through beforehand held up under testing**:
+a negate-style React never re-opens a fresh negate window when played (its resolution
+path doesn't call the same window-opening function that Special/Equip/Reaction plays
+do), and it can't appear in an attack-defense window because it never sets `trigger`
+- both are now covered by dedicated tests (`test-negate-merge.ts`, 31 checks) rather
+than left as an assumption.
+
+**Every requested test is in that new file**: cancel-style Reacts still cancel legal
+Specials/Reacts/Equips per each card's own `canCancel`; they don't appear as
+attack-defense options; using one doesn't open a new negate window; all three
+display as "React — Negate"; and a full sweep of all 45 cards confirms none carry
+`type: 'Negate'` anymore. Also added: same Momentum cost verified unchanged, and the
+once-per-turn instant limit still enforced identically.
+
+**Touched ~12 files** in total (types, the 3 card data files, `rules.ts`,
+`gameStore.ts`, `ResponseModal.tsx`, `CardInspectModal.tsx`, `Card.tsx`,
+`lib/theme.ts`, `simulate.ts`, and two existing test files whose fixtures
+constructed `'Negate'`-typed card instances) - all mechanical updates once the type
+definitions changed, no gameplay-logic rewrites needed anywhere.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

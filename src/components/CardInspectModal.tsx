@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
-import { factionTheme, CARD_TYPE_LABEL } from '@/lib/theme';
+import { factionTheme, getCardTypeLabel } from '@/lib/theme';
 
 export type InspectZone = 'Hand' | 'Field' | 'Void' | 'Attached';
 
@@ -60,7 +60,7 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
               {def.name}
             </div>
             <div className="text-[10px] uppercase tracking-widest text-white/50">
-              {def.faction} · {CARD_TYPE_LABEL[def.type] ?? def.type}
+              {def.faction} · {getCardTypeLabel(def)}
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-white/50 hover:text-white text-lg leading-none px-1">
@@ -164,7 +164,7 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
           <div className="text-xs text-white/50">Timing: Main Phase only{def.requiresTarget ? `, requires a target (${def.requiresTarget})` : ''}.</div>
         )}
 
-        {(def.type === 'Reaction' || def.type === 'Negate') && (
+        {def.type === 'Reaction' && (
           <div className="text-xs text-white/50">Timing: response window only (see tags above).</div>
         )}
       </div>

@@ -8,7 +8,6 @@ import type {
   DestroyTriggerData,
   Faction,
   GameState,
-  NegateDef,
   O2DamageTriggerData,
   Phase,
   PlayedCardEventData,
@@ -1422,12 +1421,13 @@ export const useGameStore = create<GameStore>((set) => ({
           const player = draft.players[item.negatingPlayerId];
           const idx = player.hand.findIndex((c) => c.instanceId === choice.cardInstanceId);
           const negateInstance = idx !== -1 ? player.hand[idx] : undefined;
-          const negateDef = negateInstance ? (getCardDef(negateInstance.defId) as NegateDef) : undefined;
+          const negateDef = negateInstance ? (getCardDef(negateInstance.defId) as ReactionDef) : undefined;
 
           if (
             negateInstance &&
             negateDef &&
-            negateDef.type === 'Negate' &&
+            negateDef.type === 'Reaction' &&
+            typeof negateDef.canCancel === 'function' &&
             player.momentum >= negateDef.cost &&
             player.turnFlags.instantsPlayedThisTurn < 1 &&
             negateDef.canCancel(item.cardType, item.cardFaction)

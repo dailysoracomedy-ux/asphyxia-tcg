@@ -52,14 +52,15 @@ function resolvePending(): boolean {
     const built = eventForItem(item);
     const eligible = built ? getEligibleResponses(s as unknown as GameState, built.respondingPlayerId, built.event) : [];
 
-    // Sanity check: getCardDef must agree these are actually Reaction/Negate cards (never Specials/Equips).
+    // Sanity check: getCardDef must agree these are actually cancel-capable Reaction cards for
+    // a negateWindow, or attack-triggered ones for a reactionChoice (never Specials/Equips).
     for (const c of eligible) {
       const def = getCardDef(c.defId);
       if (item.stage === 'reactionChoice' && def.type !== 'Reaction') {
         throw new Error(`getEligibleResponses returned a non-Reaction card (${def.type}) for a reactionChoice window`);
       }
-      if (item.stage === 'negateWindow' && def.type !== 'Negate') {
-        throw new Error(`getEligibleResponses returned a non-Negate card (${def.type}) for a negateWindow`);
+      if (item.stage === 'negateWindow' && (def.type !== 'Reaction' || typeof def.canCancel !== 'function')) {
+        throw new Error(`getEligibleResponses returned a non-cancel-capable card (${def.type}) for a negateWindow`);
       }
     }
 
