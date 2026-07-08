@@ -648,13 +648,27 @@ export function discardFromHandFn(draft: GameState, playerId: PlayerId, cardInst
   return true;
 }
 
-/** Unchain any supports pointed at an apex that is leaving play. They remain in play, unchained. */
-function unchainSupportsFor(draft: GameState, ownerId: PlayerId, apexInstanceId: string) {
-  for (const support of draft.players[ownerId].supportSlots) {
-    if (support && support.chainedApexId === apexInstanceId) {
-      support.chainedApexId = null;
-    }
-  }
+/** New core rule (Chained Support Destruction): when an Apex is destroyed, any
+ *  Ability Support currently chained to it is destroyed too and sent to Void - not
+ *  just unchained. Unchained Ability Supports and Battery Supports are unaffected,
+ *  and this only ever looks at the ONE Ability Support chained to THIS apex (each
+ *  Apex can have at most one chained). General-purpose - applies to any current or
+ *  future Ability Support, nothing here is hardcoded to specific cards. */
+function destroyChainedSupportForApex(draft: GameState, ownerId: PlayerId, apexInstanceId: string, apexName: string) {
+  const player = draft.players[ownerId];
+  const slotIdx = player.supportSlots.findIndex((s) => s?.type === 'AbilitySupport' && s.chainedApexId === apexInstanceId);
+  if (slotIdx === -1) return;
+  const support = player.supportSlots[slotIdx]!;
+  const supportDef = getCardDef(support.defId);
+  player.supportSlots[slotIdx] = null;
+  // Clean copy to Void - same reasoning as Apex destruction: strip all transient state
+  // (locked flags, Reconfigure-turn markers, etc.) so nothing survives as a ghost.
+  player.voidZone.push({ instanceId: support.instanceId, defId: support.defId, type: support.type });
+  logMsg(draft, `${supportDef.name} was chained to ${apexName} and is sent to the Void.`, 'destroy');
+  // A Support disappearing can only ever reduce the Sync budget, never increase it - cap
+  // the player's currently-remaining Sync to the new (lower) ceiling without touching the
+  // rest of the Sync model, so a mid-Combat destruction can't leave "phantom" Sync behind.
+  player.availableSync = Math.min(player.availableSync, computeAvailableSync(draft, ownerId));
 }
 
 export function destroyApexFn(draft: GameState, apexInstanceId: string) {
@@ -672,8 +686,6 @@ export function destroyApexFn(draft: GameState, apexInstanceId: string) {
     player.voidZone.push(apex.equip);
   }
 
-  unchainSupportsFor(draft, ownerId, apexInstanceId);
-
   const slotIdx = player.apexSlots.findIndex((a) => a?.instanceId === apexInstanceId);
   if (slotIdx !== -1) player.apexSlots[slotIdx] = null;
   // Send a clean copy to Void - strip every piece of temporary/runtime state (counters,
@@ -682,6 +694,8 @@ export function destroyApexFn(draft: GameState, apexInstanceId: string) {
   player.voidZone.push({ instanceId: apex.instanceId, defId: apex.defId, type: apex.type });
 
   logMsg(draft, `${def.name} is destroyed.`, 'destroy');
+
+  destroyChainedSupportForApex(draft, ownerId, apexInstanceId, def.name);
 }
 
 export function createHelpers(draft: GameState): EngineHelpers {

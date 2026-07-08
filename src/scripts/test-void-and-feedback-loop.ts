@@ -108,7 +108,7 @@ console.log('=== Test 1 & 2: Destroyed Apex and its attached Equip both go to Vo
   check("the destroyed Apex's Equip followed it into Void", after2.players.player2.voidZone.some((c) => c.instanceId === shield.instanceId));
 }
 
-console.log('=== Test 3: Chained Ability Support stays on field and becomes Unchained when its Apex dies ===');
+console.log('=== Test 3: Chained Ability Support is destroyed with its Apex (Commit 18.2 - supersedes the old "becomes Unchained" behavior) ===');
 {
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
   const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
@@ -124,8 +124,8 @@ console.log('=== Test 3: Chained Ability Support stays on field and becomes Unch
   const p1After = after.players.player1;
   check('Riot Runner was destroyed', p1After.apexSlots[0] === null);
   check('Riot Runner is now in Void', p1After.voidZone.some((c) => c.instanceId === p1Apex.instanceId));
-  check('Spark-Plug is NOT sent to Void - it stays on the field', p1After.supportSlots[0]?.instanceId === sparkPlug.instanceId);
-  check('Spark-Plug is now Unchained', p1After.supportSlots[0]?.chainedApexId == null);
+  check('the chained Spark-Plug is ALSO destroyed - Support slot is now empty', p1After.supportSlots[0] === null);
+  check('Spark-Plug is now in Void too', p1After.voidZone.some((c) => c.instanceId === sparkPlug.instanceId));
 }
 
 console.log('=== Test 4, 5, 6: Resolved Special/Reaction/Negate all go to Void ===');

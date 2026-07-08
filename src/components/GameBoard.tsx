@@ -441,65 +441,6 @@ export default function GameBoard() {
           />
         )}
 
-        {state.phase === 'Main' && !aiIsActing && (
-          <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
-            <div className="flex items-center gap-2 flex-wrap">
-              <button type="button"
-                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
-                onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-                className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
-              >
-                Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
-              </button>
-              {mode.kind === 'reconfigureReturn' && (
-                <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
-              )}
-              {mode.kind === 'reconfigurePlay' && (
-                <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
-                  Skip — finish Reconfigure
-                </button>
-              )}
-              {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
-                  cancel
-                </button>
-              )}
-            </div>
-            {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
-              <div className="mt-1 text-white/40 italic">
-                Already played a Support this turn - this Reconfigure can only return a card, not play one in.
-              </div>
-            )}
-            {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
-              <div className="mt-1 flex gap-2 flex-wrap">
-                {eligibleReconfigurePlays.map((c) => {
-                  const def = getCardDef(c.defId);
-                  return (
-                    <button type="button"
-                      key={c.instanceId}
-                      onClick={() => {
-                        if (mode.kind !== 'reconfigurePlay') return;
-                        if (c.type === 'AbilitySupport') {
-                          setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
-                        } else {
-                          state.reconfigure(mode.returnId, c.instanceId);
-                          resetMode();
-                        }
-                      }}
-                      className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
-                    >
-                      play {def.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {mode.kind === 'reconfigureChain' && (
-              <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
-            )}
-          </div>
-        )}
-
         {mode.kind === 'apexReady' && (
           <ConfirmBar
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
@@ -636,6 +577,65 @@ export default function GameBoard() {
             End Turn
           </button>
         </div>
+
+        {state.phase === 'Main' && !aiIsActing && (
+          <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button type="button"
+                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
+                onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
+                className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
+              >
+                Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
+              </button>
+              {mode.kind === 'reconfigureReturn' && (
+                <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
+              )}
+              {mode.kind === 'reconfigurePlay' && (
+                <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                  Skip — finish Reconfigure
+                </button>
+              )}
+              {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
+                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
+                  cancel
+                </button>
+              )}
+            </div>
+            {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
+              <div className="mt-1 text-white/40 italic">
+                Already played a Support this turn - this Reconfigure can only return a card, not play one in.
+              </div>
+            )}
+            {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
+              <div className="mt-1 flex gap-2 flex-wrap">
+                {eligibleReconfigurePlays.map((c) => {
+                  const def = getCardDef(c.defId);
+                  return (
+                    <button type="button"
+                      key={c.instanceId}
+                      onClick={() => {
+                        if (mode.kind !== 'reconfigurePlay') return;
+                        if (c.type === 'AbilitySupport') {
+                          setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
+                        } else {
+                          state.reconfigure(mode.returnId, c.instanceId);
+                          resetMode();
+                        }
+                      }}
+                      className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
+                    >
+                      play {def.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {mode.kind === 'reconfigureChain' && (
+              <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
+            )}
+          </div>
+        )}
 
         <Hand
           cards={state.players[viewerBottomId].hand}

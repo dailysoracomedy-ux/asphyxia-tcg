@@ -661,6 +661,54 @@ Neither goes through `pendingResponseQueue`, so there's no risk of the AI loop
 stalling on it - confirmed via a dedicated test plus the existing AI-vs-AI
 simulation still completing cleanly.
 
+## Commit 18.2: Chained Support Destruction + Reconfigure panel relocation
+
+**New core rule**: when an Apex is destroyed, any Ability Support currently chained
+to it is destroyed too and sent to Void - not just unchained (the previous
+behavior). Unchained Ability Supports and Battery Supports are unaffected, and a
+Support chained to a *different*, surviving Apex is untouched. This makes chaining a
+genuine risk/reward choice instead of a free upside, as requested.
+
+**Implemented as one general-purpose helper**, `destroyChainedSupportForApex` in
+`rules.ts`, called from `destroyApexFn` right after the Apex's own destruction log -
+it looks for whichever Ability Support (if any) is chained to the apex being
+destroyed, with no hardcoded card names, so it applies identically to Spark-Plug,
+Juice-Box, Oxygen Siphon, Gatekeeper Drone, or anything added later. Since
+destruction is *confirmed* before this ever runs (this is called from
+`destroyApexFn`, which itself is never invoked on a prevented-destruction path, e.g.
+Backup Consciousness), the "don't destroy the Support if destruction was prevented"
+requirement falls out for free from the existing pipeline rather than needing new
+guard logic.
+
+**Sync recalculation**: rather than rewriting the Sync model (explicitly discouraged
+in the request unless necessary), a destroyed chained Support now caps the player's
+current `availableSync` down to whatever `computeAvailableSync` says is possible
+with one fewer Support - handles both "next Combat Phase" and the trickier
+"mid-Combat" case without touching how Sync is earned or spent elsewhere.
+
+**Juice-Box's pending buff** was already safe without new code: Commit 11's "strip
+all transient state before sending an Apex to Void" cleanup already discards
+`pendingEndPhaseDefBuff` (and the newer `pendingJuiceBoxOverdrive` flag) the moment
+an Apex is destroyed, and the End Phase buff-application loop only ever iterates
+still-present Apexes - so there's no path left for a destroyed Apex to receive a
+buff after the fact.
+
+**Card Inspect**: Ability Supports now show a one-line risk note ("if the chained
+Apex is destroyed, this Support is destroyed too and sent to the Void") in the
+detail modal - added once, generally, rather than repeated in six different cards'
+rules text, per the request's own preference for a shared note over duplication.
+
+**Cosmetic fix, also requested this round**: the Reconfigure panel moved from the
+shared Rift/prompt strip (which visually reads as "the middle of the board") down to
+directly above the hand, in the same fixed-bottom area as your cards and phase
+buttons - it now reads as "your own toolbar" rather than a neutral shared control.
+
+**Testing found a real regression risk before it shipped**: an existing Commit 11
+test explicitly asserted the *old* "becomes Unchained" behavior. Rather than quietly
+deleting it, I updated it to assert the new destruction behavior and left a comment
+explaining it supersedes the prior expectation - so the test history stays honest
+about what changed and why, rather than just vanishing.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

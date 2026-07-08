@@ -145,6 +145,9 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
                 {instance.enteredViaReconfigureTurn === state.turnNumber && (
                   <div className="text-blue-300">Sync Ability locked this turn (played via Reconfigure).</div>
                 )}
+                <div className="text-amber-300/70 text-[10px] mt-1">
+                  Risk: if the chained Apex is destroyed, this Support is destroyed too and sent to the Void.
+                </div>
               </>
             )}
             {instance.lockedByControlConflict && <div className="text-blue-300">LOCKED (Control Conflict)</div>}
