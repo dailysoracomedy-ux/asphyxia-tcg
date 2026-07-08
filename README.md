@@ -709,6 +709,35 @@ deleting it, I updated it to assert the new destruction behavior and left a comm
 explaining it supersedes the prior expectation - so the test history stays honest
 about what changed and why, rather than just vanishing.
 
+## Commit 18.3: AI could get permanently stuck on an unplayable card
+
+A real bug from an actual play session: the AI drew Ascension Complete (a Special
+with `canPlay: (playerId, state) => state.players[playerId].turnFlags
+.cardsPlayedThisTurn >= 1`) as the first thing it tried to do in Main Phase, before
+playing anything else that turn. `playSpecialCard` correctly rejected it and logged
+"cannot be played right now" - but the AI's `aiPlayOneMainPhaseAction` didn't check
+whether the play had actually gone through before reporting success. Since a
+rejected play still appends a log entry (a new state reference), the AI driver's
+effect re-triggered, saw the identical hand/board/turn state, made the identical
+(wrong) decision, and repeated forever - 100+ duplicate log lines and a frozen game.
+
+**Root-cause fix, not a special case for this one card**: every attempted play in
+`aiPlayOneMainPhaseAction` (Apex, Support, Equip, Special) is now verified by
+checking whether the card actually left the hand afterward - store actions return
+`void`, so hand-presence is the only reliable ground truth available. A rejected
+play now correctly falls through to the next candidate/category instead of being
+reported as a completed action. Specials also get a `canPlay()` pre-filter and now
+try every Special in hand in order (not just the first), so one unplayable card
+can't block a later, perfectly legal one from being tried in the same cycle.
+
+**New test file**, `test-ai-canplay-guard.ts`, reproduces the exact reported
+scenario (a Special whose `canPlay()` precondition isn't met yet) and confirms: the
+AI correctly reports no action taken rather than looping, the card stays in hand
+rather than being silently consumed, at most one rejection is logged rather than a
+runaway spam, the same card plays normally once its precondition is later satisfied,
+and a full AI turn still completes when the hand contains one initially-unplayable
+Special alongside other legal plays.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

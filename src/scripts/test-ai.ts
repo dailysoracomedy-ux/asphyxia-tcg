@@ -264,5 +264,36 @@ console.log('=== Test 9: full AI-vs-AI game completes without deadlocking ===');
   check('all 5 AI-vs-AI games completed with a winner (no deadlock)', completedGames === 5);
 }
 
+console.log('=== Test 11: AI does not loop forever on a Special whose canPlay precondition fails (real playtest bug) ===');
+{
+  // Exact repro: Ascension Complete requires cardsPlayedThisTurn >= 1 via canPlay - if it's
+  // the only card in hand and no other card was played yet this turn, the AI must recognize
+  // it as unplayable immediately rather than repeatedly attempting and failing forever.
+  const ascensionComplete = createInstance('sa-ascension-complete', 'Special');
+  const p2Apex = createInstance('sa-chrome-seraph', 'Apex');
+  const p2 = fixturePlayer('player2', 'Synth Ascendancy', p2Apex, { hand: [ascensionComplete] });
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex')), p2, { activePlayerId: 'player2', phase: 'Main' }));
+
+  const acted = aiPlayOneMainPhaseAction('player2');
+  check('AI correctly reports no legal action (does not falsely claim success)', acted === false);
+  check('the unplayable card is never even attempted - no log entries at all', useGameStore.getState().log.length === 0);
+  check('the card remains safely in hand', useGameStore.getState().players.player2.hand.some((c) => c.instanceId === ascensionComplete.instanceId));
+}
+
+console.log('=== Test 12: AI moves on to a different Special if an earlier one in hand is unplayable ===');
+{
+  const ascensionComplete = createInstance('sa-ascension-complete', 'Special'); // canPlay fails (cardsPlayedThisTurn === 0)
+  const compileSequence = createInstance('sa-compile-sequence', 'Special'); // no canPlay, no target needed - always legal
+  const filler = createInstance('nu-glitch-step', 'Reaction'); // deck filler so Compile Sequence's own draw doesn't trigger Void Recycle and draw itself back
+  const p2Apex = createInstance('sa-chrome-seraph', 'Apex');
+  const p2 = fixturePlayer('player2', 'Synth Ascendancy', p2Apex, { hand: [ascensionComplete, compileSequence], deck: [filler] });
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', createInstance('nu-riot-runner', 'Apex')), p2, { activePlayerId: 'player2', phase: 'Main' }));
+
+  const acted = aiPlayOneMainPhaseAction('player2');
+  check('AI found and played the OTHER, legal Special instead of getting stuck on the first', acted === true);
+  check('Compile Sequence was played', !useGameStore.getState().players.player2.hand.some((c) => c.instanceId === compileSequence.instanceId));
+  check('Ascension Complete is still untouched in hand', useGameStore.getState().players.player2.hand.some((c) => c.instanceId === ascensionComplete.instanceId));
+}
+
 console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
 if (failed > 0) process.exitCode = 1;

@@ -50,13 +50,24 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
   const player = store.players[playerId];
   if (store.status !== 'playing' || store.phase !== 'Main' || store.pendingResponseQueue.length > 0) return false;
 
+  // Verifies a play actually went through (the card left hand) rather than being
+  // silently rejected (e.g. a failed canPlay precondition, no legal target, a cost
+  // that couldn't be paid, etc.) - trusting a store action's return value isn't
+  // possible here since these actions return void, so presence-in-hand is the ground
+  // truth. Without this check, a rejected play still logs "cannot be played right
+  // now" and changes the log (a new state reference), which would otherwise cause
+  // the AI driver to retry the exact same rejected play forever.
+  function stillInHand(cardInstanceId: string): boolean {
+    return useGameStore.getState().players[playerId].hand.some((c) => c.instanceId === cardInstanceId);
+  }
+
   // 1. Play an Apex into an empty slot if one is available.
   const emptyApexSlot = player.apexSlots.findIndex((s) => s === null);
   if (emptyApexSlot !== -1) {
     const apexCard = player.hand.find((c) => c.type === 'Apex');
     if (apexCard) {
       store.playApexCard(apexCard.instanceId, emptyApexSlot);
-      return true;
+      if (!stillInHand(apexCard.instanceId)) return true;
     }
   }
 
@@ -77,7 +88,7 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
       } else {
         store.playSupportCard(supportCard.instanceId);
       }
-      return true;
+      if (!stillInHand(supportCard.instanceId)) return true;
     }
   }
 
@@ -87,31 +98,35 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
     const target = [...player.apexSlots].filter((a): a is CardInstance => !!a && !a.equip).sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
     if (target) {
       store.playEquipCard(equipCard.instanceId, target.instanceId);
-      return true;
+      if (!stillInHand(equipCard.instanceId)) return true;
     }
   }
 
-  // 4. Play a Special (once per turn) if it has a legal target or needs none.
+  // 4. Play a Special (once per turn) - try every Special in hand, not just the
+  // first, since an earlier one might fail its canPlay precondition or have no
+  // legal target while a later one is perfectly playable.
   if (player.turnFlags.specialsPlayedThisTurn === 0) {
-    const specialCard = player.hand.find((c) => c.type === 'Special');
-    if (specialCard) {
+    for (const specialCard of player.hand.filter((c) => c.type === 'Special')) {
       const def = getCardDef(specialCard.defId);
-      if (def.type === 'Special') {
-        if (!def.requiresTarget) {
-          store.playSpecialCard(specialCard.instanceId);
-          return true;
-        }
-        const opponent = store.players[opponentOf(playerId)];
-        let targetId: string | undefined;
-        if (def.requiresTarget === 'enemyApex') targetId = opponent.apexSlots.find(Boolean)?.instanceId;
-        else if (def.requiresTarget === 'enemyApexWithChoke') targetId = opponent.apexSlots.find((a) => a && (a.counters?.choke ?? 0) > 0)?.instanceId;
-        else if (def.requiresTarget === 'ownApex') targetId = player.apexSlots.find(Boolean)?.instanceId;
-        else if (def.requiresTarget === 'ownApexWithUpgrade') targetId = player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)?.instanceId;
-        if (targetId) {
-          store.playSpecialCard(specialCard.instanceId, targetId);
-          return true;
-        }
+      if (def.type !== 'Special') continue;
+      if (def.canPlay && !def.canPlay(playerId, store)) continue;
+
+      if (!def.requiresTarget) {
+        store.playSpecialCard(specialCard.instanceId);
+        if (!stillInHand(specialCard.instanceId)) return true;
+        continue;
       }
+
+      const opponent = store.players[opponentOf(playerId)];
+      let targetId: string | undefined;
+      if (def.requiresTarget === 'enemyApex') targetId = opponent.apexSlots.find(Boolean)?.instanceId;
+      else if (def.requiresTarget === 'enemyApexWithChoke') targetId = opponent.apexSlots.find((a) => a && (a.counters?.choke ?? 0) > 0)?.instanceId;
+      else if (def.requiresTarget === 'ownApex') targetId = player.apexSlots.find(Boolean)?.instanceId;
+      else if (def.requiresTarget === 'ownApexWithUpgrade') targetId = player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)?.instanceId;
+      if (!targetId) continue;
+
+      store.playSpecialCard(specialCard.instanceId, targetId);
+      if (!stillInHand(specialCard.instanceId)) return true;
     }
   }
 
