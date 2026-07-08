@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
@@ -37,21 +37,7 @@ export default function GameBoard() {
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [logOpen, setLogOpen] = useState(false);
   const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const lastLogSeenRef = useRef(0);
-
-  useEffect(() => {
-    if (state.log.length > lastLogSeenRef.current) {
-      const newEntries = state.log.slice(lastLogSeenRef.current);
-      const infoEntry = [...newEntries].reverse().find((e) => e.kind === 'info');
-      lastLogSeenRef.current = state.log.length;
-      if (infoEntry) {
-        setToast(infoEntry.message);
-        const t = setTimeout(() => setToast(null), 3500);
-        return () => clearTimeout(t);
-      }
-    }
-  }, [state.log]);
+  const recentMoves = state.log.slice(-4);
 
   // Draw Phase is automatic: resolve the draw itself, then move straight to Main Phase,
   // except when Control Conflict's optional lock decision is available - that pauses
@@ -357,7 +343,7 @@ export default function GameBoard() {
   return (
     <div
       className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1400px] mx-auto w-full"
-      style={{ gridTemplateRows: 'auto minmax(0,auto) auto minmax(0,auto) auto', alignContent: 'center' }}
+      style={{ gridTemplateRows: 'auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
@@ -566,13 +552,23 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 5: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5 relative">
-        {toast && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-30 px-3 py-1.5 rounded-lg border border-red-400/50 bg-black/90 text-red-200 text-xs shadow-lg whitespace-nowrap pointer-events-none">
-            {toast}
-          </div>
-        )}
+      {/* Row 5: action feed - a real layout row (not an overlay), so it can never cover
+          the board. Shows recent moves, updating live, rather than a transient popup. */}
+      <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
+        <span className="uppercase tracking-widest text-white/30 shrink-0">Recent:</span>
+        <div className="flex overflow-hidden whitespace-nowrap">
+          {[...recentMoves].reverse().map((entry, i) => (
+            <span key={entry.id} className={entry.kind === 'info' ? 'text-red-300/80' : 'text-white/60'}>
+              {i > 0 && <span className="text-white/15 mr-3">·</span>}
+              {entry.message}
+            </span>
+          ))}
+          {recentMoves.length === 0 && <span className="text-white/25 italic">No moves yet.</span>}
+        </div>
+      </div>
+
+      {/* Row 6: hand + phase controls - always visible, fixed bottom area */}
+      <div className="shrink-0 flex flex-col gap-1.5">
         <div className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 flex items-center gap-2 flex-wrap">
           {state.phase === 'Start' && (
             <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>

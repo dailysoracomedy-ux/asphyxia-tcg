@@ -606,6 +606,18 @@ so they're only wired up at all when it's genuinely the human's turn. During the
 turn, the human's board just sits there inert while the AI's actions play out on the
 fixed top board, with the existing "{faction} AI is taking its turn..." indicator.
 
+## Commit 18.1: action feed row (not an overlay)
+
+Commit 18's banner reposition just moved the overlap from the hand to the bottom of
+the Apex cards - it was still an `absolute` overlay, so it was always going to cover
+*something* underneath it. Replaced entirely with a real row in the grid layout
+(added a 6th `grid-template-rows` track) between the player board and the phase
+controls - it takes up its own space rather than floating on top of anything, so it
+can't cover Apex/Equip/counter info regardless of exact pixel heights. It's also no
+longer a transient 3.5-second popup: it now shows the last 4 log entries persistently
+(newest first, so the newest is never the one clipped if the row runs out of width),
+updating live as moves happen - a real "recent moves" feed rather than a one-off toast.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
