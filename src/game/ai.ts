@@ -5,6 +5,9 @@ import {
   MAX_ABILITY_SUPPORTS,
   MAX_MOMENTUM,
   getEligibleResponses,
+  getOverdriveEligibility,
+  directDamageToO2Loss,
+  overflowToO2Loss,
 } from '@/game/rules';
 import type { PlayerId, CardInstance, ApexDef, PendingResponseItem, ResponseEvent } from '@/types/game';
 
@@ -172,8 +175,47 @@ export function aiPlayOneCombatAction(playerId: PlayerId): boolean {
   const best = candidates[0];
   if (best.score <= 0) return false;
 
-  store.declareAttack(best.attackerId, best.attackId, best.targetId);
+  const overdriveSpend = aiDecideOverdrive(store, best);
+  store.declareAttack(best.attackerId, best.attackId, best.targetId, overdriveSpend);
   return true;
+}
+
+/** Simplified Overdrive heuristic (per spec's "if too complex" fallback): Spark-Plug
+ *  spends only if the extra +100 damage would flip a non-destroying attack into a
+ *  destroying one, or turn a non-lethal hit into a lethal one. Juice-Box spends only
+ *  when Momentum is already capped (otherwise saving it for something else is better). */
+function aiDecideOverdrive(store: ReturnType<typeof useGameStore.getState>, candidate: AttackCandidate): boolean | undefined {
+  const eligible = getOverdriveEligibility(store, candidate.attackerId);
+  if (!eligible) return undefined;
+
+  const activePlayer = store.players[store.activePlayerId];
+  if (eligible.supportDefId === 'nu-juice-box') {
+    return activePlayer.momentum >= MAX_MOMENTUM;
+  }
+
+  // Spark-Plug: compare the outcome with a hypothetical +100 against the current one.
+  const preview = getAttackOutcomePreview(store, candidate.attackerId, candidate.attackId, candidate.targetId);
+  if (!preview) return false;
+  const oppId = opponentOf(store.activePlayerId);
+  const opponent = store.players[oppId];
+
+  if (preview.isDirect) {
+    const currentLethal = opponent.o2 - preview.o2Loss <= 0;
+    if (currentLethal) return false; // already lethal without spending
+    const boostedO2Loss = Math.min(directDamageToO2Loss(preview.finalDamage + 100), 4 - opponent.turnFlags.directO2LossThisTurn);
+    return opponent.o2 - boostedO2Loss <= 0;
+  }
+
+  if (preview.willDestroy) {
+    if (preview.overflow <= 0) return false; // already a clean break, +100 only adds more overflow O2 loss, not worth it here
+    const currentLethal = opponent.o2 - preview.o2Loss <= 0;
+    if (currentLethal) return false;
+    const boostedOverflow = preview.overflow + 100;
+    return opponent.o2 - overflowToO2Loss(boostedOverflow) <= 0;
+  }
+
+  // Not currently destroying - would +100 flip it into a destroy?
+  return preview.finalDamage + 100 >= (preview.targetDef ?? Infinity);
 }
 
 /** Decides the AI's Control Conflict lock choice at the start of its turn. Locks the

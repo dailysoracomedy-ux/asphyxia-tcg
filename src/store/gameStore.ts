@@ -36,6 +36,7 @@ import {
   findApexAnywhere,
   getEffectiveDef,
   getEligibleResponses,
+  getOverdriveEligibility,
   getPreviewAttackDamage,
   gainMomentumFn,
   logMsg,
@@ -756,7 +757,7 @@ interface GameStore extends GameState {
   playSpecialCard: (cardInstanceId: string, targetApexInstanceId?: string) => void;
   reconfigure: (returnInstanceId: string, playInstanceId?: string, chainedApexId?: string) => void;
   chainSupport: (supportInstanceId: string, apexInstanceId: string) => void;
-  declareAttack: (attackerInstanceId: string, attackId: string, targetInstanceId?: string) => void;
+  declareAttack: (attackerInstanceId: string, attackId: string, targetInstanceId?: string, overdriveSpend?: boolean) => void;
   resolveResponse: (choice: ResponseChoice) => void;
   lockSupportControlConflict: (supportInstanceId: string) => void;
   resetToMenu: () => void;
@@ -1194,7 +1195,7 @@ export const useGameStore = create<GameStore>((set) => ({
       gainMomentumFn(draft, draft.activePlayerId, 1);
     }),
 
-  declareAttack: (attackerInstanceId, attackId, targetInstanceId) =>
+  declareAttack: (attackerInstanceId, attackId, targetInstanceId, overdriveSpend) =>
     mutate(set, (draft) => {
       if (draft.status !== 'playing' || draft.phase !== 'Combat' || draft.pendingResponseQueue.length > 0) return;
       if (draft.isFirstTurnOverall) {
@@ -1273,7 +1274,27 @@ export const useGameStore = create<GameStore>((set) => ({
           'attack'
         );
       }
-      const total = preview.modifiedDamage;
+      let total = preview.modifiedDamage;
+
+      // Overdrive: an optional Momentum spend for +100, decided before this action was
+      // called (by the human prompt or the AI heuristic) - applies to whichever chained
+      // Ability Support (Spark-Plug or Juice-Box) is actually eligible on this attack.
+      // Only one can ever be chained to a given Apex at a time (1 Ability Support per Apex).
+      if (overdriveSpend !== undefined) {
+        const eligible = getOverdriveEligibility(draft, attackerInstanceId);
+        if (eligible && overdriveSpend) {
+          loseMomentumFn(draft, draft.activePlayerId, 1);
+          logMsg(draft, `${draft.activePlayerId} spends 1 Momentum for ${eligible.supportName} Overdrive.`, 'momentum');
+          if (eligible.supportDefId === 'nu-spark-plug') {
+            total += 100;
+            logMsg(draft, 'Spark-Plug Overdrive adds +100 damage to this attack.', 'attack');
+          } else {
+            apex.pendingJuiceBoxOverdrive = true;
+          }
+        } else if (eligible && !overdriveSpend) {
+          logMsg(draft, `${draft.activePlayerId} skips ${eligible.supportName} Overdrive.`, 'info');
+        }
+      }
 
       // Consume the one-shot bonuses the preview just read (mirrors exactly which ones
       // getPreviewAttackDamage included, so nothing is double-spent or left stale).

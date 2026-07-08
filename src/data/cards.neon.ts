@@ -103,11 +103,19 @@ export const nuJuiceBox: AbilitySupportDef = {
   faction: F,
   type: 'AbilitySupport',
   rulesText:
-    'After the chained Apex attacks, mark it for +200 DEF. At the end of your turn, that Apex gains +200 DEF until the end of your opponent\u2019s next turn.',
-  syncAbilityText: 'Arm +200 DEF for the chained Apex, applied at End Phase.',
+    'After chained Apex attacks, it gains +200 DEF until the end of the opponent\u2019s next turn. You may spend 1 Momentum to give it an additional +100 DEF during that buff window.',
+  syncAbilityText: 'Arm +200 DEF (or +300 with Overdrive) for the chained Apex, applied at End Phase.',
   syncAbility: (ctx) => {
-    ctx.helpers.markPendingEndPhaseBuff(ctx.chainedApexId, 200);
-    ctx.helpers.log('Juice-Box will grant +200 DEF to its chained Apex at End Phase.', 'support');
+    const apex = ctx.helpers.getApex(ctx.chainedApexId);
+    const overdrive = !!apex?.pendingJuiceBoxOverdrive;
+    if (apex) apex.pendingJuiceBoxOverdrive = false;
+    const amount = overdrive ? 300 : 200;
+    ctx.helpers.markPendingEndPhaseBuff(ctx.chainedApexId, amount);
+    if (overdrive) {
+      ctx.helpers.log(`Juice-Box Overdrive will grant +300 DEF total to its chained Apex at End Phase.`, 'support');
+    } else {
+      ctx.helpers.log('Juice-Box will grant +200 DEF to its chained Apex at End Phase.', 'support');
+    }
   },
 };
 
@@ -116,10 +124,13 @@ export const nuSparkPlug: AbilitySupportDef = {
   name: 'Spark-Plug',
   faction: F,
   type: 'AbilitySupport',
-  rulesText: 'When chained Apex attacks, that attack deals +200 damage.',
-  syncAbilityText: 'The chained Apex\u2019s attacks deal +200 damage immediately.',
+  rulesText:
+    'When chained Apex attacks, that attack gains +200 damage. You may spend 1 Momentum to give that attack an additional +100 damage.',
+  syncAbilityText: 'The chained Apex\u2019s attacks deal +200 damage immediately (or +300 with Overdrive).',
   // No post-attack trigger anymore - the bonus is applied live via chainedAttackBonus below,
-  // to the same attack that's currently resolving, not a future one.
+  // to the same attack that's currently resolving, not a future one. The optional +100
+  // Overdrive is handled directly in declareAttack (gameStore.ts), since it's a Momentum
+  // spend decided before the attack is declared, not a passive per-attack modifier.
   syncAbility: () => {},
   chainedAttackBonus: () => 200,
 };

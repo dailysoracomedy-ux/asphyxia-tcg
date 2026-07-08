@@ -51,7 +51,7 @@ export default function NewGameMenu() {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const [p1, setP1] = useState<Faction>('Neon Underground');
   const [p2, setP2] = useState<Faction>('Dark White');
-  const [vsAI, setVsAI] = useState(false);
+  const [vsAI, setVsAI] = useState(true);
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
@@ -71,21 +71,21 @@ export default function NewGameMenu() {
           <span className="text-xs uppercase tracking-widest text-white/40 mr-2">Mode</span>
           <button
             type="button"
-            onClick={() => setVsAI(false)}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
-              !vsAI ? 'border-cyan-400 text-cyan-200 bg-cyan-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
-            }`}
-          >
-            Hotseat (2 Player)
-          </button>
-          <button
-            type="button"
             onClick={() => setVsAI(true)}
             className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
               vsAI ? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
             }`}
           >
-            Vs AI
+            Single Player
+          </button>
+          <button
+            type="button"
+            onClick={() => setVsAI(false)}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
+              !vsAI ? 'border-cyan-400 text-cyan-200 bg-cyan-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
+            }`}
+          >
+            2-Player
           </button>
         </div>
 

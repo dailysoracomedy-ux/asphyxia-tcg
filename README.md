@@ -618,6 +618,49 @@ longer a transient 3.5-second popup: it now shows the last 4 log entries persist
 (newest first, so the newest is never the one clipped if the row runs out of width),
 updating live as moves happen - a real "recent moves" feed rather than a one-off toast.
 
+## Commit 18.1: Neon Support Overdrive + menu default
+
+**Menu**: Single Player (Vs AI) is now the default and listed first; Hotseat is
+relabeled "2-Player" and Vs AI is "Single Player."
+
+**Spark-Plug and Juice-Box gained an optional Overdrive**: spend 1 Momentum for
++100 more (damage for Spark-Plug, DEF for Juice-Box), decided at the moment of
+trigger, never a permanent upgrade.
+
+**Architecture note, since this needed a real design decision:** Spark-Plug's bonus
+applies live during damage calculation (from Commit 11), which happens *before* the
+attack is declared - there's no natural "pause mid-resolution" point to ask a
+question without either double-computing damage or building a whole new response-
+window type. Juice-Box's trigger, by contrast, fires *after* the attack fully
+resolves. Rather than force both through the heavier `pendingResponseQueue`
+machinery (built for Reactions/Negates - the spec explicitly says this isn't one),
+the Overdrive choice happens **before** `declareAttack` is called at all: the UI
+checks eligibility on target selection, shows a compact choice bar if applicable,
+and the decision is passed into `declareAttack` as a new optional 4th parameter
+(`overdriveSpend`). Since only one Ability Support can ever be chained to a given
+Apex, at most one of these two cards is ever eligible on a single attack, so the UI
+only ever needs to ask one question, not two. A single shared helper,
+`getOverdriveEligibility`, decides whether to even offer the choice (chained,
+unlocked, not Reconfigure-locked, Momentum > 0) and is reused identically by the UI
+prompt and the AI - so eligibility can't silently drift between the two.
+
+Spark-Plug's +100 is added directly to a local damage total inside `declareAttack`
+(inherently transient - there's nothing to clean up afterward, since it's never
+written to persistent state). Juice-Box's is trickier: its DEF buff isn't applied
+until later, in its own `syncAbility` call, so the decision is stashed on a new
+transient `pendingJuiceBoxOverdrive` field on the *attacking* Apex, read and cleared
+in the same synchronous call by Juice-Box's own logic (folding +300 instead of +200
+into the same `markPendingEndPhaseBuff` call rather than tracking two separate
+buffs) - it can never survive to a future attack.
+
+**AI heuristic** (the spec's own "if too complex" fallback, since a full damage-race
+simulation felt like overkill for this pass): Spark-Plug spends only if +100 flips a
+non-destroying attack into a destroying one or creates lethal; Juice-Box spends only
+when Momentum is already at the 3-cap (nothing better to do with it that turn).
+Neither goes through `pendingResponseQueue`, so there's no risk of the AI loop
+stalling on it - confirmed via a dedicated test plus the existing AI-vs-AI
+simulation still completing cleanly.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

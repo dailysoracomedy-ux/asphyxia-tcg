@@ -332,6 +332,34 @@ export function getAttackOutcomePreview(
   };
 }
 
+export interface OverdriveEligibility {
+  supportInstanceId: string;
+  supportDefId: 'nu-spark-plug' | 'nu-juice-box';
+  supportName: string;
+}
+
+/** Checks whether the given attacker has a chained, unlocked Spark-Plug or Juice-Box
+ *  eligible to offer its optional Overdrive Momentum spend on this attack. Only one
+ *  Ability Support can ever be chained to a given Apex, so at most one of these two
+ *  cards can ever apply to a single attack. Returns null if not eligible (no such
+ *  support chained, it's locked, or the player has 0 Momentum to spend). */
+export function getOverdriveEligibility(state: GameState, attackerInstanceId: string): OverdriveEligibility | null {
+  const hit = findApexAnywhere(state, attackerInstanceId);
+  if (!hit) return null;
+  const player = state.players[hit.ownerId];
+  if (player.momentum < 1) return null;
+  const support = player.supportSlots.find(
+    (s) =>
+      s?.type === 'AbilitySupport' &&
+      s.chainedApexId === attackerInstanceId &&
+      !s.lockedByControlConflict &&
+      s.enteredViaReconfigureTurn !== state.turnNumber &&
+      (s.defId === 'nu-spark-plug' || s.defId === 'nu-juice-box')
+  );
+  if (!support) return null;
+  return { supportInstanceId: support.instanceId, supportDefId: support.defId as 'nu-spark-plug' | 'nu-juice-box', supportName: getCardDef(support.defId).name };
+}
+
 export function pruneExpiredModifiers(state: GameState) {
   for (const pid of ['player1', 'player2'] as PlayerId[]) {
     for (const apex of state.players[pid].apexSlots) {

@@ -15,6 +15,7 @@ import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
 import { aiPlayOneMainPhaseAction, aiPlayOneCombatAction, aiDecideControlConflict, aiChooseBinaryRiftBonus, aiChooseResponse } from '@/game/ai';
+import { getOverdriveEligibility } from '@/game/rules';
 
 const PHASE_LABEL: Record<string, string> = { Start: 'Draw', Main: 'Main', Combat: 'Combat', End: 'End' };
 
@@ -30,7 +31,8 @@ type Mode =
   | { kind: 'reconfigureChain'; returnId: string; playId: string }
   | { kind: 'attackerChosen'; attackerId: string }
   | { kind: 'attackAwaitingTarget'; attackerId: string; attackId: string }
-  | { kind: 'rechainSelectApex'; supportId: string };
+  | { kind: 'rechainSelectApex'; supportId: string }
+  | { kind: 'overdrivePrompt'; attackerId: string; attackId: string; targetId?: string; supportName: string };
 
 export default function GameBoard() {
   const state = useGameStore();
@@ -276,8 +278,13 @@ export default function GameBoard() {
       return;
     }
     if (mode.kind === 'attackAwaitingTarget') {
-      state.declareAttack(mode.attackerId, mode.attackId, apexId);
-      resetMode();
+      const eligible = getOverdriveEligibility(state, mode.attackerId);
+      if (eligible) {
+        setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId: mode.attackId, targetId: apexId, supportName: eligible.supportName });
+      } else {
+        state.declareAttack(mode.attackerId, mode.attackId, apexId);
+        resetMode();
+      }
     }
   }
 
@@ -287,8 +294,13 @@ export default function GameBoard() {
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });
     } else {
-      state.declareAttack(mode.attackerId, attackId);
-      resetMode();
+      const eligible = getOverdriveEligibility(state, mode.attackerId);
+      if (eligible) {
+        setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId, supportName: eligible.supportName });
+      } else {
+        state.declareAttack(mode.attackerId, attackId);
+        resetMode();
+      }
     }
   }
 
@@ -512,6 +524,35 @@ export default function GameBoard() {
         )}
         {mode.kind === 'rechainSelectApex' && (
           <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
+        )}
+        {mode.kind === 'overdrivePrompt' && (
+          <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs flex-wrap">
+            <span className="text-yellow-200">
+              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
+            </span>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
+                  resetMode();
+                }}
+                className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
+              >
+                Spend 1 Momentum
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
+                  resetMode();
+                }}
+                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
         )}
         {mode.kind === 'equipReady' && (
           <ConfirmBar
