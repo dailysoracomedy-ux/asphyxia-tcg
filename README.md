@@ -1070,6 +1070,82 @@ tool rather than part of the game's presentation.
 suite + 72-game simulation) - both pure presentation changes, no gameplay logic
 touched.
 
+## Commit 20.1 hotfix: background wasn't actually visible, panels weren't opaque
+
+Two related issues from a real screenshot, not visible until you actually looked at
+a live screen (this is exactly the kind of thing I can't fully verify from here).
+
+**The background genuinely wasn't rendering.** It was applied as a plain CSS rule
+(`html, body { background: ... }`) in `globals.css` - almost certainly getting
+silently deprioritized by Tailwind v4's own cascade-layer system for its preflight
+styles, even with no directly competing class. Rather than chase the exact layer
+mechanics, moved it to an inline `style` on the `<body>` element in `layout.tsx` -
+inline styles win over any stylesheet rule regardless of layers or specificity, so
+this can't quietly lose the cascade again.
+
+**Every panel that houses cards/hand/data is now fully opaque**, not translucent -
+top status bar, the main board panel, Rift panel, hand, action feed, phase
+controls, Reconfigure panel, Combat Controls, Void inspector, Game Log, and the
+opening-Apex-selection panel, all switched from `bg-black/NN` (letting the
+background bleed through) to a solid `#05050a` (the game's actual background
+color, for exact consistency rather than pure `#000`). The background image is now
+only visible in the gaps *between* panels, not through them - which is what
+actually makes it read as atmosphere instead of noise competing with card text.
+Left the Battle Log/Card Inspect modal *backdrops* alone (their dimming scrim
+behind the modal is supposed to be translucent - that's a different job than a
+panel that houses content) - their actual content panels were already opaque.
+
+**Verified**: clean `tsc`/`eslint`/build plus a regression pass - pure CSS, no
+gameplay logic touched.
+
+## Commit 21: Deck/Void stacks, shared O2/Momentum, wider board, grouped controls
+
+**Board widened** - cap raised from 1400px to 1800px, freeing up the side margins
+the rest of this commit uses.
+
+**Deck and Void are now visual stacks on the board**, not text chips in the top
+corner. Rendered via the new `DeckVoidStack` component, using the uploaded card-back
+art for the stack visual and a count above it. They live in each board row's
+*already-empty* outer grid column - the column that doesn't have Support slots
+(Commit 15's 3-column grid always leaves one side empty depending on flip
+direction), so this needed zero restructuring of the Apex/Support layout itself,
+just filling space that was already sitting unused. Deck stays count-only and
+non-interactive, matching the existing "never reveal deck contents" rule; Void is
+clickable.
+
+**Void inspection is now a full-screen modal** (`VoidInspectModal.tsx`) instead of
+the small popover it was before - shows every card in that Void as a proper grid,
+closeable, with Escape support, and clicking any card opens the same Card Inspect
+modal everything else uses for full detail. Still strictly read-only, per the
+existing rule - no way to reorder or remove anything from here.
+
+**O2 and Momentum are now one shared, centered readout** (`SharedStatsBar.tsx`)
+instead of being split across each player's corner chip - left value/color always
+matches whichever player is shown on the left of the board, right always matches
+the right, so it stays correctly paired regardless of Hotseat's turn-based
+left/right swap or Vs AI's fixed sides. Positioned right above the Rift panel,
+which already sits in that shared horizontal band.
+
+**Phase controls (Combat Phase / End Turn / Reconfigure) are now a grouped, centered
+cluster** instead of a left-aligned strip - wrapped in a shared `max-w-md mx-auto`
+container so the two boxes read as one unit, with their internal content centered
+too. Didn't attempt to literally merge Reconfigure's expandable content (support
+list, chain prompts) into the same box as the phase buttons - that state machine
+already has several conditional sub-states, and merging it felt like a real risk to
+introduce bugs for a purely cosmetic win; the centering achieves the same visual
+grouping without touching that logic.
+
+**Also**: `PlayerStatusChips` simplified down to just Faction name + Hand count
+(everything else moved out to the new dedicated elements above), and the unused
+`faceDown` card-back rendering in `Card.tsx` now uses the same real art instead of a
+generated stripe pattern, for whenever it's needed.
+
+**Verified**: full regression suite (350+ checks across 15 files, including the
+AI-vs-AI simulation) and a fresh 72-game simulation both ran clean - this is
+presentation-layer work with one exception (PlayerBoard's grid restructuring), and
+that restructuring didn't touch anything game-logic related, only which DOM column
+renders which existing component.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
