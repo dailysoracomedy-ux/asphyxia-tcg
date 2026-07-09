@@ -783,6 +783,136 @@ once-per-turn instant limit still enforced identically.
 constructed `'Negate'`-typed card instances) - all mechanical updates once the type
 definitions changed, no gameplay-logic rewrites needed anywhere.
 
+## Commit 19: reusable Apex overlay template + Developer gallery
+
+**Files added**: `lib/cardArt.ts` (art lookup), `lib/apexOverlay.ts` (the shared
+`APEX_TEMPLATE_ZONES` percentage config + `getValueDeltaState`/
+`getDisplayedDefenseValue`/`getDisplayedAttackValue` helpers), `components/apex-
+overlay/ApexOverlaySystem.tsx` (`CardArtLayer`, `ApexOverlayLayer`,
+`CounterBadges`, `StatusFlags`, `DynamicStatText`), `components/ApexCardRenderer.tsx`
+(the top-level reusable renderer), `components/DevCardGallery.tsx` (the new
+Developer view). **Files touched**: `Card.tsx` (delegates to `ApexCardRenderer` when
+art exists), `NewGameMenu.tsx` (subtle "Developer" link), `app/page.tsx` (local
+`showDeveloper` view-state, deliberately separate from the game store's own status
+machine so it can never interact with match state).
+
+**How the template works**: every zone (DEF badge, 4 attack rows, counter cluster,
+status strip) is defined once in `APEX_TEMPLATE_ZONES` as percentages of the card
+container, not pixels - the same numbers work at board size (128×152), hand size
+(118×148), and the gallery's larger preview size without any per-size math. Layer 1
+(`CardArtLayer`) renders the baked art image, or a themed gradient placeholder when
+none is mapped. Layer 2 (`ApexOverlayLayer`) renders only the live values - DEF,
+attack damage, counters - color-coded via `getValueDeltaState` (green above base,
+red below, white at base). Attack name and value zones are separate columns, so
+value alignment never shifts with name length, as required.
+
+**Art mapping**: `CARD_ART: Record<string, string>` in `lib/cardArt.ts`, keyed by
+card id, currently empty (commented example only). `getCardArt(defId)` is the single
+lookup point every consumer uses. No art is required immediately - the object can
+grow one entry at a time.
+
+**Fallback behavior - the most important guarantee in this commit**: `Card.tsx`
+only takes the new `ApexCardRenderer` path when `isApex && getCardArt(instance
+.defId)` is truthy. Since `CARD_ART` is empty today, **every Apex in the live game
+renders exactly as it did before this commit** - this was verified, not assumed: the
+full test suite (363+ checks) and a fresh 72-game simulation both ran clean with the
+same numbers as prior commits, confirming zero behavioral change to gameplay.
+
+**No calculation duplication**: `getDisplayedDefenseValue`/`getDisplayedAttackValue`
+are thin one-line delegations to the existing `getEffectiveDef`/
+`getPreviewAttackDamage` in `rules.ts` - the same functions combat resolution and
+the attack selector already use. `ApexCardRenderer` itself goes one step further and
+accepts pre-computed `attackPreviews` in the exact shape `Card.tsx` already receives
+from its callers, so the new and old rendering paths can never show conflicting
+numbers for the same card even in principle.
+
+**Developer gallery**: reachable via the small "Developer" link at the bottom of the
+main menu (not the primary CTA - kept subtle per the project's existing pattern for
+dev tooling). Shows all 12 current Apexes grouped by faction, each rendered through
+the exact same `ApexCardRenderer` the live game uses (no one-off gallery-only
+renderer). The "Show Apex Overlay Zones" checkbox outlines every zone with a labeled
+dashed border for tuning - off by default. Since no real art exists yet, gallery
+cards render on the placeholder gradient so the zone system is visually verifiable
+today, ahead of any art being added.
+
+**Known limitation**: the zone coordinates from the spec are untested against a real
+uploaded frame, since no art was provided this commit - they're implemented exactly
+as given, but "do these percentages actually land inside the DEF badge and attack
+panel of the real baked frame" can only be confirmed once real art is dropped in and
+checked against the debug-zone overlay in the gallery. That's expected next-step
+work, not a gap in this commit.
+
+## Commit 19.1: all 12 Apex art files added, zones calibrated against real art
+
+All 12 uploaded card images are now live in `CARD_ART` - every Apex in the game now
+renders through the new overlay template instead of the placeholder-only path
+Commit 19 shipped with. Files live in `public/art/apex/`, named by card id
+(`nu-riot-runner.png`, `dw-glass-warden.png`, etc.).
+
+**Zones were calibrated against the actual uploaded frames, not left at guessed
+defaults.** I measured the real DEF badge and ATTACKS panel boundaries via pixel
+analysis (scanning for the black-panel edge and the badge's text bounds) across
+several cards, then verified the result by compositing the zone rectangles directly
+onto the real card images and inspecting them - not just trusting the math. One
+real finding from that process: the black panel's top edge varies by about 3
+percentage points across the 12 images (60.9%-64.0%), since these were generated
+individually rather than sharing one pixel-identical template. The zones are tuned
+to sit comfortably across that spread, but a specific card could still be a hair
+off - that's exactly what the gallery's "Show Apex Overlay Zones" toggle is for.
+
+**A more significant issue turned up during that same check, and got fixed at the
+source rather than patched around**: the uploaded art is 600×900 (a 2:3 ratio), but
+the game's compact board size (128×152) has a meaningfully different ratio - a 26%
+mismatch. Rendering that art with `object-cover` inside a mismatched container would
+crop up to a fifth of the image off the top and bottom, silently invalidating every
+percentage-based zone at exactly the size players see most during a match. Fixed by
+having art-based Apex cards derive their container width from the art's own 2:3
+ratio (anchored to the existing height, so board/hand row spacing is unaffected)
+rather than reusing the generic size preset's width, and using `object-contain`
+instead of `object-cover` as a second safety net. This means an art-based Apex card
+is now a few pixels narrower than a non-art card at the same "size" during this
+transitional period where not everything has art yet - a minor visual tradeoff, but
+the alternative (cropped frame edges, misaligned DEF/attack numbers) was worse.
+
+**Verified**: full test suite (330+ checks) and a fresh 72-game simulation both ran
+clean after adding real art, confirming - as expected for a presentation-only change
+- zero effect on gameplay logic.
+
+**Known limitation, unchanged from Commit 19**: I can't run a live browser from
+here, so "does this look right" is confirmed via static pixel-composite checks
+against the actual uploaded images, not a rendered page. That's a meaningfully
+stronger check than eyeballing the spec's suggested coordinates, but it's still not
+the same as looking at the real rendered gallery - worth a look on your end before
+calling the calibration final.
+
+## Commit 19.2: hover-to-enlarge
+
+Every card (hand, board, gallery - anywhere `Card.tsx` renders) now shows an
+enlarged copy near the cursor after a 350ms hover delay, on hover-capable pointer
+devices only (`matchMedia('(hover: hover) and (pointer: fine)')` - touch devices
+keep their existing tap-to-inspect flow instead, so a tap can't leave a "stuck"
+enlarged card behind). The 350ms delay avoids a flood of enlarged previews while
+sweeping the mouse across a full hand or board.
+
+**No new rendering logic** - the enlarged copy is just `Card` calling itself at
+`size="lg"` with a new `disableHoverPreview` flag (prevents the preview copy from
+trying to spawn a hover preview of its own). Since it's the same component, art
+cards show their real art in the preview too, automatically, with no extra wiring.
+
+**Positioning**: `fixed`, offset from the cursor, and clamped to the viewport so it
+never renders off-screen near any edge - flips to the left of the cursor if it would
+overflow the right edge, and clamps vertically within a small margin. The preview
+carries `pointer-events-none`, so it can never intercept a click meant for the card
+underneath or anything else on the board.
+
+**Safety**: the pending hover timer is cleared on unmount, since a card can
+disappear mid-hover (destroyed in combat, returned to hand, etc.) before the delay
+elapses - without this, a stray `setState` on an unmounted component would fire.
+
+**Verified**: full regression suite and a fresh 72-game simulation both ran clean -
+expected, since this only adds a new hover interaction layer and touches nothing in
+`onClick`/game logic.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

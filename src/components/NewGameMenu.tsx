@@ -47,7 +47,7 @@ function FactionPicker({
   );
 }
 
-export default function NewGameMenu() {
+export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () => void }) {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const [p1, setP1] = useState<Faction>('Neon Underground');
   const [p2, setP2] = useState<Faction>('Dark White');
@@ -106,6 +106,16 @@ export default function NewGameMenu() {
             ? 'You play as Player 1. The built-in AI controls Player 2 and takes its turns automatically.'
             : 'Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.'}
         </p>
+
+        {onOpenDeveloper && (
+          <button
+            type="button"
+            onClick={onOpenDeveloper}
+            className="block mx-auto mt-3 text-[10px] text-white/25 hover:text-white/50 underline"
+          >
+            Developer — Apex Card Gallery
+          </button>
+        )}
       </div>
     </div>
   );

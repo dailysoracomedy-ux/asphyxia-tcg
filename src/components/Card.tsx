@@ -1,9 +1,12 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import type { ApexDef, CardInstance } from '@/types/game';
 import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
 import { factionTheme, getCardTypeLabel } from '@/lib/theme';
+import { getCardArt } from '@/lib/cardArt';
+import ApexCardRenderer from './ApexCardRenderer';
 
 interface CardProps {
   instance: CardInstance;
@@ -24,6 +27,9 @@ interface CardProps {
   /** Opens a full detail view for this card - separate from onClick so it never
    *  conflicts with the card's normal gameplay action. */
   onInspect?: () => void;
+  /** Internal - set on the enlarged preview copy itself so it doesn't try to spawn
+   *  a hover preview of its own. Not meant to be passed by normal callers. */
+  disableHoverPreview?: boolean;
 }
 
 const BOOST_GREEN = '#4ade80';
@@ -42,7 +48,46 @@ export default function Card({
   effectiveDef,
   attackPreviews,
   onInspect,
+  disableHoverPreview,
 }: CardProps) {
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearHoverTimer() {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  }
+
+  useEffect(() => clearHoverTimer, []);
+
+  function handleMouseEnter(e: React.MouseEvent) {
+    if (disableHoverPreview || size === 'lg') return;
+    // Hover-only devices, not touch - avoids a "sticky" enlarged preview after a tap.
+    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const x = e.clientX;
+    const y = e.clientY;
+    clearHoverTimer();
+    hoverTimer.current = setTimeout(() => setHoverPos({ x, y }), 350);
+  }
+
+  function handleMouseLeave() {
+    clearHoverTimer();
+    setHoverPos(null);
+  }
+
+  const hoverPreview =
+    hoverPos && !disableHoverPreview ? (
+      <CardHoverPreview
+        x={hoverPos.x}
+        y={hoverPos.y}
+        instance={instance}
+        effectiveDef={effectiveDef}
+        attackPreviews={attackPreviews}
+      />
+    ) : null;
+
   if (faceDown) {
     return (
       <div
@@ -79,8 +124,55 @@ export default function Card({
     ? 'ring-2 ring-gray-600'
     : '';
 
+  // Apex cards with a mapped base image use the dynamic overlay template instead of
+  // the flow-based layout below. Cards with no art entry in lib/cardArt.ts fall
+  // through unchanged - this is purely additive, never required.
+  if (isApex && apexDef && getCardArt(instance.defId)) {
+    const shownDef = effectiveDef ?? apexDef.baseDef;
+    // Art is 600x900 (2:3). Anchor to the size preset's height (keeps board/hand row
+    // rhythm unchanged) and derive width from the art's own ratio, rather than reusing
+    // SIZE_MAP's width - that mismatch (up to 26% at apexBoard size) would otherwise
+    // force object-fit to either crop the frame edges or pillarbox the image, and
+    // either way throw off the percentage-based overlay zones relative to what's
+    // actually visible. This keeps the rendered image edge-to-edge with zero crop.
+    const artW = Math.round(h * (600 / 900));
+    return (
+      <div
+        className="relative inline-block shrink-0"
+        style={{ width: artW, height: h }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        {hoverPreview}
+        <ApexCardRenderer
+          instance={instance}
+          effectiveDef={shownDef}
+          attackPreviews={attackPreviews}
+          onClick={onClick}
+          selected={selected}
+          disabled={disabled}
+          footer={footer}
+        />
+        {onInspect && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onInspect();
+            }}
+            title="View full card details"
+            className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 border border-white/30 text-white/70 text-[9px] leading-none flex items-center justify-center hover:bg-black/90 hover:text-white z-10"
+          >
+            i
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="relative inline-block shrink-0">
+    <div className="relative inline-block shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    {hoverPreview}
     <button
       type="button"
       onClick={onClick}
@@ -184,6 +276,45 @@ export default function Card({
         i
       </button>
     )}
+    </div>
+  );
+}
+
+/** The enlarged hover copy - fixed-position, click-through (pointer-events-none, so
+ *  it can never intercept a real click), and clamped to stay fully inside the
+ *  viewport regardless of where on screen the source card sits. Reuses Card's own
+ *  'lg' rendering (same one Card Inspect and the Developer gallery use) rather than
+ *  duplicating any layout, so art cards show their real art here too. */
+function CardHoverPreview({
+  x,
+  y,
+  instance,
+  effectiveDef,
+  attackPreviews,
+}: {
+  x: number;
+  y: number;
+  instance: CardInstance;
+  effectiveDef?: number;
+  attackPreviews?: Record<string, AttackDamagePreview>;
+}) {
+  const PREVIEW_W = 200;
+  const PREVIEW_H = 280;
+  const OFFSET = 22;
+  const MARGIN = 10;
+
+  let left = x + OFFSET;
+  let top = y - PREVIEW_H / 2;
+
+  if (typeof window !== 'undefined') {
+    if (left + PREVIEW_W > window.innerWidth - MARGIN) left = x - OFFSET - PREVIEW_W;
+    left = Math.max(MARGIN, Math.min(left, window.innerWidth - PREVIEW_W - MARGIN));
+    top = Math.max(MARGIN, Math.min(top, window.innerHeight - PREVIEW_H - MARGIN));
+  }
+
+  return (
+    <div className="fixed z-40 pointer-events-none" style={{ left, top, filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.7))' }}>
+      <Card instance={instance} size="lg" effectiveDef={effectiveDef} attackPreviews={attackPreviews} disableHoverPreview />
     </div>
   );
 }
