@@ -31,6 +31,14 @@ interface CardProps {
   /** Internal - set on the enlarged preview copy itself so it doesn't try to spawn
    *  a hover preview of its own. Not meant to be passed by normal callers. */
   disableHoverPreview?: boolean;
+  /** Purely visual dimming for hand-context "this can't be played right now" cues
+   *  (Commit 23). Never affects onClick/disabled - a dimmed card is still exactly
+   *  as clickable as it already was, same as any other currently-invalid target in
+   *  this app (the store rejects the play with a log message, same pattern used
+   *  everywhere else). Only ever pass this from Hand.tsx - CardHoverPreview never
+   *  receives it, which is what keeps zoom/hover always full brightness by
+   *  construction rather than by remembering to opt out. */
+  isPlayable?: boolean;
 }
 
 const BOOST_GREEN = '#4ade80';
@@ -50,6 +58,7 @@ export default function Card({
   attackPreviews,
   onInspect,
   disableHoverPreview,
+  isPlayable,
 }: CardProps) {
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -120,6 +129,11 @@ export default function Card({
     hand: { w: 118, h: 148, text: 'text-[9.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];
+  // Purely visual - isPlayable defaults to undefined everywhere except Hand.tsx, so
+  // every other caller (board, inspect modal, gallery, hover preview) is completely
+  // unaffected by this and stays exactly as bright as it always was.
+  const dimStyle: React.CSSProperties | undefined =
+    isPlayable === false ? { opacity: 0.5, filter: 'grayscale(55%)', transition: 'opacity 150ms, filter 150ms' } : undefined;
 
   const ringClass = selected
     ? 'ring-2 ring-yellow-300 ring-offset-1 ring-offset-black'
@@ -148,7 +162,7 @@ export default function Card({
     return (
       <div
         className="relative inline-block shrink-0"
-        style={{ width: artW, height: h }}
+        style={{ width: artW, height: h, ...dimStyle }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -185,7 +199,7 @@ export default function Card({
   }
 
   return (
-    <div className="relative inline-block shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div className="relative inline-block shrink-0" style={dimStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
     {hoverPreview}
     <button
       type="button"

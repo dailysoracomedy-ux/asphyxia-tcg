@@ -22,6 +22,7 @@ import { freshTurnFlags } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { buildStarterDeck, shuffle } from '@/data/decks';
 import { determineRiftSpace } from '@/game/rifts';
+import { useAnimationStore, type VisualEvent } from './animationStore';
 import {
   DIRECT_O2_CAP_PER_TURN,
   MAX_ABILITY_SUPPORTS,
@@ -362,11 +363,26 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
 // Attack resolution pipeline
 // ==========================================================================
 
+/** Fire a transient visual-only event (Commit 23 game-feel pass). Deliberately a
+ *  bare side effect against the separate animation store, not part of the Immer
+ *  draft - it never touches game state, so it can't affect save/load, the AI, or
+ *  simulations, and a thrown error here would be a bug in this function alone,
+ *  never in the actual combat math above it. */
+function emitVfx(event: Omit<VisualEvent, 'id' | 'createdAt'>, durationMs?: number) {
+  try {
+    useAnimationStore.getState().enqueue(event, durationMs);
+  } catch {
+    // Visual-only - never let an animation-store hiccup affect gameplay.
+  }
+}
+
 function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, overflow: number) {
   const helpers = createHelpers(draft);
   const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
   const apexDef = attackerHit ? (getCardDef(attackerHit.apex.defId) as ApexDef) : null;
+  const destroyedDef = getCardDef(findApexAnywhere(draft, trigger.targetInstanceId!)!.apex.defId) as ApexDef;
 
+  emitVfx({ type: 'CARD_DESTROYED', apexInstanceId: trigger.targetInstanceId, faction: destroyedDef.faction }, 700);
   destroyApexFn(draft, trigger.targetInstanceId!);
   if (apexDef?.onDestroyEnemyApex) {
     apexDef.onDestroyEnemyApex({
@@ -382,6 +398,7 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
 
   const o2Loss = overflowToO2Loss(overflow);
   if (o2Loss > 0) {
+    emitVfx({ type: 'OVERFLOW_DAMAGE', playerId: otherPlayer(trigger.attackerId), label: `-${o2Loss} O2 (Overflow)` });
     resolveO2LossWindow(draft, {
       kind: 'opponentAttackDealsO2Damage',
       attackerId: trigger.attackerId,
@@ -413,6 +430,7 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
     const targetDef = getCardDef(targetHit.apex.defId) as ApexDef;
     let dmg = damage;
     if (targetDef.incomingDamageReduction) dmg = targetDef.incomingDamageReduction(trigger.syncCost, dmg);
+    emitVfx({ type: 'CARD_HIT', apexInstanceId: trigger.targetInstanceId, label: `-${dmg}`, faction: targetDef.faction });
 
     const effectiveDef = getEffectiveDef(draft, trigger.targetInstanceId);
     if (dmg < effectiveDef) {
@@ -487,6 +505,7 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
     return;
   }
 
+  emitVfx({ type: 'O2_DAMAGE', playerId: defenderId, label: `-${cappedLoss} O2` });
   resolveO2LossWindow(draft, {
     kind: 'opponentAttackDealsO2Damage',
     attackerId: trigger.attackerId,
@@ -499,7 +518,6 @@ function resolveAttackAgainstTarget(draft: GameState, trigger: AttackTriggerData
     destroyedTarget: false,
   });
 }
-
 function resolveO2LossWindow(draft: GameState, o2trigger: O2DamageTriggerData) {
   logMsg(
     draft,
@@ -1313,6 +1331,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
       player.availableSync -= attackDef.syncCost;
       apex.hasAttacked = true;
+      emitVfx({ type: 'ATTACK_DECLARED', apexInstanceId: attackerInstanceId, faction: apexDef.faction }, 450);
       logMsg(
         draft,
         `${apexDef.name} declares ${attackDef.name} (${attackDef.baseDamage} base damage, ${attackDef.syncCost} Sync).`,
@@ -1444,6 +1463,7 @@ export const useGameStore = create<GameStore>((set) => ({
           player.voidZone.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
           player.turnFlags.instantsPlayedThisTurn += 1;
+          emitVfx({ type: 'REACT_PLAYED', playerId: item.respondingPlayerId, faction: reactionDef.faction, label: reactionDef.name });
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
 
           // A Negate may itself respond to this Reaction being played (ON_REACTION_PLAYED).
@@ -1509,6 +1529,7 @@ export const useGameStore = create<GameStore>((set) => ({
             player.voidZone.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
             player.turnFlags.instantsPlayedThisTurn += 1;
+            emitVfx({ type: 'CARD_NEGATED', playerId: item.cardOwnerId, faction: item.cardFaction, label: getCardDef(item.cardDefId).name });
             logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
             logMsg(draft, `${negateDef.name} cancels ${getCardDef(item.cardDefId).name}.`, 'response');
             negateDef.resolve({

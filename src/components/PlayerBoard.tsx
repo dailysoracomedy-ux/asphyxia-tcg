@@ -1,6 +1,6 @@
 'use client';
 
-import type { CardInstance, GameState, PlayerId } from '@/types/game';
+import type { CardInstance, Faction, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
 import Card from './Card';
@@ -8,6 +8,7 @@ import EquipFlap from './EquipFlap';
 import DeckVoidStack from './DeckVoidStack';
 import { factionTheme } from '@/lib/theme';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
+import { useApexVisualEvents, usePlayerVisualEvents } from '@/store/animationStore';
 
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
@@ -78,12 +79,15 @@ export default function PlayerBoard({
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
+  const isActiveTurn = state.status === 'playing' && state.activePlayerId === playerId;
+  const reactEvents = usePlayerVisualEvents(playerId).filter((e) => e.type === 'REACT_PLAYED' || e.type === 'CARD_NEGATED');
+  const reactVfxClass = reactEvents.length > 0 ? (reactEvents.some((e) => e.type === 'CARD_NEGATED') ? 'vfx-negate-glitch' : 'vfx-react-highlight') : '';
 
   return (
     <div
       ref={containerRef}
-      className="rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto"
-      style={{ borderColor: `${theme.border}55`, background: '#05050a' }}
+      className={`rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
+      style={{ borderColor: `${theme.border}55`, background: '#05050a', ['--active-glow-color' as string]: `${theme.primary}99` }}
     >
       <div
         className="flex-1 min-h-0 grid gap-3 justify-center"
@@ -238,13 +242,54 @@ function ApexSlot({
     const apexArtWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div className="flex flex-col shrink-0" style={{ width: apexArtWidth }}>
-        {cardEl}
+        <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction}>
+          {cardEl}
+        </ApexVfxOverlay>
         <EquipFlap equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
       </div>
     );
   }
 
-  return cardEl;
+  return (
+    <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction}>
+      {cardEl}
+    </ApexVfxOverlay>
+  );
+}
+
+/** Reads live combat visual events for one Apex (Commit 23) and applies a
+ *  transient CSS animation class plus a floating damage-number popup, on top of
+ *  the card underneath - never touches the card's own rendering or props, so this
+ *  can never affect what Card.tsx itself does. Picks at most one active animation
+ *  class at a time (destroy takes priority over hit takes priority over the
+ *  attack-declare pulse) since these fire in sequence during one attack, not
+ *  simultaneously, and stacking classes would just fight each other visually. */
+function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId: string; faction: Faction; children: React.ReactNode }) {
+  const events = useApexVisualEvents(apexInstanceId);
+  const theme = factionTheme(faction);
+  const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
+    ? 'vfx-destroy-shake'
+    : events.some((e) => e.type === 'CARD_HIT')
+    ? 'vfx-hit-flash'
+    : events.some((e) => e.type === 'ATTACK_DECLARED')
+    ? 'vfx-attack-pulse'
+    : '';
+  const popups = events.filter((e) => e.label);
+
+  return (
+    <div className={`relative ${vfxClass}`} style={{ ['--react-glow-color' as string]: `${theme.primary}cc` }}>
+      {children}
+      {popups.map((p) => (
+        <div
+          key={p.id}
+          className="vfx-damage-popup absolute left-1/2 top-1/3 -translate-x-1/2 z-20 pointer-events-none font-mono font-bold text-sm whitespace-nowrap"
+          style={{ color: p.type === 'CARD_HIT' ? '#f87171' : '#fb923c', textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
+        >
+          {p.label}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SupportSlot({

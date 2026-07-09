@@ -726,6 +726,8 @@ export default function GameBoard() {
           disabledIds={handDisabledIds}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Hand' })}
           minWidth={boardWidth}
+          state={state}
+          playerId={viewerBottomId}
         />
       </div>
 

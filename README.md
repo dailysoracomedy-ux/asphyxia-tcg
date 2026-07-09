@@ -1299,6 +1299,79 @@ past it for a large hand; it just never reads narrower than the board above it.
 **Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
 simulation - pure layout, no gameplay logic touched.
 
+## Commit 23: combat animations, active-turn glow, hand playability dimming
+
+**Files added**: `src/store/animationStore.ts` (transient visual-event queue),
+`src/lib/cardPlayability.ts` (`canPlayCardFromHand`/`getCardPlayabilityReason`).
+**Files touched**: `gameStore.ts` (event emission points only - no logic changed),
+`Card.tsx` (`isPlayable` dimming prop), `Hand.tsx`, `PlayerBoard.tsx`,
+`SharedStatsBar.tsx`, `globals.css` (new keyframes + reduced-motion overrides).
+
+**Combat animations run on a separate store from game state, on purpose.** Combat
+in this game resolves fully synchronously in one Zustand mutation - `declareAttack`
+computes damage, DEF, overflow, and destruction in a single call, sometimes pausing
+across a response window first. Rather than touch that resolution logic to slow it
+down for animation timing, `animationStore.ts` is a second, independent Zustand
+store holding short-lived visual events (attack pulse, hit flash, destroy shake,
+overflow flash, react highlight, negate glitch), each self-expiring via its own
+`setTimeout` (400-800ms depending on the moment). `gameStore.ts` fires a bare side-
+effect call into this store at each exact resolution point - inside a `try/catch`
+specifically so an animation-store hiccup could never throw into actual combat
+math. Game logic runs at exactly the same speed it always did; the visuals are
+layered on top, never gating it.
+
+**A real mistake caught mid-edit, not after**: while wiring the animation import
+into `PlayerBoard.tsx`, a find-and-replace accidentally deleted the
+`APEX_BOARD_HEIGHT` constant (still referenced in three places) instead of just
+inserting alongside it. Caught by re-running `tsc` immediately after that specific
+edit rather than only checking at the end of the session - exactly the kind of
+thing that's cheap to catch right away and much more annoying to track down after
+several more edits stack on top of it.
+
+**Active player glow**: the board's own bordered box (same one from Commit 21.4)
+gets a faction-colored pulsing `box-shadow` whenever `state.activePlayerId` matches
+that panel's player - reads it directly off game state, no animation-store
+involvement needed since this isn't a transient event, just a live boolean.
+
+**Hand dimming, built on a helper that mirrors reality rather than re-deriving it.**
+`canPlayCardFromHand` doesn't invent new eligibility logic - it mirrors the exact
+opening-guard conditions each store play-action already checks (`playApexCard`,
+`playSupportCard`, `playEquipCard`, `equipSwap`, `playSpecialCard`), and for
+Reactions specifically, mirrors `ResponseModal.tsx`'s own eligible-card filter
+exactly, so a dimmed/bright card in hand can never disagree with what the actual
+response modal would show as clickable. Deliberately **additive only**: the
+existing `handDisabledIds`/click-gating logic in `GameBoard.tsx` is completely
+untouched - dimming is a new visual layer on top, not a replacement for how clicks
+were already gated. A dimmed card is exactly as clickable as it always was.
+
+**Zoom is full brightness by construction, not by remembering to opt out.** The
+`isPlayable` prop lives on `Card.tsx` but is only ever passed from `Hand.tsx`.
+`CardHoverPreview` (the zoom/hover renderer) calls `Card` fresh with its own prop
+set and never receives `isPlayable` from its caller - there's no dimming value to
+propagate into it even if I wanted to skip it explicitly, since the prop simply
+isn't part of what gets passed through. Same reasoning covers the board, Card
+Inspect modal, Void inspection, and the Developer gallery - none of them pass
+`isPlayable`, so none of them can ever dim.
+
+**Reduced motion**: a `prefers-reduced-motion` media query in `globals.css` strips
+every pulsing/shaking animation down to `none`, replacing the active-turn glow with
+a static colored outline and cutting the damage-popup's visible duration to
+effectively instant, rather than just leaving heavy motion running regardless.
+
+**Scope decisions made along the way, stated plainly**: `MOMENTUM_GAINED` (listed
+as an example event type in the spec, not a required acceptance-criteria item) was
+left unwired - firing it would have meant importing the animation store into
+`rules.ts`, which is otherwise a dependency-free pure-logic file used heavily by
+tests, simulation, and the AI, and coupling it to a UI-only store for one optional
+event didn't seem worth that. React/Negate visuals fire on the player's board panel
+rather than on the specific hand card, since the card leaves hand for the Void the
+instant it's played and there's no persistent element left to highlight by then.
+
+**Verified**: every existing test file (390+ checks across 16 files) plus a fresh
+72-game simulation all ran clean - confirming, not assuming, that combat math,
+destruction, overflow, response windows, and AI decisions are all byte-for-byte
+unchanged. Clean `tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
