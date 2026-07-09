@@ -358,49 +358,49 @@ export default function GameBoard() {
   return (
     <div
       className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1150px] mx-auto w-full"
-      style={{ gridTemplateRows: 'auto auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
+      style={{ gridTemplateRows: 'auto auto auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
-      {/* Row 1: top status bar - both players' compact chips + turn/phase + Battle Log */}
-      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
+      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-3 text-[11px] text-white/50">
+        <span>
+          Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
+          <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
+        </span>
+        <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
+          <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
+          debug
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setLogOpen(true);
+            setLastSeenLogCount(state.log.length);
+          }}
+          className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
+        >
+          Battle Log
+          {state.log.length > lastSeenLogCount && <span className="ml-1 text-fuchsia-300">• New</span>}
+        </button>
+        <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
+          Reset
+        </button>
+      </div>
+
+      {/* Row 2: one unified centered band - identity+hand on each side flanking the
+          shared O2/Momentum readout, instead of split across the corners and a
+          separate row. */}
+      <div className="shrink-0 flex items-center justify-center gap-4 flex-wrap">
         <PlayerStatusChips state={state} playerId={viewerTopId} />
-        <div className="flex items-center gap-3 text-[11px] text-white/50 shrink-0">
-          <span>
-            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
-            <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
-          </span>
-          <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
-            <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
-            debug
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              setLogOpen(true);
-              setLastSeenLogCount(state.log.length);
-            }}
-            className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
-          >
-            Battle Log
-            {state.log.length > lastSeenLogCount && <span className="ml-1 text-fuchsia-300">• New</span>}
-          </button>
-          <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
-            Reset
-          </button>
-        </div>
+        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
         <PlayerStatusChips state={state} playerId={viewerBottomId} />
       </div>
 
-      {/* Row 2: Rift + shared O2/Momentum - moved up near the top bar, since it's
-          table-state info like Turn/Phase rather than something tied to the board
-          rows below it. */}
-      <div className="shrink-0 flex flex-col gap-1.5">
-        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
-        <RiftPanel rift={state.riftSpace} />
-      </div>
+      {/* Row 3: Rift - hugs its own content width and centers, no stretched empty space */}
+      <RiftPanel rift={state.riftSpace} />
 
-      {/* Row 3: opponent board */}
+      {/* Row 4: opponent board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
@@ -413,7 +413,7 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 4: prompt / action-context area - compact, only as tall as its content needs */}
+      {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
       <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
@@ -453,7 +453,7 @@ export default function GameBoard() {
         )}
       </div>
 
-      {/* Row 5: player board */}
+      {/* Row 6: player board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
@@ -472,7 +472,7 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 6: action feed - a real layout row (not an overlay), so it can never cover
+      {/* Row 7: action feed - a real layout row (not an overlay), so it can never cover
           the board. Shows recent moves, updating live, rather than a transient popup. */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
         <span className="uppercase tracking-widest text-white/30 shrink-0">Recent:</span>
@@ -487,9 +487,9 @@ export default function GameBoard() {
         </div>
       </div>
 
-      {/* Row 7: hand + phase controls - always visible, fixed bottom area */}
+      {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
       <div className="shrink-0 flex flex-col gap-1.5">
-        <div className="mx-auto w-full max-w-md flex flex-col gap-1.5">
+        <div className="mx-auto w-full max-w-2xl flex flex-row flex-wrap items-start justify-center gap-2">
         <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
           {state.phase === 'Start' && (
             <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>

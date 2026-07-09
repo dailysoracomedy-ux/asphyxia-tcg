@@ -1183,6 +1183,41 @@ ever depended on the fixed middle column, never the outer ones.
 **Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
 simulation - pure layout/CSS, no gameplay logic touched.
 
+## Commit 21.2: header consolidated, Rift wraps to content, phase controls on one line
+
+**Header consolidated into one centered band.** Player identity+hand chips no
+longer sit in the top corners - they now flank the shared O2/Momentum readout in a
+single centered row, between the top Turn/Phase bar and the Rift line. The top bar
+itself is now just Turn/Phase/Battle Log/Reset, centered, since it no longer needs
+to make room for chips on either side.
+
+**Rift line now hugs its actual content** instead of stretching to the container's
+full width - switched from a block-level div to `w-fit mx-auto`, so a short Rift
+description doesn't leave a long stretch of empty bar next to it. Centered as a
+unit, not just its text.
+
+**Phase controls (Combat Phase / End Turn / Reconfigure) are one line now**, not
+two - `flex-row flex-wrap` instead of stacked, so they only wrap to a second line if
+Reconfigure's own expanded content (support list, chain prompts) genuinely needs the
+room.
+
+**On the missing Equip flap, reported from a real screenshot**: I traced it to the
+board rows' `overflow-hidden` clipping an equipped Apex+flap when the row doesn't
+get enough auto-height - exactly the risk flagged before the Equip flap was first
+built. This commit's consolidation frees real vertical space (roughly 36px by hand-
+calculation, comparing the old header+Rift structure against the new one, plus the
+phase-controls line merge) which gives the flap more room to render fully. I want to
+be precise about what that math does and doesn't prove: it's a genuine improvement,
+confirmed by working through the row-by-row budget rather than assuming, but the
+single worst case - both players' Apexes equipped at once, an active Combat prompt,
+and a large hand, all simultaneously, at exactly 1366x768 - may still compress the
+flap somewhat, since the total still lands close to that viewport's height in that
+specific combination. Meaningfully better, not a mathematically ironclad guarantee -
+worth a direct look at that exact scenario before considering it fully closed.
+
+**Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
+simulation - pure layout/CSS, no gameplay logic touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
