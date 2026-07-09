@@ -357,8 +357,8 @@ export default function GameBoard() {
 
   return (
     <div
-      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1800px] mx-auto w-full"
-      style={{ gridTemplateRows: 'auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
+      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1150px] mx-auto w-full"
+      style={{ gridTemplateRows: 'auto auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
@@ -392,7 +392,15 @@ export default function GameBoard() {
         <PlayerStatusChips state={state} playerId={viewerBottomId} />
       </div>
 
-      {/* Row 2: opponent board */}
+      {/* Row 2: Rift + shared O2/Momentum - moved up near the top bar, since it's
+          table-state info like Turn/Phase rather than something tied to the board
+          rows below it. */}
+      <div className="shrink-0 flex flex-col gap-1.5">
+        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
+        <RiftPanel rift={state.riftSpace} />
+      </div>
+
+      {/* Row 3: opponent board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
@@ -405,10 +413,8 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 3: Rift / prompt / action-context area - compact, only as tall as its content needs */}
+      {/* Row 4: prompt / action-context area - compact, only as tall as its content needs */}
       <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
-        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
-        <RiftPanel rift={state.riftSpace} />
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
           <div className="rounded-lg border border-blue-400/30 bg-[#05050a] px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
@@ -447,7 +453,7 @@ export default function GameBoard() {
         )}
       </div>
 
-      {/* Row 4: player board */}
+      {/* Row 5: player board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
@@ -466,7 +472,7 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 5: action feed - a real layout row (not an overlay), so it can never cover
+      {/* Row 6: action feed - a real layout row (not an overlay), so it can never cover
           the board. Shows recent moves, updating live, rather than a transient popup. */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
         <span className="uppercase tracking-widest text-white/30 shrink-0">Recent:</span>
@@ -481,7 +487,7 @@ export default function GameBoard() {
         </div>
       </div>
 
-      {/* Row 6: hand + phase controls - always visible, fixed bottom area */}
+      {/* Row 7: hand + phase controls - always visible, fixed bottom area */}
       <div className="shrink-0 flex flex-col gap-1.5">
         <div className="mx-auto w-full max-w-md flex flex-col gap-1.5">
         <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">

@@ -80,10 +80,10 @@ export default function PlayerBoard({
       style={{ borderColor: `${theme.border}55`, background: '#05050a' }}
     >
       <div
-        className="flex-1 min-h-0 grid gap-3"
-        style={{ gridTemplateColumns: '1fr auto 1fr', alignItems: flipped ? 'end' : 'start' }}
+        className="flex-1 min-h-0 grid gap-3 justify-center"
+        style={{ gridTemplateColumns: 'minmax(0,auto) auto minmax(0,auto)', alignItems: flipped ? 'end' : 'start' }}
       >
-        <div className={`flex gap-3 items-start row-start-1 col-start-1 ${flipped ? 'justify-end' : 'justify-start'}`}>
+        <div className="flex gap-2 items-start row-start-1 col-start-1 justify-end">
           {flipped ? (
             <div className="flex gap-1.5">
               {player.supportSlots.map((support, i) => (
@@ -121,7 +121,7 @@ export default function PlayerBoard({
             />
           ))}
         </div>
-        <div className={`flex gap-3 items-start row-start-1 col-start-3 ${flipped ? 'justify-end' : 'justify-start'}`}>
+        <div className="flex gap-2 items-start row-start-1 col-start-3 justify-start">
           {flipped ? (
             <>
               <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />

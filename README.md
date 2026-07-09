@@ -1146,6 +1146,43 @@ presentation-layer work with one exception (PlayerBoard's grid restructuring), a
 that restructuring didn't touch anything game-logic related, only which DOM column
 renders which existing component.
 
+## Commit 21.1: squared up, Rift moved, a real Deck/Void proximity bug fixed
+
+**Widening the board in Commit 21 was the wrong fix.** It was meant to give
+Deck/Void room, but `max-w` stretched every container (board, hand, Rift panel) to
+fill that space too, which is exactly the sparse look flagged in a real screenshot.
+Reverted from 1800px down to 1150px - more squared, matching what was actually
+asked for.
+
+**Rift panel moved up**, now its own row directly under the top status bar instead
+of sitting between the two boards - it's table-state info like Turn/Phase, so it
+reads better grouped with them. The dynamic prompts that used to share that row with
+it (Combat Controls, Control Conflict's lock choice, target-selection hints) stay
+where they were, between the two boards, since those are genuinely tied to what's
+happening on the board itself.
+
+**Found a real bug while fixing the "Deck/Void should be closer to Apex" note, not
+just a tuning issue.** Each side column of the board row needs a *fixed* "hug toward
+center" direction based on which column it physically is (left column always
+right-aligns toward Apex, right column always left-aligns toward Apex) - that's
+true no matter what's inside the column. But Commit 21's code copied the *old*
+flip-conditional justify logic (originally written when only Support ever lived in
+these columns, so the flip direction happened to always match) onto both possible
+occupants without separating "which column am I in" from "what's currently inside
+me." Support ended up correctly hugging center by accident; Deck/Void ended up
+hugging the *outer* edge instead - the exact "too far from Apex" problem in the
+screenshot. Fixed by making each column's alignment a fixed property of its
+position, not conditional on flip state or contents.
+
+While in there, also switched the side columns from `1fr` (always claims equal
+leftover space, which is what caused so much visible gutter once the board widened)
+to content-sized (`minmax(0,auto)`), with the whole 3-column cluster centered as a
+unit - Apex alignment between the two board rows is unaffected, since that only
+ever depended on the fixed middle column, never the outer ones.
+
+**Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
+simulation - pure layout/CSS, no gameplay logic touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
