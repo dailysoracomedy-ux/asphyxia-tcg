@@ -51,7 +51,7 @@ function Zone({
           )}
         </div>
       )}
-      {children}
+      {children && <div className="w-full h-full overflow-hidden flex items-center">{children}</div>}
     </div>
   );
 }
@@ -172,8 +172,13 @@ export function ApexOverlayLayer({
 }) {
   const z = APEX_TEMPLATE_ZONES;
   const defDelta = getValueDeltaState(apexDef.baseDef, effectiveDef);
-  const statFontSize = scaledPx(cardWidth, 0.11, 9, 22);
-  const attackNameFontSize = scaledPx(cardWidth, 0.062, 6.5, 13);
+  // Ratios/clamps are sized so a 3-digit value actually fits inside its zone width
+  // (DEF zone = 16% of card, attack-value zone = 13.5%), not just a value that
+  // looked plausible - the previous ratio (0.11, max 22) overflowed the DEF badge
+  // by a wide margin on 3-digit values at the large/inspect size. Smaller text here
+  // is an accepted tradeoff (per direct feedback) - people can hover to see it big.
+  const statFontSize = scaledPx(cardWidth, 0.075, 7, 15);
+  const attackNameFontSize = scaledPx(cardWidth, 0.05, 6, 10);
 
   return (
     <div className="absolute inset-0">

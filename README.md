@@ -944,6 +944,37 @@ overlay path just never had an equivalent until now.
 both ran clean, confirming - as expected for a text-sizing fix - zero effect on
 gameplay logic.
 
+## Commit 19.4: DEF/attack text sized to actually fit its zone
+
+Commit 19.3 fixed the font size being unscaled entirely, but the replacement ratio
+(0.11 of card width, max 22px) still wasn't checked against the *zone's actual
+width* - just picked to look reasonable. On the opening-hand screen (187px-wide
+cards), that produced a ~21px "300" trying to fit inside a DEF badge only ~30px
+wide, which a 3-character bold number can't do - it overflowed the badge
+significantly, as shown in a real screenshot.
+
+**Fixed by computing the real constraint instead of guessing a ratio**: DEF zone is
+16% of card width, attack-value zone is 13.5%. For a 3-character bold number to
+actually fit, font size needs to stay under roughly zone-width ÷ 1.8. Checked that
+math against every card size in use (101px board, 118px hand, 187px inspect/hover,
+240px gallery) before picking the new ratio/clamp (DEF: 0.075 of width, capped at
+15px; attack values: 0.05 of width, capped at 10px) - both now sit comfortably
+under the fits-in-the-zone threshold at every size, not just the one that happened
+to prompt the report.
+
+**Also added a safety net**: `Zone`'s content is now wrapped in `overflow: hidden`,
+so even an unanticipated edge case (a future card with an unusually long value)
+clips invisibly within its zone instead of visibly spilling into a neighboring
+element - the debug-label outline (used for zone tuning) is unaffected, since it
+intentionally sits above the zone and isn't part of this wrapper.
+
+Smaller text at every size is an accepted, intentional tradeoff here per direct
+feedback - the hover-to-enlarge feature (Commit 19.2) is exactly what makes that
+fine: anyone who wants a closer look at the numbers just hovers.
+
+**Verified**: clean `tsc`/`eslint`/build and a fresh 72-game simulation - a pure
+sizing fix, no gameplay logic touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
