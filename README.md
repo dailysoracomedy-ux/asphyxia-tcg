@@ -1218,6 +1218,20 @@ worth a direct look at that exact scenario before considering it fully closed.
 **Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
 simulation - pure layout/CSS, no gameplay logic touched.
 
+## Commit 21.3: identity+stats band actually moved this time
+
+Commit 21.2 consolidated the identity chips and O2/Momentum into one band
+correctly, but left the whole thing sitting up near the header instead of actually
+moving it down between the two board rows - which was the actual point of the
+request from the start. Confirmed from a real screenshot with the band still
+circled at the top. Moved it: Rift stays where it was (right under the top bar),
+and the identity+stats band now sits between the opponent board and the prompt
+area - genuinely between the two Apex rows, not just visually consolidated in the
+wrong place.
+
+**Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
+simulation - pure layout, no gameplay logic touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
