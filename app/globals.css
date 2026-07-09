@@ -15,9 +15,6 @@
 }
 
 html, body {
-  background:
-    linear-gradient(rgba(5, 5, 10, 0.8), rgba(5, 5, 10, 0.88)),
-    url('/bg-cityscape.webp') center center / cover no-repeat fixed;
   background-color: var(--background);
   color: var(--foreground);
   font-family: 'Courier New', ui-monospace, monospace;

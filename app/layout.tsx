@@ -13,7 +13,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased overflow-hidden">
-      <body className="h-full max-h-full flex flex-col overflow-hidden">{children}</body>
+      <body
+        className="h-full max-h-full flex flex-col overflow-hidden"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(5,5,10,0.8), rgba(5,5,10,0.88)), url(/bg-cityscape.webp)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundAttachment: 'fixed',
+        }}
+      >
+        {children}
+      </body>
     </html>
   );
 }
