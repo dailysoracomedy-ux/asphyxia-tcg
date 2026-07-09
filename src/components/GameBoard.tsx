@@ -388,19 +388,10 @@ export default function GameBoard() {
         </button>
       </div>
 
-      {/* Row 2: one unified centered band - identity+hand on each side flanking the
-          shared O2/Momentum readout, instead of split across the corners and a
-          separate row. */}
-      <div className="shrink-0 flex items-center justify-center gap-4 flex-wrap">
-        <PlayerStatusChips state={state} playerId={viewerTopId} />
-        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
-        <PlayerStatusChips state={state} playerId={viewerBottomId} />
-      </div>
-
-      {/* Row 3: Rift - hugs its own content width and centers, no stretched empty space */}
+      {/* Row 2: Rift - hugs its own content width and centers, no stretched empty space */}
       <RiftPanel rift={state.riftSpace} />
 
-      {/* Row 4: opponent board */}
+      {/* Row 3: opponent board */}
       <div className="min-h-0 overflow-hidden">
         <PlayerBoard
           state={state}
@@ -411,6 +402,16 @@ export default function GameBoard() {
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Field' })}
           onOpenVoid={() => setVoidInspecting(viewerTopId)}
         />
+      </div>
+
+      {/* Row 4: one unified centered band - identity+hand on each side flanking the
+          shared O2/Momentum readout. Sits between the two board rows, not up near
+          the header - the point is that it reads as "these two players, facing
+          off," not as a status line attached to the top bar. */}
+      <div className="shrink-0 flex items-center justify-center gap-4 flex-wrap">
+        <PlayerStatusChips state={state} playerId={viewerTopId} />
+        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
+        <PlayerStatusChips state={state} playerId={viewerBottomId} />
       </div>
 
       {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
