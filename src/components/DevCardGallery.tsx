@@ -64,6 +64,7 @@ export default function DevCardGallery({ onBack }: { onBack: () => void }) {
                       <ApexCardRenderer
                         instance={instance}
                         effectiveDef={def.baseDef}
+                        cardWidth={CARD_W}
                         forceArtPlaceholder={!hasRealArt}
                         debugZones={debugZones}
                       />

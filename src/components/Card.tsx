@@ -147,6 +147,7 @@ export default function Card({
         <ApexCardRenderer
           instance={instance}
           effectiveDef={shownDef}
+          cardWidth={artW}
           attackPreviews={attackPreviews}
           onClick={onClick}
           selected={selected}

@@ -8,6 +8,10 @@ import { CardArtLayer, ApexOverlayLayer } from './apex-overlay/ApexOverlaySystem
 interface ApexCardRendererProps {
   instance: CardInstance;
   effectiveDef: number;
+  /** Actual rendered width in px - required so overlay text scales correctly
+   *  instead of using a fixed/inherited font size (the bug this fixes: numbers
+   *  were rendering at browser-default size regardless of how small the card was). */
+  cardWidth: number;
   /** Per-attack damage preview, keyed by attack id - same shape/source Card.tsx
    *  already receives (getPreviewAttackDamage), so the overlay can never disagree
    *  with the board, the attack selector, or combat resolution. */
@@ -32,6 +36,7 @@ interface ApexCardRendererProps {
 export default function ApexCardRenderer({
   instance,
   effectiveDef,
+  cardWidth,
   attackPreviews,
   onClick,
   selected,
@@ -58,7 +63,14 @@ export default function ApexCardRenderer({
       style={{ borderColor: '#ffffff33' }}
     >
       <CardArtLayer defId={instance.defId} faction={def.faction} forcePlaceholder={forceArtPlaceholder} />
-      <ApexOverlayLayer instance={instance} apexDef={def} effectiveDef={effectiveDef} attackDamages={attackDamages} debugZones={debugZones} />
+      <ApexOverlayLayer
+        instance={instance}
+        apexDef={def}
+        effectiveDef={effectiveDef}
+        attackDamages={attackDamages}
+        cardWidth={cardWidth}
+        debugZones={debugZones}
+      />
       {footer}
     </button>
   );

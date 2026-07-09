@@ -913,6 +913,37 @@ elapses - without this, a stray `setState` on an unmounted component would fire.
 expected, since this only adds a new hover interaction layer and touches nothing in
 `onClick`/game logic.
 
+## Commit 19.3: overlay text was never actually scaled - real bug, fixed at the root
+
+Reported from real screenshots: DEF/attack numbers were huge on the small board
+cards and overlapping each other on the large opening-hand view. Root cause: `Dynamic
+StatText`'s font size defaulted to CSS `'inherit'`, and nothing anywhere in the
+component chain (`ApexCardRenderer` → `ApexOverlayLayer` → `Zone`) ever set an
+explicit font size - so it fell back to the browser's default (~16px) regardless of
+whether the card was 101px or 187px wide. On a ~101px-wide board card, a 16px bold
+"400" was always going to blow out its zone; this wasn't a tuning problem, it was a
+missing feature (font size was never wired to card size at all, at any point in
+Commit 19).
+
+**Fix**: every card now carries its actual rendered pixel width (`cardWidth`) down
+through `ApexCardRenderer` → `ApexOverlayLayer` → `DynamicStatText`/`CounterBadges`/
+`StatusFlags`/attack-name text, and each computes its font size as a percentage of
+that real width (via a new `scaledPx` helper, clamped to a sane min/max so it
+doesn't go illegible small or silly large at extreme sizes) rather than an inherited
+or hardcoded value. `DynamicStatText.sizePx` is now a required prop specifically so
+this can't silently regress back to `'inherit'` in the future - there's no default
+to fall back to.
+
+Roughly: DEF/attack values run ~11px at board size (101px wide) up to ~21px at the
+large hover/inspect size (187px wide); attack names and counter/status badges scale
+proportionally smaller. This is the same board-size-vs-inspect-size range Card.tsx's
+original flow-layout path already used (via its `textScale` Tailwind classes) - the
+overlay path just never had an equivalent until now.
+
+**Verified**: full regression suite (330+ checks) and a fresh 72-game simulation
+both ran clean, confirming - as expected for a text-sizing fix - zero effect on
+gameplay logic.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

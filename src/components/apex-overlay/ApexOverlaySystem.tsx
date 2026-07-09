@@ -8,6 +8,15 @@ import { factionTheme } from '@/lib/theme';
 const BOOST_GREEN = '#4ade80';
 const NERF_RED = '#f87171';
 
+/** Every text element on the overlay is sized as a percentage of the actual
+ *  rendered card width (in px), not a fixed pixel value or inherited default -
+ *  this is what makes the same template look correct at board size (~85px wide)
+ *  and the large inspect/hover size (~187px wide) instead of using one fixed font
+ *  size that's way oversized at small sizes (the bug this fixes). */
+function scaledPx(cardWidth: number, ratioOfWidth: number, min: number, max: number): number {
+  return Math.round(Math.min(max, Math.max(min, cardWidth * ratioOfWidth)));
+}
+
 function deltaColor(deltaState: ValueDeltaState): string {
   if (deltaState === 'boosted') return BOOST_GREEN;
   if (deltaState === 'reduced') return NERF_RED;
@@ -53,17 +62,17 @@ export function DynamicStatText({
   value,
   deltaState,
   align = 'center',
-  size = 'inherit',
+  sizePx,
 }: {
   value: string | number;
   deltaState: ValueDeltaState;
   align?: 'center' | 'right' | 'left';
-  size?: string;
+  sizePx: number;
 }) {
   return (
     <span
       className="font-mono font-bold w-full leading-none"
-      style={{ color: deltaColor(deltaState), textAlign: align, fontSize: size, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+      style={{ color: deltaColor(deltaState), textAlign: align, fontSize: `${sizePx}px`, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
     >
       {value}
     </span>
@@ -73,7 +82,7 @@ export function DynamicStatText({
 /** Compact pill-badge cluster for Choke/Upgrade/Glitch counters - wraps to a second
  *  row automatically if it runs out of horizontal room; renders nothing for any
  *  counter at 0. */
-export function CounterBadges({ counters }: { counters?: { choke: number; upgrade: number; glitch: number } }) {
+export function CounterBadges({ counters, cardWidth }: { counters?: { choke: number; upgrade: number; glitch: number }; cardWidth: number }) {
   if (!counters) return null;
   const badges: { label: string; value: number; border: string; text: string }[] = [
     { label: 'CHK', value: counters.choke, border: 'border-red-400', text: 'text-red-300' },
@@ -81,12 +90,14 @@ export function CounterBadges({ counters }: { counters?: { choke: number; upgrad
     { label: 'GLT', value: counters.glitch, border: 'border-fuchsia-400', text: 'text-fuchsia-200' },
   ].filter((b) => b.value > 0);
   if (badges.length === 0) return null;
+  const fontSize = scaledPx(cardWidth, 0.045, 6, 12);
   return (
     <div className="flex flex-wrap gap-0.5 items-start justify-end w-full h-full content-start">
       {badges.map((b) => (
         <span
           key={b.label}
-          className={`px-1 rounded bg-black/70 border ${b.border} ${b.text} text-[7px] font-bold leading-tight whitespace-nowrap`}
+          className={`px-1 rounded bg-black/70 border ${b.border} ${b.text} font-bold leading-tight whitespace-nowrap`}
+          style={{ fontSize: `${fontSize}px` }}
         >
           {b.label} {b.value}
         </span>
@@ -99,12 +110,17 @@ export function CounterBadges({ counters }: { counters?: { choke: number; upgrad
  *  Chained, Overclocked, etc.) - renders nothing today since no card currently sets
  *  a status flag; the zone exists so a future effect has somewhere to render without
  *  needing new layout work. */
-export function StatusFlags({ flags }: { flags?: string[] }) {
+export function StatusFlags({ flags, cardWidth }: { flags?: string[]; cardWidth: number }) {
   if (!flags || flags.length === 0) return null;
+  const fontSize = scaledPx(cardWidth, 0.04, 5.5, 10);
   return (
     <div className="flex gap-0.5 items-center justify-end w-full h-full">
       {flags.map((f) => (
-        <span key={f} className="px-1 rounded bg-black/70 border border-cyan-300 text-cyan-200 text-[6.5px] font-bold whitespace-nowrap">
+        <span
+          key={f}
+          className="px-1 rounded bg-black/70 border border-cyan-300 text-cyan-200 font-bold whitespace-nowrap"
+          style={{ fontSize: `${fontSize}px` }}
+        >
           {f}
         </span>
       ))}
@@ -139,6 +155,7 @@ export function ApexOverlayLayer({
   effectiveDef,
   attackDamages,
   bakedAttackNames,
+  cardWidth,
   debugZones,
 }: {
   instance: CardInstance;
@@ -149,15 +166,19 @@ export function ApexOverlayLayer({
   attackDamages: Record<string, number>;
   /** If true, attack names are baked into the art and should not be re-rendered. */
   bakedAttackNames?: boolean;
+  /** Actual rendered card width in px - every text element scales off this. */
+  cardWidth: number;
   debugZones?: boolean;
 }) {
   const z = APEX_TEMPLATE_ZONES;
   const defDelta = getValueDeltaState(apexDef.baseDef, effectiveDef);
+  const statFontSize = scaledPx(cardWidth, 0.11, 9, 22);
+  const attackNameFontSize = scaledPx(cardWidth, 0.062, 6.5, 13);
 
   return (
     <div className="absolute inset-0">
       <Zone zone={z.def} debug={debugZones} debugLabel="DEF">
-        <DynamicStatText value={effectiveDef} deltaState={defDelta} align="center" />
+        <DynamicStatText value={effectiveDef} deltaState={defDelta} align="center" sizePx={statFontSize} />
       </Zone>
 
       {apexDef.attacks.slice(0, 4).map((atk, i) => {
@@ -172,7 +193,10 @@ export function ApexOverlayLayer({
                 debug={debugZones}
                 debugLabel={`ATK ${i + 1} name`}
               >
-                <span className="text-white/90 text-[8px] leading-none truncate w-full" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+                <span
+                  className="text-white/90 leading-none truncate w-full"
+                  style={{ fontSize: `${attackNameFontSize}px`, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                >
                   [{atk.syncCost}] {atk.name}
                 </span>
               </Zone>
@@ -182,18 +206,18 @@ export function ApexOverlayLayer({
               debug={debugZones}
               debugLabel={`ATK ${i + 1} value`}
             >
-              <DynamicStatText value={shown} deltaState={delta} align="right" />
+              <DynamicStatText value={shown} deltaState={delta} align="right" sizePx={attackNameFontSize} />
             </Zone>
           </div>
         );
       })}
 
       <Zone zone={z.counters} debug={debugZones} debugLabel="Counters">
-        <CounterBadges counters={instance.counters} />
+        <CounterBadges counters={instance.counters} cardWidth={cardWidth} />
       </Zone>
 
       <Zone zone={z.status} debug={debugZones} debugLabel="Status">
-        <StatusFlags flags={undefined} />
+        <StatusFlags flags={undefined} cardWidth={cardWidth} />
       </Zone>
     </div>
   );
