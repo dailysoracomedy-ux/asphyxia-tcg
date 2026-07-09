@@ -260,6 +260,8 @@ export interface CardInstance {
   chainedApexId?: string | null;
   lockedByControlConflict?: boolean;
   enteredViaReconfigureTurn?: number | null; // if set to current turn, sync ability can't activate this turn
+  // Equip runtime fields
+  equippedTurn?: number | null; // turn number this Equip was attached - can't be Equip Swapped out the same turn
 }
 
 export interface TurnFlags {
@@ -268,6 +270,7 @@ export interface TurnFlags {
   instantsPlayedThisTurn: number;
   cardsPlayedThisTurn: number;
   reconfigureUsedThisTurn: boolean;
+  equipSwapUsedThisTurn: boolean;
   directO2LossThisTurn: number;
   firstSpecialResolved: boolean;
   chokeCounterPlacedThisTurn: boolean;
@@ -283,6 +286,7 @@ export function freshTurnFlags(): TurnFlags {
     instantsPlayedThisTurn: 0,
     cardsPlayedThisTurn: 0,
     reconfigureUsedThisTurn: false,
+    equipSwapUsedThisTurn: false,
     directO2LossThisTurn: 0,
     firstSpecialResolved: false,
     chokeCounterPlacedThisTurn: false,
@@ -394,6 +398,7 @@ export type TriggerData = AttackTriggerData | O2DamageTriggerData | DestroyTrigg
 export type ContinuationPayload =
   | { kind: 'resolveSpecial'; ownerId: PlayerId; targetApexInstanceId?: string }
   | { kind: 'resolveEquip'; ownerId: PlayerId; apexInstanceId: string }
+  | { kind: 'resolveEquipSwap'; ownerId: PlayerId; apexInstanceId: string; oldEquipInstanceId: string }
   | { kind: 'resolveReactionThenFinishTrigger'; reactionOwnerId: PlayerId; trigger: TriggerData };
 
 export interface ReactionChoiceWindow {

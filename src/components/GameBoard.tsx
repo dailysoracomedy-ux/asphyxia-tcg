@@ -31,6 +31,8 @@ type Mode =
   | { kind: 'reconfigureReturn' }
   | { kind: 'reconfigurePlay'; returnId: string }
   | { kind: 'reconfigureChain'; returnId: string; playId: string }
+  | { kind: 'equipSwapSelectApex' }
+  | { kind: 'equipSwapSelectCard'; apexId: string }
   | { kind: 'attackerChosen'; attackerId: string }
   | { kind: 'attackAwaitingTarget'; attackerId: string; attackId: string }
   | { kind: 'rechainSelectApex'; supportId: string }
@@ -181,6 +183,12 @@ export default function GameBoard() {
   function selectHandCard(cardId: string) {
     const card = activePlayer.hand.find((c) => c.instanceId === cardId);
     if (!card || state.phase !== 'Main') return;
+    if (mode.kind === 'equipSwapSelectCard') {
+      if (card.type !== 'Equip') return;
+      state.equipSwap(mode.apexId, cardId);
+      resetMode();
+      return;
+    }
     if (mode.kind !== 'idle' && 'cardId' in mode && mode.cardId === cardId) {
       resetMode();
       return;
@@ -216,16 +224,24 @@ export default function GameBoard() {
   }
 
   const handDisabledIds = new Set(
-    activePlayer.hand
-      .filter(
-        (c) =>
-          (c.type === 'Special' && activePlayer.turnFlags.specialsPlayedThisTurn >= 1) ||
-          ((c.type === 'AbilitySupport' || c.type === 'BatterySupport') && activePlayer.turnFlags.supportsPlayedThisTurn >= 1)
-      )
-      .map((c) => c.instanceId)
+    mode.kind === 'equipSwapSelectCard'
+      ? activePlayer.hand.filter((c) => c.type !== 'Equip').map((c) => c.instanceId)
+      : activePlayer.hand
+          .filter(
+            (c) =>
+              (c.type === 'Special' && activePlayer.turnFlags.specialsPlayedThisTurn >= 1) ||
+              ((c.type === 'AbilitySupport' || c.type === 'BatterySupport') && activePlayer.turnFlags.supportsPlayedThisTurn >= 1)
+          )
+          .map((c) => c.instanceId)
   );
 
   function ownApexClick(apexId: string) {
+    if (mode.kind === 'equipSwapSelectApex') {
+      const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
+      if (!apex?.equip || apex.equip.equippedTurn === state.turnNumber) return;
+      setMode({ kind: 'equipSwapSelectCard', apexId });
+      return;
+    }
     if (mode.kind === 'supportChooseChain') {
       state.playSupportCard(mode.cardId, undefined, apexId);
       resetMode();
@@ -327,6 +343,10 @@ export default function GameBoard() {
   }
 
   const ownApexHighlight = (id: string): 'valid-target' | null => {
+    if (mode.kind === 'equipSwapSelectApex') {
+      const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
+      return apex?.equip && apex.equip.equippedTurn !== state.turnNumber ? 'valid-target' : null;
+    }
     if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain' || mode.kind === 'rechainSelectApex') {
       return apexHasAbilitySupportChained(id) ? null : 'valid-target';
     }
@@ -340,6 +360,10 @@ export default function GameBoard() {
   };
 
   function ownApexDisabled(id: string): boolean {
+    if (mode.kind === 'equipSwapSelectApex') {
+      const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
+      return !(apex?.equip && apex.equip.equippedTurn !== state.turnNumber);
+    }
     if (mode.kind === 'supportChooseChain' || mode.kind === 'reconfigureChain' || mode.kind === 'rechainSelectApex') {
       return apexHasAbilitySupportChained(id);
     }
@@ -347,6 +371,7 @@ export default function GameBoard() {
   }
 
   const reconfigureDisabled = activePlayer.turnFlags.reconfigureUsedThisTurn || state.phase !== 'Main';
+  const equipSwapDisabled = activePlayer.turnFlags.equipSwapUsedThisTurn || state.phase !== 'Main';
   const supportBudgetSpent = activePlayer.turnFlags.supportsPlayedThisTurn >= 1;
   const eligibleReconfigurePlays =
     mode.kind === 'reconfigurePlay' && !supportBudgetSpent
@@ -526,14 +551,14 @@ export default function GameBoard() {
                 onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
                 className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
               >
-                Reconfigure {reconfigureDisabled ? '(used)' : '(once/turn)'}
+                Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
               </button>
               {mode.kind === 'reconfigureReturn' && (
                 <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
               )}
               {mode.kind === 'reconfigurePlay' && (
                 <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
-                  Skip — finish Reconfigure
+                  Skip — finish Engine Reconfig
                 </button>
               )}
               {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
@@ -544,7 +569,7 @@ export default function GameBoard() {
             </div>
             {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
               <div className="mt-1 text-white/40 italic">
-                Already played a Support this turn - this Reconfigure can only return a card, not play one in.
+                Already played a Support this turn - this Engine Reconfig can only return a card, not play one in.
               </div>
             )}
             {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
@@ -574,6 +599,31 @@ export default function GameBoard() {
             {mode.kind === 'reconfigureChain' && (
               <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
             )}
+          </div>
+        )}
+
+        {state.phase === 'Main' && !aiIsActing && (
+          <div className="rounded-lg border border-orange-500/30 bg-[#05050a] p-1.5 text-[11px]">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <button type="button"
+                disabled={equipSwapDisabled || mode.kind === 'equipSwapSelectApex' || aiIsActing}
+                onClick={scrollSafeClick(() => setMode({ kind: 'equipSwapSelectApex' }))}
+                className="px-2 py-1 rounded border border-orange-400/50 hover:bg-orange-400/10 disabled:opacity-30 font-bold text-orange-200"
+              >
+                Equip Swap {activePlayer.turnFlags.equipSwapUsedThisTurn ? '(used)' : '(once/turn)'}
+              </button>
+              {mode.kind === 'equipSwapSelectApex' && (
+                <span className="text-orange-300 animate-pulse">Select an Apex above with an Equip to swap out...</span>
+              )}
+              {mode.kind === 'equipSwapSelectCard' && (
+                <span className="text-orange-300 animate-pulse">Select an Equip in your hand to swap in...</span>
+              )}
+              {(mode.kind === 'equipSwapSelectApex' || mode.kind === 'equipSwapSelectCard') && (
+                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
+                  cancel
+                </button>
+              )}
+            </div>
           </div>
         )}
         </div>

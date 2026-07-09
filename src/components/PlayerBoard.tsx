@@ -76,7 +76,7 @@ export default function PlayerBoard({
 
   return (
     <div
-      className="rounded-lg border p-1.5 scanlines min-h-0 flex flex-col"
+      className="rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto"
       style={{ borderColor: `${theme.border}55`, background: '#05050a' }}
     >
       <div

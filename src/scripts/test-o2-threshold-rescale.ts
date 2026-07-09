@@ -30,7 +30,7 @@ function freshTurnFlags() {
     supportsPlayedThisTurn: 0,
     instantsPlayedThisTurn: 0,
     cardsPlayedThisTurn: 0,
-    reconfigureUsedThisTurn: false,
+    reconfigureUsedThisTurn: false, equipSwapUsedThisTurn: false,
     directO2LossThisTurn: 0,
     firstSpecialResolved: false,
     chokeCounterPlacedThisTurn: false,

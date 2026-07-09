@@ -1232,6 +1232,54 @@ wrong place.
 **Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
 simulation - pure layout, no gameplay logic touched.
 
+## Commit 21.4: the board's own box was still full-width
+
+Commit 21.1 centered the Apex/Support/Deck/Void *content* inside each board's
+bordered box, but never addressed the box itself - the outer GameBoard layout is a
+single-column grid (every row stacks vertically), so any row's wrapper div is
+full-width by default unless told otherwise. That's exactly the gap flagged from a
+real screenshot: content correctly centered, but the visible border was still
+drawn edge-to-edge with a lot of empty space inside it on both sides.
+
+Fixed by giving the board's own bordered box (`PlayerBoard.tsx`'s outer div)
+`w-fit mx-auto` - it now hugs its actual content width and centers itself within
+the row, the same treatment already applied to the Rift panel. Left Hand's
+container alone for now, even though it has the same underlying full-width default -
+a hand box that visibly resizes every time card count changes felt like a different
+tradeoff worth asking about rather than assuming, since board width staying stable
+turn to turn might matter for a game and hand width doesn't need to.
+
+**Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
+simulation - pure layout, no gameplay logic touched.
+
+## Commit 22: Equip Swap, wired up end-to-end
+
+**The rules engine already existed** - `equipSwap` in `gameStore.ts`, the
+`equipSwapUsedThisTurn`/`equippedTurn` tracking fields, and the `resolveEquipSwap`
+response continuation were all already in the codebase from an earlier session,
+matching the spec given here almost exactly: once-per-turn global gate, can't swap
+an Equip attached this same turn, old Equip returns to hand (never Void), no
+destroy-hook fires on swap. What was missing was entirely the UI - there was no
+button, no click-flow, nothing wiring a person to that logic at all.
+
+**Built the UI to mirror Engine Reconfig's existing two-step flow**: click "Equip
+Swap" → click an Apex on the board that has a swappable Equip (highlighted the same
+way Reconfigure highlights valid Support targets) → click an Equip card in your
+hand to swap in. Sits right next to Engine Reconfig, same row, since the two are
+independent once-per-turn budgets - using one doesn't block the other, matching the
+"1 Equip Swap per turn, period" + "1 Engine Reconfig per turn, period" spec exactly.
+
+**Wrote a dedicated test that didn't exist before** (`test-equip-swap.ts`, 12
+checks) since this mechanic had never actually been exercised end-to-end before
+today despite the store logic's age. Verified directly, not assumed: a same-turn
+swap attempt is rejected, a later-turn swap succeeds, the old Equip lands in hand
+and specifically *not* in Void, Sterile Mantle's destroy-triggered Momentum payout
+does not fire on either the rejected or successful swap, the second swap attempt in
+one turn is rejected once the budget is spent.
+
+**Verified**: full regression suite (380+ checks across 16 files, including the new
+one) and a fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

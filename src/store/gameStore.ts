@@ -753,6 +753,12 @@ interface GameStore extends GameState {
   playApexCard: (cardInstanceId: string, slotIndex?: number) => void;
   playSupportCard: (cardInstanceId: string, slotIndex?: number, chainedApexId?: string) => void;
   playEquipCard: (cardInstanceId: string, apexInstanceId: string) => void;
+  /** Once per turn, separate budget from Engine Reconfig: swap out an Apex's
+   *  currently-attached Equip for a new one from hand. The old Equip returns to
+   *  hand (never Void) - this is deliberately not a "destroy," so no
+   *  destroy-triggered Equip perks fire. Cannot target an Equip that was itself
+   *  attached this same turn. */
+  equipSwap: (apexInstanceId: string, newCardInstanceId: string) => void;
   playSpecialCard: (cardInstanceId: string, targetApexInstanceId?: string) => void;
   reconfigure: (returnInstanceId: string, playInstanceId?: string, chainedApexId?: string) => void;
   chainSupport: (supportInstanceId: string, apexInstanceId: string) => void;
@@ -1011,7 +1017,74 @@ export const useGameStore = create<GameStore>((set) => ({
       if (opened) return;
 
       apex.equip = card;
+      apex.equip.equippedTurn = draft.turnNumber;
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name}.`, 'play');
+    }),
+
+  equipSwap: (apexInstanceId, newCardInstanceId) =>
+    mutate(set, (draft) => {
+      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      const playerId = draft.activePlayerId;
+      const player = draft.players[playerId];
+      if (player.turnFlags.equipSwapUsedThisTurn) {
+        logMsg(draft, 'Equip Swap already used this turn.', 'info');
+        return;
+      }
+      const idx = player.hand.findIndex((c) => c.instanceId === newCardInstanceId);
+      if (idx === -1 || player.hand[idx].type !== 'Equip') return;
+      const apex = player.apexSlots.find((a) => a?.instanceId === apexInstanceId);
+      if (!apex) {
+        logMsg(draft, 'Equip Swap target must be an Apex you control.', 'info');
+        return;
+      }
+      if (!apex.equip) {
+        logMsg(draft, `${getCardDef(apex.defId).name} has no Equip to swap out - use Equip instead.`, 'info');
+        return;
+      }
+      if (apex.equip.equippedTurn === draft.turnNumber) {
+        logMsg(draft, `${getCardDef(apex.equip.defId).name} was attached this turn and cannot be Equip Swapped yet.`, 'info');
+        return;
+      }
+
+      const oldEquipInstanceId = apex.equip.instanceId;
+      const [card] = player.hand.splice(idx, 1);
+      player.turnFlags.equipSwapUsedThisTurn = true;
+      player.turnFlags.cardsPlayedThisTurn += 1;
+      const def = getCardDef(card.defId);
+      const faction = def.faction;
+      const negatingPlayerId = otherPlayer(playerId);
+
+      logMsg(draft, `${playerId} plays ${def.name} (Equip Swap).`, 'play');
+      maybeTriggerRecursiveFailureSecondCard(draft, playerId);
+      const opened = maybeOpenResponseWindow(
+        draft,
+        negatingPlayerId,
+        playedCardEvent('EQUIP_PLAYED', { cardType: 'Equip', cardFaction: faction, cardOwnerId: playerId, cardInstanceId: card.instanceId }),
+        () => {
+          draft.pendingResponseQueue.push({
+            id: newId('negate'),
+            stage: 'negateWindow',
+            negatingPlayerId,
+            cardOwnerId: playerId,
+            cardInstanceId: card.instanceId,
+            cardDefId: card.defId,
+            cardType: 'Equip',
+            cardFaction: faction,
+            continuation: { kind: 'resolveEquipSwap', ownerId: playerId, apexInstanceId, oldEquipInstanceId },
+            pendingCardInstance: card,
+          });
+        }
+      );
+      if (opened) return;
+
+      // No destroy-hook fires here on purpose - this is a swap, not a destruction.
+      // Clean copy back to hand, same reasoning as every other "return to hand" path.
+      const oldEquip = apex.equip;
+      player.hand.push({ instanceId: oldEquip.instanceId, defId: oldEquip.defId, type: oldEquip.type });
+      logMsg(draft, `${getCardDef(oldEquip.defId).name} returns to hand (Equip Swap).`, 'play');
+      apex.equip = card;
+      apex.equip.equippedTurn = draft.turnNumber;
+      logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name} (Equip Swap).`, 'play');
     }),
 
   playSpecialCard: (cardInstanceId, targetApexInstanceId) =>
@@ -1108,7 +1181,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.reconfigureUsedThisTurn = true;
 
       const def = getCardDef(returned.defId);
-      logMsg(draft, `${playerId} returns ${def.name} to hand (Reconfigure).`, 'support');
+      logMsg(draft, `${playerId} returns ${def.name} to hand (Engine Reconfig).`, 'support');
 
       if (def.type === 'BatterySupport' && def.onReconfigureReturn) {
         def.onReconfigureReturn({ helpers: createHelpers(draft), ownerId: playerId, cardInstanceId: returned.instanceId });
@@ -1470,7 +1543,22 @@ export const useGameStore = create<GameStore>((set) => ({
           const hit = findApexAnywhere(draft, item.continuation.apexInstanceId);
           if (hit) {
             hit.apex.equip = item.pendingCardInstance;
+            hit.apex.equip.equippedTurn = draft.turnNumber;
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name}.`, 'play');
+          }
+        } else if (item.continuation.kind === 'resolveEquipSwap' && item.pendingCardInstance) {
+          const hit = findApexAnywhere(draft, item.continuation.apexInstanceId);
+          if (hit) {
+            const player = draft.players[item.continuation.ownerId];
+            const oldEquip = hit.apex.equip;
+            if (oldEquip) {
+              // Clean copy back to hand - no lingering runtime state from being equipped.
+              player.hand.push({ instanceId: oldEquip.instanceId, defId: oldEquip.defId, type: oldEquip.type });
+              logMsg(draft, `${getCardDef(oldEquip.defId).name} returns to hand (Equip Swap).`, 'play');
+            }
+            hit.apex.equip = item.pendingCardInstance;
+            hit.apex.equip.equippedTurn = draft.turnNumber;
+            logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name} (Equip Swap).`, 'play');
           }
         } else if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
           const reactionDef = getCardDef(item.cardDefId) as ReactionDef;
