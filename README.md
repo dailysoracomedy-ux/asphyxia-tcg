@@ -975,6 +975,75 @@ fine: anyone who wants a closer look at the numbers just hovers.
 **Verified**: clean `tsc`/`eslint`/build and a fresh 72-game simulation - a pure
 sizing fix, no gameplay logic touched.
 
+## Commit 20: full card art, Equip attachment, 2x hover
+
+**All 33 remaining cards now have art** - every card in the game (45/45) has a
+mapped image. `CARD_ART` in `lib/cardArt.ts` is now genuinely generic across all
+5 card types, not Apex-specific. Non-Apex cards render via a new `GenericArtCard` -
+just the baked art, no overlay, since (per direct instruction) nothing on an
+Engine/Equip/Special/React face changes live the way DEF/attack numbers do on Apex.
+`Card.tsx`'s art-branch condition broadened from "is this an Apex with art" to "does
+this card have art at all," routing to `ApexCardRenderer` or `GenericArtCard`
+accordingly - same fallback guarantee as before (no art entry = old flow-layout,
+unchanged).
+
+**Two real art-integration bugs caught and fixed before they shipped, not two
+different bugs I got right the first two times:**
+1. The new art is 1500x2100 (5:7) - a *different* ratio than the Apex art's 600x900
+   (2:3). Reusing Commit 19.1's single hardcoded ratio would have reintroduced the
+   exact crop/pillarbox bug that commit fixed, just for every other card type
+   instead of Apex. Added `getArtAspectRatio(cardType)` so the right ratio is always
+   used per card type, not assumed.
+2. Once Engine cards had art, their board slots inherited the same aspect mismatch
+   Apex slots had before Commit 19.1 - and their *empty*-slot placeholders (and
+   Apex's) were still sized for the old flat-color layout, no longer matching the
+   now-art-based filled slots next to them. Fixed both empty-slot placeholders to
+   compute their width the same way filled ones do.
+
+**Equip attachment** (`EquipFlap.tsx`): an equipped Apex now shows the Equip's art
+as a seamless tab beneath it on the board, cropped from the *bottom* of the Equip
+card's own art - the physical card reference showed this as the Equip card's own
+built-in design, not separate flap-only art, so that's what the crop pulls from
+(`EQUIP_FLAP_CROP_RATIO`, currently 16% of the Equip's full height, tunable in one
+place). It's independently hoverable/clickable from the Apex above it, reusing the
+same `CardHoverPreview` every other card's hover uses (exported from `Card.tsx`
+specifically for this reuse) - hovering the flap shows the Equip's full card, not
+the Apex's.
+
+**Layout**: Apex and Engine slots stay aligned on the same row exactly as before
+(Commit 15's grid didn't need to change) - only the equipped Apex's *own* column
+grows taller, by exactly the flap's height, and CSS grid's normal flow pushes every
+row after it down with no overlap, the same way any other content in this layout
+already does. I did not get to test this against the specific worst-case scenario I
+flagged before starting (both Apex slots equipped simultaneously, full hand, an
+active rift prompt) in a live browser - the math checks out and nothing in testing
+contradicts it, but that specific combination is worth you checking first, since
+it's the one case I said upfront I couldn't fully de-risk from here.
+
+**Hover preview is now genuinely 2x**, not just a bigger box around the same content
+- added a new `xl` size (380×532) so Apex overlay text scales up properly too
+(it's driven by real rendered width, so it wasn't just a CSS transform).
+
+**Known, expected tradeoff**: the Equip flap is small at actual board size (its
+baked "EQUIP — Name" text becomes hard to read at ~23px tall) - same tradeoff as
+the DEF/attack numbers, solved the same way: compact on the board, fully legible on
+hover. Not something I tried to further compress-fix, since it's inherent to how
+little vertical space a flap can reasonably claim without over-growing the board.
+
+**Verified**: full regression suite (350+ checks across 15 files) and a fresh
+72-game simulation both ran clean - expected, since this is entirely presentation
+layer and touches no game logic.
+
+**One more thing worth flagging, since it wasn't asked for but mattered**: the
+uploaded source art was 2-3MB per image (2100px-tall PNGs) - 45 of them would have
+been ~109MB of images for the browser to load, which is a real problem for an
+actual deployed game regardless of how correct the rendering code is. Resized to
+800px max width (comfortably more than 2x the largest size any card is ever
+actually displayed at, `xl` hover preview at 380px) and converted from PNG to WebP,
+which compresses this kind of painterly/photographic art far better than PNG does.
+Total art footprint: 6MB, down from 109MB, with no visible quality loss at any
+in-game display size.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

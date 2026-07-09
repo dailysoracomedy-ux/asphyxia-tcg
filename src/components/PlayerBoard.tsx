@@ -5,7 +5,16 @@ import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport, MAX_MOMENTUM } from '@/game/rules';
 import Card from './Card';
+import EquipFlap from './EquipFlap';
 import { factionTheme } from '@/lib/theme';
+import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
+
+/** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
+ *  compute a matching width, and it's cheaper to name the constant once here than
+ *  import Card's internal SIZE_MAP just for one number. */
+const APEX_BOARD_HEIGHT = 152;
+/** Matches Card.tsx's 'supportBoard' size preset height, same reasoning as above. */
+const SUPPORT_BOARD_HEIGHT = 100;
 
 interface PlayerBoardProps {
   state: GameState;
@@ -168,8 +177,12 @@ function ApexSlot({
   onInspect?: (instance: CardInstance) => void;
 }) {
   if (!apex) {
+    const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
-      <div className="w-[128px] h-[152px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1">
+      <div
+        className="rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1"
+        style={{ width: emptyWidth, height: APEX_BOARD_HEIGHT }}
+      >
         empty Apex slot
       </div>
     );
@@ -187,7 +200,7 @@ function ApexSlot({
   // Chain indicator: which Ability Support (if any) is chained to this Apex.
   const chainedSupport = getChainedSupportFor(state, playerId, apex.instanceId);
 
-  return (
+  const cardEl = (
     <Card
       instance={apex}
       size="apexBoard"
@@ -208,6 +221,24 @@ function ApexSlot({
       }
     />
   );
+
+  // The attached-Equip flap only applies once the Apex is rendering via its art
+  // template (ApexCardRenderer) - it needs a known, stable pixel width to match
+  // seamlessly against, which only the art path (not the flow-layout fallback)
+  // gives us. Apexes without art keep the existing inline "Equip: Name" text line
+  // (still rendered inside Card's flow-layout path) instead.
+  const hasApexArt = !!getCardArt(apex.defId);
+  if (apex.equip && hasApexArt) {
+    const apexArtWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
+    return (
+      <div className="flex flex-col shrink-0" style={{ width: apexArtWidth }}>
+        {cardEl}
+        <EquipFlap equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
+      </div>
+    );
+  }
+
+  return cardEl;
 }
 
 function SupportSlot({
@@ -228,8 +259,12 @@ function SupportSlot({
   onInspect?: (instance: CardInstance) => void;
 }) {
   if (!support) {
+    const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
     return (
-      <div className="w-[96px] h-[100px] rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1">
+      <div
+        className="rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1"
+        style={{ width: emptyWidth, height: SUPPORT_BOARD_HEIGHT }}
+      >
         empty Support slot
       </div>
     );

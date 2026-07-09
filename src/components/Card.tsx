@@ -5,15 +5,16 @@ import type { ApexDef, CardInstance } from '@/types/game';
 import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
 import { factionTheme, getCardTypeLabel } from '@/lib/theme';
-import { getCardArt } from '@/lib/cardArt';
+import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
 import ApexCardRenderer from './ApexCardRenderer';
+import GenericArtCard from './GenericArtCard';
 
 interface CardProps {
   instance: CardInstance;
   onClick?: () => void;
   selected?: boolean;
   disabled?: boolean;
-  size?: 'sm' | 'md' | 'lg' | 'apexBoard' | 'supportBoard' | 'hand';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'apexBoard' | 'supportBoard' | 'hand';
   /** Suppresses full rulesText and other long-form info - used for on-board cards,
    *  which are game pieces (compact tactical info only), not full card previews. */
   compact?: boolean;
@@ -63,7 +64,7 @@ export default function Card({
   useEffect(() => clearHoverTimer, []);
 
   function handleMouseEnter(e: React.MouseEvent) {
-    if (disableHoverPreview || size === 'lg') return;
+    if (disableHoverPreview || size === 'lg' || size === 'xl') return;
     // Hover-only devices, not touch - avoids a "sticky" enlarged preview after a tap.
     if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     const x = e.clientX;
@@ -108,6 +109,10 @@ export default function Card({
     sm: { w: 104, h: 148, text: 'text-[9px]' },
     md: { w: 144, h: 204, text: 'text-[10.5px]' },
     lg: { w: 200, h: 280, text: 'text-[13px]' },
+    // xl is the hover-preview size - genuinely renders everything bigger (not just a
+    // bigger box around the same 'lg' content), including Apex overlay text, since
+    // that scales off the actual rendered card width.
+    xl: { w: 380, h: 532, text: 'text-[18px]' },
     // Board sizes are deliberately compact - board cards are game pieces, not full
     // previews. Hand cards get a bit more room since they're the "read the card" view.
     apexBoard: { w: 128, h: 152, text: 'text-[9.5px]' },
@@ -127,15 +132,19 @@ export default function Card({
   // Apex cards with a mapped base image use the dynamic overlay template instead of
   // the flow-based layout below. Cards with no art entry in lib/cardArt.ts fall
   // through unchanged - this is purely additive, never required.
-  if (isApex && apexDef && getCardArt(instance.defId)) {
-    const shownDef = effectiveDef ?? apexDef.baseDef;
-    // Art is 600x900 (2:3). Anchor to the size preset's height (keeps board/hand row
-    // rhythm unchanged) and derive width from the art's own ratio, rather than reusing
-    // SIZE_MAP's width - that mismatch (up to 26% at apexBoard size) would otherwise
-    // force object-fit to either crop the frame edges or pillarbox the image, and
-    // either way throw off the percentage-based overlay zones relative to what's
-    // actually visible. This keeps the rendered image edge-to-edge with zero crop.
-    const artW = Math.round(h * (600 / 900));
+  // Cards with a mapped base image use the art-based layout instead of the flow-
+  // based layout below. Cards with no art entry in lib/cardArt.ts fall through
+  // unchanged - this is purely additive, never required. Apex gets the full dynamic
+  // DEF/attack overlay (ApexCardRenderer); every other card type is art-only
+  // (GenericArtCard), since nothing on their face changes live.
+  if (getCardArt(instance.defId)) {
+    // Anchor to the size preset's height (keeps board/hand row rhythm unchanged) and
+    // derive width from the art's own ratio, rather than reusing SIZE_MAP's width -
+    // that mismatch would otherwise force object-fit to either crop the frame edges
+    // or pillarbox the image, throwing off Apex's percentage-based overlay zones.
+    // Apex art is 600x900 (2:3); every other card type's art is 1500x2100 (5:7).
+    const artRatio = getArtAspectRatio(def.type);
+    const artW = Math.round(h * artRatio);
     return (
       <div
         className="relative inline-block shrink-0"
@@ -144,16 +153,20 @@ export default function Card({
         onMouseLeave={handleMouseLeave}
       >
         {hoverPreview}
-        <ApexCardRenderer
-          instance={instance}
-          effectiveDef={shownDef}
-          cardWidth={artW}
-          attackPreviews={attackPreviews}
-          onClick={onClick}
-          selected={selected}
-          disabled={disabled}
-          footer={footer}
-        />
+        {isApex && apexDef ? (
+          <ApexCardRenderer
+            instance={instance}
+            effectiveDef={effectiveDef ?? apexDef.baseDef}
+            cardWidth={artW}
+            attackPreviews={attackPreviews}
+            onClick={onClick}
+            selected={selected}
+            disabled={disabled}
+            footer={footer}
+          />
+        ) : (
+          <GenericArtCard defId={instance.defId} onClick={onClick} selected={selected} disabled={disabled} footer={footer} />
+        )}
         {onInspect && (
           <button
             type="button"
@@ -286,7 +299,7 @@ export default function Card({
  *  viewport regardless of where on screen the source card sits. Reuses Card's own
  *  'lg' rendering (same one Card Inspect and the Developer gallery use) rather than
  *  duplicating any layout, so art cards show their real art here too. */
-function CardHoverPreview({
+export function CardHoverPreview({
   x,
   y,
   instance,
@@ -299,9 +312,9 @@ function CardHoverPreview({
   effectiveDef?: number;
   attackPreviews?: Record<string, AttackDamagePreview>;
 }) {
-  const PREVIEW_W = 200;
-  const PREVIEW_H = 280;
-  const OFFSET = 22;
+  const PREVIEW_W = 380;
+  const PREVIEW_H = 532;
+  const OFFSET = 24;
   const MARGIN = 10;
 
   let left = x + OFFSET;
@@ -315,7 +328,7 @@ function CardHoverPreview({
 
   return (
     <div className="fixed z-40 pointer-events-none" style={{ left, top, filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.7))' }}>
-      <Card instance={instance} size="lg" effectiveDef={effectiveDef} attackPreviews={attackPreviews} disableHoverPreview />
+      <Card instance={instance} size="xl" effectiveDef={effectiveDef} attackPreviews={attackPreviews} disableHoverPreview />
     </div>
   );
 }
