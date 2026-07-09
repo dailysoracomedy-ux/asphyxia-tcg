@@ -70,3 +70,112 @@ html, body {
 .text-shadow-glow {
   text-shadow: 0 0 6px currentColor;
 }
+
+/* ===== Commit 23: game-feel polish ===== */
+
+/* Active player's board panel - soft pulsing glow, faction-colored via CSS var
+   set inline per-instance (--active-glow-color). Subtle on purpose - should read
+   as "this side is live" without fighting for attention against card art. */
+@keyframes active-board-glow {
+  0%, 100% { box-shadow: 0 0 10px 0 var(--active-glow-color, transparent); }
+  50% { box-shadow: 0 0 20px 3px var(--active-glow-color, transparent); }
+}
+.active-board-glow {
+  animation: active-board-glow 2.6s ease-in-out infinite;
+}
+
+@keyframes attack-pulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(1.06); filter: brightness(1.35); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.vfx-attack-pulse {
+  animation: attack-pulse 400ms ease-out;
+}
+
+@keyframes hit-flash {
+  0% { filter: brightness(1) saturate(1); }
+  25% { filter: brightness(2.2) saturate(1.6); }
+  100% { filter: brightness(1) saturate(1); }
+}
+.vfx-hit-flash {
+  animation: hit-flash 400ms ease-out;
+}
+
+@keyframes destroy-shake {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; filter: brightness(1) contrast(1); }
+  20% { transform: translate(-3px, 2px) rotate(-2deg); filter: brightness(1.8) contrast(1.6); }
+  40% { transform: translate(3px, -2px) rotate(2deg); }
+  60% { transform: translate(-2px, 1px) rotate(-1deg); opacity: 0.7; }
+  80% { transform: translate(2px, -1px) rotate(1deg); opacity: 0.4; }
+  100% { transform: translate(0, 0) rotate(0deg); opacity: 0; filter: brightness(1) contrast(1); }
+}
+.vfx-destroy-shake {
+  animation: destroy-shake 650ms ease-in-out forwards;
+}
+
+@keyframes overflow-flash {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(2.5) hue-rotate(-10deg); }
+  100% { filter: brightness(1); }
+}
+.vfx-overflow-flash {
+  animation: overflow-flash 550ms ease-out;
+}
+
+@keyframes react-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 var(--react-glow-color, rgba(232,121,249,0.7)); }
+  50% { box-shadow: 0 0 14px 4px var(--react-glow-color, rgba(232,121,249,0.7)); }
+}
+.vfx-react-highlight {
+  animation: react-highlight 550ms ease-in-out;
+}
+
+@keyframes negate-glitch {
+  0% { opacity: 1; filter: none; transform: translate(0,0); }
+  15% { opacity: 0.3; filter: hue-rotate(90deg) contrast(2); transform: translate(-2px,1px); }
+  30% { opacity: 0.9; filter: none; transform: translate(2px,-1px); }
+  45% { opacity: 0.25; filter: hue-rotate(-90deg) contrast(2); transform: translate(-1px,-1px); }
+  60% { opacity: 1; filter: none; transform: translate(0,0); }
+}
+.vfx-negate-glitch {
+  animation: negate-glitch 500ms steps(2, jump-end);
+}
+
+@keyframes damage-popup {
+  0% { opacity: 0; transform: translateY(4px) scale(0.85); }
+  20% { opacity: 1; transform: translateY(-6px) scale(1.05); }
+  75% { opacity: 1; transform: translateY(-14px) scale(1); }
+  100% { opacity: 0; transform: translateY(-22px) scale(0.95); }
+}
+.vfx-damage-popup {
+  animation: damage-popup 800ms ease-out forwards;
+}
+
+@keyframes momentum-pulse {
+  0%, 100% { filter: brightness(1); }
+  40% { filter: brightness(1.8); }
+}
+.vfx-momentum-pulse {
+  animation: momentum-pulse 500ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-board-glow,
+  .vfx-attack-pulse,
+  .vfx-hit-flash,
+  .vfx-destroy-shake,
+  .vfx-overflow-flash,
+  .vfx-react-highlight,
+  .vfx-negate-glitch,
+  .vfx-momentum-pulse,
+  .pulse-border {
+    animation: none !important;
+  }
+  .active-board-glow {
+    box-shadow: 0 0 0 2px var(--active-glow-color, transparent) !important;
+  }
+  .vfx-damage-popup {
+    animation-duration: 1ms !important;
+  }
+}
