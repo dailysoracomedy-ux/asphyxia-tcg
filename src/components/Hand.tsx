@@ -10,11 +10,19 @@ interface HandProps {
   disabledIds?: Set<string>;
   label?: string;
   onInspectCard?: (instance: CardInstance) => void;
+  /** Floor for the container's width, in px - typically the board's own measured
+   *  width, so Hand never reads narrower than the board above it. The container
+   *  still hugs its actual content otherwise, and grows past this floor for a
+   *  large hand rather than ever clipping or wrapping unexpectedly. */
+  minWidth?: number;
 }
 
-export default function Hand({ cards, selectedId, onSelect, disabledIds, label, onInspectCard }: HandProps) {
+export default function Hand({ cards, selectedId, onSelect, disabledIds, label, onInspectCard, minWidth }: HandProps) {
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[168px] shrink-0">
+    <div
+      className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[168px] shrink-0 w-fit max-w-full mx-auto"
+      style={{ minWidth }}
+    >
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
       <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 justify-center">
         {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}

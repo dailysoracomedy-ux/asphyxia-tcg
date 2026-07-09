@@ -1280,6 +1280,25 @@ one turn is rejected once the budget is spent.
 **Verified**: full regression suite (380+ checks across 16 files, including the new
 one) and a fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build.
 
+## Commit 22.1: Hand is now dynamic, floored to the board's real measured width
+
+Hand's container now hugs its actual content (`w-fit`) and grows with hand size,
+instead of always being full-width regardless of how many cards are in it -
+answering a question I'd deliberately left open in Commit 21.4, where I held off
+touching Hand's width without knowing whether a resizing hand box was wanted.
+
+**The minimum width is measured, not guessed.** Rather than hardcode a pixel value
+approximating the board's width (which could silently drift out of sync if the
+board's own content ever changes for unrelated reasons later), `GameBoard.tsx` now
+holds a `ResizeObserver` on the player's actual board box (the bordered container
+itself, not the full-width row wrapper around it - those are different elements,
+and measuring the wrong one would have given the old full-page width right back).
+That live-measured width is passed down as Hand's `min-width`. Hand can still grow
+past it for a large hand; it just never reads narrower than the board above it.
+
+**Verified**: clean `tsc`/`eslint`/build, the AI test suite, and a fresh 72-game
+simulation - pure layout, no gameplay logic touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

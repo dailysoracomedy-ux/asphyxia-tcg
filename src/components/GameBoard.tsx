@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
@@ -44,6 +44,22 @@ export default function GameBoard() {
   const [logOpen, setLogOpen] = useState(false);
   const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
   const [voidInspecting, setVoidInspecting] = useState<PlayerId | null>(null);
+  // Hand's container uses this as its min-width, so it never reads narrower than
+  // the board itself, but can still grow past it for a large hand. Measured live
+  // (not a guessed constant) so it can never silently drift out of sync if the
+  // board's own width changes for some other reason later.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [boardWidth, setBoardWidth] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (!boardRef.current) return;
+    const el = boardRef.current;
+    const observer = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setBoardWidth(w);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const recentMoves = state.log.slice(-4);
 
   // Draw Phase is automatic: resolve the draw itself, then move straight to Main Phase,
@@ -495,6 +511,7 @@ export default function GameBoard() {
           supportDisabled={bottomIsActingPlayer ? () => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle' : () => true}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Field' })}
           onOpenVoid={() => setVoidInspecting(viewerBottomId)}
+          containerRef={boardRef}
         />
       </div>
 
@@ -708,6 +725,7 @@ export default function GameBoard() {
           onSelect={state.phase === 'Main' && bottomIsActingPlayer && !aiIsActing ? selectHandCard : undefined}
           disabledIds={handDisabledIds}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Hand' })}
+          minWidth={boardWidth}
         />
       </div>
 

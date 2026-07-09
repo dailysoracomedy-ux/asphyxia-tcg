@@ -32,6 +32,10 @@ interface PlayerBoardProps {
    *  centered stats bar, and Deck/Void moved to visual stacks on the board itself,
    *  so this component no longer owns any of that display on its own. */
   onOpenVoid?: () => void;
+  /** Optional ref attached to the board's own bordered box (not the row wrapper
+   *  around it) - used by GameBoard to measure its actual content width, e.g. so
+   *  Hand's container can use it as a minimum width. */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /** Compact identity chip - just Faction name and Hand count now; O2/Momentum moved
@@ -70,12 +74,14 @@ export default function PlayerBoard({
   selectedSupportId,
   onInspectCard,
   onOpenVoid,
+  containerRef,
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
 
   return (
     <div
+      ref={containerRef}
       className="rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto"
       style={{ borderColor: `${theme.border}55`, background: '#05050a' }}
     >
