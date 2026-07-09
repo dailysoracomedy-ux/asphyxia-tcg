@@ -1372,6 +1372,57 @@ instant it's played and there's no persistent element left to highlight by then.
 destruction, overflow, response windows, and AI decisions are all byte-for-byte
 unchanged. Clean `tsc`/`eslint`/build.
 
+## Commit 23.1 hotfix: the game-breaking crash right after Apex selection
+
+**This was a real bug I introduced in Commit 23, and it was serious** - a hard
+crash on essentially every game, right at the transition into the main board.
+
+**Root cause**: `useApexVisualEvents`/`usePlayerVisualEvents` in
+`animationStore.ts` used inline selectors (`(s) => s.events.filter(...)`) that
+return a brand-new array on every single call. React's `useSyncExternalStore`
+(what Zustand v5 uses internally) explicitly warns about this pattern, and it can
+escalate into an actual **"Maximum update depth exceeded"** crash - which unmounts
+the whole React tree and shows exactly as a blank, un-retriable page. Every Apex on
+the board and both players' O2 displays used this pattern, which is why it fired
+essentially immediately once the main board rendered for the first time.
+
+**Why none of the existing 390+ checks caught this before shipping**: every single
+test in this suite - all 16 files, the simulation, everything - drives the Zustand
+game-state store directly from Node and never once renders React. That's a real,
+meaningful gap I hadn't previously had a reason to notice, and Commit 23 is exactly
+the kind of change (new hooks subscribing to a new store, used across many
+components) that a pure-logic test suite structurally cannot catch.
+
+**How this got found and confirmed, not just guessed at**: a static SSR check
+(`renderToStaticMarkup`) came back misleadingly clean at first, then produced an
+empty render for an unrelated harness reason (module resolution mismatch in the
+throwaway repro script, not a real bug) - both false leads I ruled out rather than
+chased. What actually reproduced it was mounting the real component tree in jsdom
+with `react-dom/client`'s `createRoot` (not static SSR, which skips `useEffect` and
+so would have missed this too) and watching `console.error` during mount. That
+surfaced the exact warning, which pointed straight at the cause.
+
+**Fix**: wrapped both selectors in `useShallow` from `zustand/react/shallow`, which
+keeps the same array reference whenever the filtered contents haven't actually
+changed, satisfying `useSyncExternalStore`'s caching requirement.
+
+**I didn't just fix it and move on - I verified the fix was the actual fix**, by
+temporarily reverting it and confirming the exact same crash reproduces on demand,
+then restoring it and confirming it's gone. Both runs are in the commit history of
+this session, not just asserted.
+
+**Added a permanent regression test**: `test-react-mount-smoke.ts`, using the same
+jsdom + `createRoot` approach that found this bug, now part of the standing test
+suite - mounts the real board after Apex selection, advances through Draw → Main →
+Combat, and fails loudly on any thrown error or unexpected `console.error`
+(explicitly checking for this exact "Maximum update depth" / "getSnapshot should be
+cached" pattern by name, so this specific class of bug can't silently return).
+`jsdom`/`@types/jsdom` added as proper dev dependencies to support it.
+
+**Verified**: full regression suite (395+ checks across 17 files, including the new
+mount smoke test) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 /**
  * Transient, UI-only visual events - deliberately a SEPARATE store from the main
@@ -54,12 +55,18 @@ export const useAnimationStore = create<AnimationStoreState>((set) => ({
   },
 }));
 
-/** Convenience read hook - all currently-active events for a specific Apex. */
+/** Convenience read hook - all currently-active events for a specific Apex.
+ *  Wrapped in useShallow: without it, the inline .filter() below returns a brand
+ *  new array reference on every single call, which React's useSyncExternalStore
+ *  (what Zustand v5 uses internally) explicitly warns about and can escalate into
+ *  an actual "Maximum update depth exceeded" crash - this is what was actually
+ *  happening, confirmed by reproducing it, not assumed. useShallow keeps the same
+ *  array reference whenever the filtered contents haven't actually changed. */
 export function useApexVisualEvents(apexInstanceId: string): VisualEvent[] {
-  return useAnimationStore((s) => s.events.filter((e) => e.apexInstanceId === apexInstanceId));
+  return useAnimationStore(useShallow((s) => s.events.filter((e) => e.apexInstanceId === apexInstanceId)));
 }
 
 /** Convenience read hook - all currently-active events for a specific player's O2/Momentum area. */
 export function usePlayerVisualEvents(playerId: string): VisualEvent[] {
-  return useAnimationStore((s) => s.events.filter((e) => e.playerId === playerId && !e.apexInstanceId));
+  return useAnimationStore(useShallow((s) => s.events.filter((e) => e.playerId === playerId && !e.apexInstanceId)));
 }
