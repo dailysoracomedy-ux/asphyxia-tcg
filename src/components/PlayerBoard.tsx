@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport, MAX_MOMENTUM } from '@/game/rules';
+import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
 import Card from './Card';
 import EquipFlap from './EquipFlap';
+import DeckVoidStack from './DeckVoidStack';
 import { factionTheme } from '@/lib/theme';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
 
@@ -28,23 +28,19 @@ interface PlayerBoardProps {
   selectedApexId?: string | null;
   selectedSupportId?: string | null;
   onInspectCard?: (instance: CardInstance) => void;
+  /** Opens the full Void inspection modal - O2/Momentum moved to the shared
+   *  centered stats bar, and Deck/Void moved to visual stacks on the board itself,
+   *  so this component no longer owns any of that display on its own. */
+  onOpenVoid?: () => void;
 }
 
-/** Compact single-line player status chips - O2/MOM/DECK/VOID/HAND - meant for the
- *  top status bar so the board rows below only need to show Apex/Support slots. */
-export function PlayerStatusChips({
-  state,
-  playerId,
-  onInspectCard,
-}: {
-  state: GameState;
-  playerId: PlayerId;
-  onInspectCard?: (instance: CardInstance) => void;
-}) {
+/** Compact identity chip - just Faction name and Hand count now; O2/Momentum moved
+ *  to the shared centered SharedStatsBar, and Deck/Void moved to DeckVoidStack
+ *  visuals on the board rows themselves. */
+export function PlayerStatusChips({ state, playerId }: { state: GameState; playerId: PlayerId }) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
-  const [voidOpen, setVoidOpen] = useState(false);
 
   return (
     <div className="relative flex items-center gap-2 text-[11px] font-mono flex-wrap">
@@ -55,37 +51,8 @@ export function PlayerStatusChips({
         {player.faction}
         {isActive ? ' ◂' : ''}
       </span>
-      <Stat label="O2" value={player.o2} colorClass="text-sky-300" danger={player.o2 <= 4} />
-      <Stat label="MOM" value={`${player.momentum}/${MAX_MOMENTUM}`} colorClass="text-yellow-300" />
-      <Stat label="DECK" value={player.deck.length} colorClass="text-white/50" />
-      <button type="button" onClick={() => setVoidOpen((v) => !v)} className="hover:opacity-80">
-        <Stat label="VOID" value={player.voidZone.length} colorClass="text-white/50" />
-      </button>
       <Stat label="HAND" value={player.hand.length} colorClass="text-white/50" />
       {state.phase === 'Combat' && isActive && <Stat label="SYNC" value={player.availableSync} colorClass="text-fuchsia-300" />}
-      {voidOpen && (
-        <div className="absolute top-full left-0 mt-1 z-20 w-56 rounded border border-white/15 bg-black/90 p-2 text-[10px] max-h-40 overflow-y-auto">
-          {player.voidZone.length === 0 ? (
-            <div className="text-white/40 italic">Void is empty.</div>
-          ) : (
-            <div className="space-y-0.5">
-              {[...player.voidZone].reverse().map((c, i) => {
-                const d = getCardDef(c.defId);
-                return (
-                  <button
-                    type="button"
-                    key={`${c.instanceId}-${i}`}
-                    onClick={() => onInspectCard?.(c)}
-                    className="block w-full text-left truncate text-white/70 hover:text-white hover:bg-white/5 rounded px-0.5"
-                  >
-                    {d.name} <span className="text-white/40">({d.type}{d.faction ? `, ${d.faction}` : ''})</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -102,6 +69,7 @@ export default function PlayerBoard({
   selectedApexId,
   selectedSupportId,
   onInspectCard,
+  onOpenVoid,
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
@@ -109,25 +77,34 @@ export default function PlayerBoard({
   return (
     <div
       className="rounded-lg border p-1.5 scanlines min-h-0 flex flex-col"
-      style={{ borderColor: `${theme.border}55`, background: 'rgba(5,5,12,0.55)' }}
+      style={{ borderColor: `${theme.border}55`, background: '#05050a' }}
     >
       <div
         className="flex-1 min-h-0 grid gap-3"
         style={{ gridTemplateColumns: '1fr auto 1fr', alignItems: flipped ? 'end' : 'start' }}
       >
-        <div className={`flex gap-1.5 row-start-1 ${flipped ? 'col-start-1 justify-end' : 'col-start-3 justify-start'}`}>
-          {player.supportSlots.map((support, i) => (
-            <SupportSlot
-              key={i}
-              support={support}
-              state={state}
-              playerId={playerId}
-              onClick={onSupportClick}
-              disabled={support ? supportDisabled?.(support.instanceId) : false}
-              selected={support ? selectedSupportId === support.instanceId : false}
-              onInspect={onInspectCard}
-            />
-          ))}
+        <div className={`flex gap-3 items-start row-start-1 col-start-1 ${flipped ? 'justify-end' : 'justify-start'}`}>
+          {flipped ? (
+            <div className="flex gap-1.5">
+              {player.supportSlots.map((support, i) => (
+                <SupportSlot
+                  key={i}
+                  support={support}
+                  state={state}
+                  playerId={playerId}
+                  onClick={onSupportClick}
+                  disabled={support ? supportDisabled?.(support.instanceId) : false}
+                  selected={support ? selectedSupportId === support.instanceId : false}
+                  onInspect={onInspectCard}
+                />
+              ))}
+            </div>
+          ) : (
+            <>
+              <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
+              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} />
+            </>
+          )}
         </div>
         <div className="flex gap-1.5 row-start-1 col-start-2 justify-self-center">
           {player.apexSlots.map((apex, i) => (
@@ -143,6 +120,29 @@ export default function PlayerBoard({
               onInspect={onInspectCard}
             />
           ))}
+        </div>
+        <div className={`flex gap-3 items-start row-start-1 col-start-3 ${flipped ? 'justify-end' : 'justify-start'}`}>
+          {flipped ? (
+            <>
+              <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
+              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} />
+            </>
+          ) : (
+            <div className="flex gap-1.5">
+              {player.supportSlots.map((support, i) => (
+                <SupportSlot
+                  key={i}
+                  support={support}
+                  state={state}
+                  playerId={playerId}
+                  onClick={onSupportClick}
+                  disabled={support ? supportDisabled?.(support.instanceId) : false}
+                  selected={support ? selectedSupportId === support.instanceId : false}
+                  onInspect={onInspectCard}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

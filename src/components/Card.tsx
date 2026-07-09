@@ -90,12 +90,12 @@ export default function Card({
     ) : null;
 
   if (faceDown) {
+    const fdW = size === 'sm' ? 64 : 92;
+    const fdH = size === 'sm' ? 90 : 128;
     return (
-      <div
-        className="rounded-md border border-cyan-900 bg-[repeating-linear-gradient(45deg,#0a0a12,#0a0a12_6px,#101018_6px,#101018_12px)] flex items-center justify-center text-cyan-800 text-[10px] tracking-widest"
-        style={{ width: size === 'sm' ? 64 : 92, height: size === 'sm' ? 90 : 128 }}
-      >
-        ASPHYXIA
+      <div className="rounded-md border border-cyan-900 overflow-hidden" style={{ width: fdW, height: fdH }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/art/card-back.webp" alt="" className="w-full h-full object-cover" draggable={false} />
       </div>
     );
   }

@@ -28,7 +28,7 @@ export default function GameLog({ log }: { log: LogEntry[] }) {
   }, [log.length]);
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/60 p-2 h-full flex flex-col">
+    <div className="rounded-lg border border-white/10 bg-[#05050a] p-2 h-full flex flex-col">
       <div className="text-[10px] uppercase tracking-widest text-white/40 mb-1 shrink-0">Game Log</div>
       <div className="flex-1 overflow-y-auto text-[11px] leading-snug space-y-0.5 font-mono pr-1">
         {log.map((entry) => (

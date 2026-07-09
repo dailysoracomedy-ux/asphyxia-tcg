@@ -29,14 +29,14 @@ export default function CombatControls({
 }: CombatControlsProps) {
   if (!apexDef) {
     return (
-      <div className="rounded-lg border border-orange-500/30 bg-black/50 p-3 text-xs text-white/40">
+      <div className="rounded-lg border border-orange-500/30 bg-[#05050a] p-3 text-xs text-white/40">
         Select one of your Apexes above to attack with it.
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-orange-500/40 bg-black/50 p-3">
+    <div className="rounded-lg border border-orange-500/40 bg-[#05050a] p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-bold text-orange-300">{apexDef.name} — choose an attack</div>
         <button type="button" onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80">
@@ -136,7 +136,7 @@ function OutcomePreviewList({
     const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId);
     if (!preview) return null;
     return (
-      <div className="rounded border border-yellow-400/30 bg-black/40 p-2 text-[10px] space-y-0.5">
+      <div className="rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
         <div className="font-bold text-yellow-200">Direct O2 attack</div>
         <div>Final damage: {preview.finalDamage}</div>
         <div>Expected O2 loss: {preview.o2Loss}</div>
@@ -152,7 +152,7 @@ function OutcomePreviewList({
         const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId, apex.instanceId);
         if (!preview) return null;
         return (
-          <div key={apex.instanceId} className="rounded border border-yellow-400/30 bg-black/40 p-2 text-[10px] space-y-0.5">
+          <div key={apex.instanceId} className="rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
             <div className="font-bold text-yellow-200">vs {name}</div>
             <div>
               Final damage: {preview.finalDamage} · Target DEF: {preview.targetDef}

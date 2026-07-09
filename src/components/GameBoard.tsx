@@ -12,6 +12,8 @@ import CombatControls from './CombatControls';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
+import VoidInspectModal from './VoidInspectModal';
+import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
 import { aiPlayOneMainPhaseAction, aiPlayOneCombatAction, aiDecideControlConflict, aiChooseBinaryRiftBonus, aiChooseResponse } from '@/game/ai';
@@ -39,6 +41,7 @@ export default function GameBoard() {
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [logOpen, setLogOpen] = useState(false);
   const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
+  const [voidInspecting, setVoidInspecting] = useState<PlayerId | null>(null);
   const recentMoves = state.log.slice(-4);
 
   // Draw Phase is automatic: resolve the draw itself, then move straight to Main Phase,
@@ -354,14 +357,14 @@ export default function GameBoard() {
 
   return (
     <div
-      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1400px] mx-auto w-full"
+      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1800px] mx-auto w-full"
       style={{ gridTemplateRows: 'auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
 
       {/* Row 1: top status bar - both players' compact chips + turn/phase + Battle Log */}
-      <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <PlayerStatusChips state={state} playerId={viewerTopId} onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Void' })} />
+      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <PlayerStatusChips state={state} playerId={viewerTopId} />
         <div className="flex items-center gap-3 text-[11px] text-white/50 shrink-0">
           <span>
             Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
@@ -386,7 +389,7 @@ export default function GameBoard() {
             Reset
           </button>
         </div>
-        <PlayerStatusChips state={state} playerId={viewerBottomId} onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Void' })} />
+        <PlayerStatusChips state={state} playerId={viewerBottomId} />
       </div>
 
       {/* Row 2: opponent board */}
@@ -398,15 +401,17 @@ export default function GameBoard() {
           onApexClick={oppApexClick}
           apexHighlight={oppApexHighlight}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Field' })}
+          onOpenVoid={() => setVoidInspecting(viewerTopId)}
         />
       </div>
 
       {/* Row 3: Rift / prompt / action-context area - compact, only as tall as its content needs */}
       <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
+        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} />
         <RiftPanel rift={state.riftSpace} />
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
-          <div className="rounded-lg border border-blue-400/30 bg-black/50 px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
+          <div className="rounded-lg border border-blue-400/30 bg-[#05050a] px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
             <span className="text-blue-300 shrink-0">Control Conflict - lock a Support for +1 Momentum?</span>
             {activePlayer.supportSlots.filter(Boolean).map((s) => (
               <button type="button"
@@ -457,12 +462,13 @@ export default function GameBoard() {
           selectedSupportId={mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain' ? mode.returnId : null}
           supportDisabled={bottomIsActingPlayer ? () => mode.kind !== 'reconfigureReturn' && mode.kind !== 'idle' : () => true}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerBottomId, zone: 'Field' })}
+          onOpenVoid={() => setVoidInspecting(viewerBottomId)}
         />
       </div>
 
       {/* Row 5: action feed - a real layout row (not an overlay), so it can never cover
           the board. Shows recent moves, updating live, rather than a transient popup. */}
-      <div className="shrink-0 rounded-lg border border-white/10 bg-black/40 px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
+      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
         <span className="uppercase tracking-widest text-white/30 shrink-0">Recent:</span>
         <div className="flex overflow-hidden whitespace-nowrap">
           {[...recentMoves].reverse().map((entry, i) => (
@@ -477,7 +483,8 @@ export default function GameBoard() {
 
       {/* Row 6: hand + phase controls - always visible, fixed bottom area */}
       <div className="shrink-0 flex flex-col gap-1.5">
-        <div className="rounded-lg border border-white/10 bg-black/50 px-2 py-1.5 flex items-center gap-2 flex-wrap">
+        <div className="mx-auto w-full max-w-md flex flex-col gap-1.5">
+        <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
           {state.phase === 'Start' && (
             <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
           )}
@@ -505,8 +512,8 @@ export default function GameBoard() {
         </div>
 
         {state.phase === 'Main' && !aiIsActing && (
-          <div className="rounded-lg border border-teal-500/30 bg-black/50 p-1.5 text-[11px]">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div className="rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
               <button type="button"
                 disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
                 onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
@@ -562,6 +569,7 @@ export default function GameBoard() {
             )}
           </div>
         )}
+        </div>
 
         {mode.kind === 'apexReady' && (
           <ConfirmBar
@@ -653,6 +661,15 @@ export default function GameBoard() {
           ownerId={inspected.ownerId}
           zone={inspected.zone}
           onClose={() => setInspected(null)}
+        />
+      )}
+
+      {voidInspecting && (
+        <VoidInspectModal
+          faction={state.players[voidInspecting].faction}
+          cards={state.players[voidInspecting].voidZone}
+          onClose={() => setVoidInspecting(null)}
+          onInspectCard={(instance) => setInspected({ instance, ownerId: voidInspecting, zone: 'Void' })}
         />
       )}
 
@@ -797,7 +814,7 @@ function OpeningApexScreen() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-black/70 p-6">
+      <div className="max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-[#05050a] p-6">
         <div className="text-center mb-4">
           <div className="text-[11px] uppercase tracking-widest text-white/40">Opening Hand — choose your starting Apex</div>
           <div className="text-xl font-bold text-cyan-300">

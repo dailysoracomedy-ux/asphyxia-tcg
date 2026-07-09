@@ -7,7 +7,7 @@ export default function RiftPanel({ rift }: { rift: RiftSpace | null }) {
   const [expanded, setExpanded] = useState(false);
   if (!rift) return null;
   return (
-    <div className="rounded-lg border border-fuchsia-500/40 bg-black/60 px-3 py-1 text-[11px] shrink-0">
+    <div className="rounded-lg border border-fuchsia-500/40 bg-[#05050a] px-3 py-1 text-[11px] shrink-0">
       <div className="flex items-center gap-2">
         <span className="uppercase tracking-widest text-fuchsia-300/70 shrink-0">Rift:</span>
         <span className="font-bold text-fuchsia-200 shrink-0">{rift.name}</span>
