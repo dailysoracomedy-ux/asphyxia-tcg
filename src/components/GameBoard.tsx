@@ -440,80 +440,6 @@ export default function GameBoard() {
             awaitingTarget={mode.kind === 'attackAwaitingTarget'}
           />
         )}
-
-        {mode.kind === 'apexReady' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
-            onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
-          />
-        )}
-        {mode.kind === 'supportReady' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — play into an empty Support slot?`}
-            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
-          />
-        )}
-        {mode.kind === 'supportChooseChain' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — click one of your Apexes above to chain it, or play it unchained as a vanilla Sync source.`}
-            confirmLabel="Play Unchained"
-            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
-          />
-        )}
-        {mode.kind === 'rechainSelectApex' && (
-          <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
-        )}
-        {mode.kind === 'overdrivePrompt' && (
-          <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs flex-wrap">
-            <span className="text-yellow-200">
-              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
-            </span>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
-                  resetMode();
-                }}
-                className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
-              >
-                Spend 1 Momentum
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
-                  resetMode();
-                }}
-                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
-              >
-                Skip
-              </button>
-            </div>
-          </div>
-        )}
-        {mode.kind === 'equipReady' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Equip'} — click one of your Apexes above (without an Equip) to attach this.`}
-            onCancel={resetMode}
-          />
-        )}
-        {mode.kind === 'specialReady' && !mode.requiresTarget && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — play it now?`}
-            onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
-          />
-        )}
-        {mode.kind === 'specialReady' && mode.requiresTarget && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — click a valid target (${mode.requiresTarget}) above.`}
-            onCancel={resetMode}
-          />
-        )}
       </div>
 
       {/* Row 4: player board */}
@@ -635,6 +561,80 @@ export default function GameBoard() {
               <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
             )}
           </div>
+        )}
+
+        {mode.kind === 'apexReady' && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
+            onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'supportReady' && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — play into an empty Support slot?`}
+            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'supportChooseChain' && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — click one of your Apexes above to chain it, or play it unchained as a vanilla Sync source.`}
+            confirmLabel="Play Unchained"
+            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'rechainSelectApex' && (
+          <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
+        )}
+        {mode.kind === 'overdrivePrompt' && (
+          <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs flex-wrap">
+            <span className="text-yellow-200">
+              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
+            </span>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
+                  resetMode();
+                }}
+                className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
+              >
+                Spend 1 Momentum
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
+                  resetMode();
+                }}
+                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+        {mode.kind === 'equipReady' && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Equip'} — click one of your Apexes above (without an Equip) to attach this.`}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'specialReady' && !mode.requiresTarget && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — play it now?`}
+            onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
+            onCancel={resetMode}
+          />
+        )}
+        {mode.kind === 'specialReady' && mode.requiresTarget && (
+          <ConfirmBar
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — click a valid target (${mode.requiresTarget}) above.`}
+            onCancel={resetMode}
+          />
         )}
 
         <Hand

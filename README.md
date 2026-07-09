@@ -1044,6 +1044,32 @@ which compresses this kind of painterly/photographic art far better than PNG doe
 Total art footprint: 6MB, down from 109MB, with no visible quality loss at any
 in-game display size.
 
+## Commit 20.1: Confirm bar relocated, background art added
+
+**Confirm bar moved down.** The "Selected: X — play/equip/chain?" prompt (and
+everything that shares its slot - the Overdrive prompt, target-selection hints)
+lived in the rift/prompt row near the top of the board, meaning every card
+play required a full mouse trip from the hand up to that row and back down.
+Relocated to sit directly above the hand, right where Commit 18.2 already moved
+the Reconfigure panel for the same reason - same pattern, same justification,
+just extended to cover the rest of the prompts that hadn't gotten the same
+treatment yet.
+
+**Background art added.** The uploaded cityscape now sits behind the whole app
+(`html`/`body`, via `globals.css`) - `background-size: cover`, fixed, with a dark
+gradient overlay (80-88% black) so it reads as atmosphere rather than competing
+with the UI's contrast, which the whole interface depends on for legibility.
+Compressed from 2.5MB PNG to a 184KB WebP first (same reasoning as Commit 20's art
+compression - no reason to ship a multi-megabyte background image when a fixed,
+covered background never needs anywhere near full source resolution). Shows through
+on both the main menu and in-game, since neither sets an opaque background of its
+own; the Developer gallery keeps its solid black background, since that's a dev
+tool rather than part of the game's presentation.
+
+**Verified**: clean `tsc`/`eslint`/build, plus a quick regression pass (AI test
+suite + 72-game simulation) - both pure presentation changes, no gameplay logic
+touched.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
