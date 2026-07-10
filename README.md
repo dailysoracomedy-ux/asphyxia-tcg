@@ -1477,6 +1477,54 @@ here rather than hidden so it's a known, tracked thing rather than a surprise.
 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. `jsdom`/
 `@types/jsdom` now proper dev dependencies, supporting both DOM-mount test files.
 
+## Commit 23.3: card-placement glow, ConfirmBar width, AI decisions hidden, Equip glow
+
+**Card-placement glow**: a ~1 second faction-colored border flash when an Apex or
+Engine is played onto the board (`vfx-place-glow`, new `CARD_PLACED` event type).
+Wired at both placement points (`playApexCard`, `playSupportCard`); Engines get
+their own lightweight wrapper in `SupportSlot` rather than reusing `ApexVfxOverlay`,
+since they don't need the full combat-event handling that component carries.
+
+**ConfirmBar no longer stretches full-width with a large gap.** Same root cause and
+fix as the Rift panel back in Commit 21.2: the bar used `justify-between` inside a
+container that stretched to the full phase-controls row width, pushing the text and
+buttons to opposite edges. Switched to `w-fit mx-auto`, matching the pattern already
+used for Rift/the board panel/Hand.
+
+**AI decisions no longer show any popup to the human, for real this time.** Traced
+this rather than patched blindly: `HotseatResponseGate`'s `needsPrivacy()` check
+only gated the hotseat "pass the screen" flow for `reactionChoice`/`negateWindow` -
+it never asked "does this decision even belong to the human" at all, for *any*
+stage. `civilWarChoice`/`humanErrorChoice` (the Rift choices actually reported)
+fell straight through to `return <ResponseModal state={state} />` unconditionally,
+regardless of which player it was for. In Vs AI mode, that meant the human saw a
+modal for a decision the AI was about to make on its own 600ms later. Fixed with a
+single upfront check covering all 4 response stages: if `state.vsAI` and the
+decision belongs to player2, render nothing - the AI driver resolves it in the
+background exactly as before, the human just sees the board pause briefly. Verified
+two ways: a logic test mirroring the exact gating condition (`test-ai-popup-
+hidden.ts`), and - since a mirrored check can pass even when the real component has
+a bug, which is exactly what 23.1/23.2 taught - a real jsdom mount of
+`HotseatResponseGate` itself confirming it renders nothing for an AI Rift choice.
+
+**Equip-attach glow**: the same `CARD_PLACED` glow now also fires on the Apex when
+an Equip attaches, whether via a fresh Equip play or an Equip Swap, and whether or
+not a response window opened first along the way (all 4 code paths where `apex
+.equip` actually gets set now emit it) - this flow had zero visual feedback before,
+despite Equip Swap being a real, fairly involved mechanic (Commit 22).
+
+**More animation ideas, not built this round, worth considering next**: a brief
+flash on Sync when it's spent for an attack (mirrors the existing O2/Momentum
+treatment); a subtle highlight on a freshly-drawn card during Draw Phase; a
+Reconfigure-specific glow distinct from the generic placement one, since returning
+a Support to hand and playing a new one in is a different feeling than a normal
+play. Flagging these rather than building all of them into one commit.
+
+**Verified**: full regression suite (420+ checks across 19 files, including the two
+new test files this commit added) and a fresh 72-game simulation both ran clean,
+plus clean `tsc`/`eslint`/build. The one flaky test remains exactly as documented in
+23.2 - unchanged, not newly introduced.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

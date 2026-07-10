@@ -18,7 +18,8 @@ export type VisualEventType =
   | 'OVERFLOW_DAMAGE'
   | 'REACT_PLAYED'
   | 'CARD_NEGATED'
-  | 'MOMENTUM_GAINED';
+  | 'MOMENTUM_GAINED'
+  | 'CARD_PLACED';
 
 export interface VisualEvent {
   id: string;

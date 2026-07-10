@@ -11,10 +11,13 @@ function needsPrivacy(item: PendingResponseItem): boolean {
   return item.stage === 'reactionChoice' || item.stage === 'negateWindow';
 }
 
-function respondingPlayerOf(item: PendingResponseItem): PlayerId | null {
+/** Which player this specific decision belongs to, across every possible stage -
+ *  used both for the existing hotseat privacy flow and (Commit 23.3) to decide
+ *  whether to show anything at all in Vs AI mode. */
+function respondingPlayerOf(item: PendingResponseItem): PlayerId {
   if (item.stage === 'reactionChoice') return item.respondingPlayerId;
   if (item.stage === 'negateWindow') return item.negatingPlayerId;
-  return null;
+  return item.playerId;
 }
 
 type GateMode = 'idle' | 'passingToResponder' | 'showingModal' | 'passingBackToActive';
@@ -25,13 +28,22 @@ export default function HotseatResponseGate({ state }: { state: GameState }) {
   const [snapshot, setSnapshot] = useState<{ responder: PlayerId; activePlayer: PlayerId } | null>(null);
   const [lastHandledId, setLastHandledId] = useState<string | null>(null);
 
+  // In Vs AI mode, any decision belonging to the AI (player2) should never show
+  // anything to the human at all - no pass-screen, no modal, for any of the 4
+  // response stages. The AI driver elsewhere resolves it on its own short delay;
+  // the human just sees the board pause briefly, same as any other "AI is
+  // thinking" moment, and then the result lands in the Battle Log as normal.
+  if (item && state.vsAI && respondingPlayerOf(item) === 'player2') {
+    return null;
+  }
+
   // Adjust state during render (React's recommended pattern for "start a new cycle when a new
   // qualifying item shows up") rather than in a useEffect, to avoid an extra render pass.
   // Only starts a fresh privacy cycle when we're not already mid-flow, which is what lets the
   // "pass back to active player" step stick around even after the queue drains to empty.
   if (mode === 'idle' && item && needsPrivacy(item) && item.id !== lastHandledId) {
     setLastHandledId(item.id);
-    setSnapshot({ responder: respondingPlayerOf(item)!, activePlayer: state.activePlayerId });
+    setSnapshot({ responder: respondingPlayerOf(item), activePlayer: state.activePlayerId });
     setMode('passingToResponder');
   }
 

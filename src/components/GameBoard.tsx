@@ -847,7 +847,7 @@ function ConfirmBar({
   confirmLabel?: string;
 }) {
   return (
-    <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs">
+    <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center gap-4 text-xs w-fit max-w-full mx-auto">
       <span className="text-yellow-200">{text}</span>
       <div className="flex gap-2 shrink-0">
         {onConfirm && (

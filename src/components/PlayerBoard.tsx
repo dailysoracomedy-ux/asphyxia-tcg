@@ -319,11 +319,16 @@ function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId:
     ? 'vfx-hit-flash'
     : events.some((e) => e.type === 'ATTACK_DECLARED')
     ? 'vfx-attack-pulse'
+    : events.some((e) => e.type === 'CARD_PLACED')
+    ? 'vfx-place-glow'
     : '';
   const popups = events.filter((e) => e.label);
 
   return (
-    <div className={`relative ${vfxClass}`} style={{ ['--react-glow-color' as string]: `${theme.primary}cc` }}>
+    <div
+      className={`relative ${vfxClass}`}
+      style={{ ['--react-glow-color' as string]: `${theme.primary}cc`, ['--place-glow-color' as string]: `${theme.primary}dd` }}
+    >
       {children}
       {popups.map((p) => (
         <div
@@ -355,6 +360,11 @@ function SupportSlot({
   selected?: boolean;
   onInspect?: (instance: CardInstance) => void;
 }) {
+  // Hooks must run unconditionally on every render, so this is called before the
+  // early "empty slot" return below, with a fallback id that will just never match
+  // any real event when there's no support in this slot.
+  const placeEvents = useApexVisualEvents(support?.instanceId ?? '__none__').filter((e) => e.type === 'CARD_PLACED');
+
   if (!support) {
     const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
     return (
@@ -367,24 +377,31 @@ function SupportSlot({
     );
   }
   const chainLabel = getChainLabelForSupport(state, playerId, support.instanceId);
+  const supportDef = getCardDef(support.defId);
+  const placeTheme = factionTheme(supportDef.faction);
 
   return (
-    <Card
-      instance={support}
-      size="supportBoard"
-      compact
-      onClick={onClick ? () => onClick(support.instanceId) : undefined}
-      onInspect={onInspect ? () => onInspect(support) : undefined}
-      disabled={disabled}
-      selected={selected}
-      footer={
-        <div className="mt-0.5 text-[7.5px] leading-tight opacity-80 space-y-0.5">
-          {chainLabel && (
-            <div className={chainLabel === 'Unchained' ? 'text-red-300' : 'text-emerald-300'}>{chainLabel}</div>
-          )}
-          {support.lockedByControlConflict && <div className="text-blue-300">LOCKED</div>}
-        </div>
-      }
-    />
+    <div
+      className={placeEvents.length > 0 ? 'vfx-place-glow rounded-md' : ''}
+      style={placeEvents.length > 0 ? { ['--place-glow-color' as string]: `${placeTheme.primary}dd` } : undefined}
+    >
+      <Card
+        instance={support}
+        size="supportBoard"
+        compact
+        onClick={onClick ? () => onClick(support.instanceId) : undefined}
+        onInspect={onInspect ? () => onInspect(support) : undefined}
+        disabled={disabled}
+        selected={selected}
+        footer={
+          <div className="mt-0.5 text-[7.5px] leading-tight opacity-80 space-y-0.5">
+            {chainLabel && (
+              <div className={chainLabel === 'Unchained' ? 'text-red-300' : 'text-emerald-300'}>{chainLabel}</div>
+            )}
+            {support.lockedByControlConflict && <div className="text-blue-300">LOCKED</div>}
+          </div>
+        }
+      />
+    </div>
   );
 }
