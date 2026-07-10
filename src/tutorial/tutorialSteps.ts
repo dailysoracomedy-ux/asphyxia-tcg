@@ -41,7 +41,12 @@ export const TUTORIAL_PACING_MULTIPLIER = 2.6;
 export interface TutorialStep {
   id: string;
   title: string;
-  text: string;
+  /** Either a fixed string, or a function of live state - used specifically by
+   *  the two "attack the enemy Apex" steps, whose text would otherwise be wrong
+   *  whenever the opponent doesn't currently have an Apex in play (a real,
+   *  reported scenario - the opponent isn't fully scripted, so this can and does
+   *  happen; the attack becomes a direct O2 hit instead of a targeted one). */
+  text: string | ((state: GameState) => string);
   requiredAction: RequiredAction;
   /** What to visually highlight while this step is active - read by
    *  useTutorialHighlight() in the relevant components. */
@@ -109,7 +114,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'attack-target',
     title: 'Attack the enemy Apex',
-    text: 'Choose the enemy Apex as your target. Damage is compared to their DEF - if it meets or exceeds it, the Apex is destroyed.',
+    text: (s) =>
+      s.players.player2.apexSlots.some(Boolean)
+        ? 'Choose the enemy Apex as your target. Damage is compared to their DEF - if it meets or exceeds it, the Apex is destroyed.'
+        : 'The opponent has no Apex in play right now, so this attack will hit their O2 directly instead - go ahead and declare it.',
     requiredAction: { type: 'selectEnemyTarget' },
     highlight: { kind: 'enemyApex' },
     autoAdvanceWhen: (s) => s.players.player1.apexSlots.some((a) => a?.hasAttacked),
@@ -169,9 +177,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'buffed-attack-target',
     title: 'Finish the target',
-    text: 'Choose the enemy Apex. Watch the overflow O2 damage - that\u2019s how you pressure an opponent toward 0.',
+    text: (s) =>
+      s.players.player2.apexSlots.some(Boolean)
+        ? 'Choose the enemy Apex. Watch the overflow O2 damage - that\u2019s how you pressure an opponent toward 0.'
+        : 'The opponent has no Apex in play right now, so this attack will hit their O2 directly instead - go ahead and declare it.',
     requiredAction: { type: 'selectEnemyTarget' },
     highlight: { kind: 'enemyApex' },
+    // The actual Step 13 fix: without this, a direct O2 hit (which happens
+    // automatically and skips target-selection entirely whenever the opponent
+    // has no Apex - see chooseAttack in GameBoard.tsx) had no way to ever
+    // satisfy this step's requiredAction, since selectEnemyTarget gating only
+    // ever fires from the target-selection path, which a direct hit never
+    // enters. Reported directly: "I can't attack with buffed Apex... can't
+    // proceed from there."
+    autoAdvanceWhen: (s) => s.players.player1.apexSlots.some((a) => a?.hasAttacked),
   },
   {
     id: 'react-window',

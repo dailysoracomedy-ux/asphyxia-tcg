@@ -2,6 +2,7 @@
 
 import type { CardInstance, Faction, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
+import { useGameStore } from '@/store/gameStore';
 import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport, findApexAnywhere } from '@/game/rules';
 import Card from './Card';
 import EquipFlap from './EquipFlap';
@@ -325,6 +326,7 @@ function ApexVfxOverlay({
 }) {
   const events = useApexVisualEvents(apexInstanceId);
   const theme = factionTheme(faction);
+  const tutorialMode = useGameStore((s) => s.tutorialMode);
   const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
     ? 'vfx-destroy-shake'
     : events.some((e) => e.type === 'CARD_HIT')
@@ -340,7 +342,7 @@ function ApexVfxOverlay({
 
   return (
     <div
-      className={`relative ${vfxClass} ${spotlight ? 'tutorial-spotlight' : ''}`}
+      className={`relative ${vfxClass} ${spotlight ? 'tutorial-spotlight' : tutorialMode ? 'tutorial-stay-bright' : ''}`}
       style={{
         ['--react-glow-color' as string]: `${theme.primary}cc`,
         ['--place-glow-color' as string]: `${theme.primary}dd`,
@@ -450,7 +452,7 @@ function SupportSlot({
 
   return (
     <div
-      className={`rounded-md ${vfxClass}`}
+      className={`rounded-md ${vfxClass} ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
       style={{
         ['--place-glow-color' as string]: `${placeTheme.primary}dd`,
         ['--engine-pulse-color' as string]: `${placeTheme.primary}cc`,

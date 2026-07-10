@@ -2101,6 +2101,75 @@ and a fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build.
 The one previously-documented flaky test (23.2) flaked again in this run's batch
 sweep, unchanged and consistent with the prior finding.
 
+## Commit 29.6: Equip view unblocked for real, cards-in-play stay bright, the actual Step 13 bug
+
+**The phasePrompt kept squeezing the Equip flap, even after 29.5.** 29.5 removed
+a different, redundant box; the phasePrompt itself was still living in Row 5,
+directly between the two boards - exactly where vertical space is tightest.
+Moved it out entirely, into Row 1's fixed-height top bar instead (hidden on
+narrow viewports where horizontal room is tight) - that row never competes with
+the board's own vertical space the way Row 5 did, so it can't squeeze anything
+again regardless of how long the text gets.
+
+**Cards already in play now stay visibly bright during a tutorial match.** The
+dim overlay from 29.4 darkened *everything* except the one current target -
+including board state the player needs to actually see and understand, on both
+sides. New `tutorial-stay-bright` class (z-elevation, no glow - that's reserved
+for the actual spotlighted target) applied to every Apex and Engine already in
+play, automatically, whenever tutorial mode is active.
+
+**The real Step 13 bug, found by tracing it, not guessed at.** `buffed-attack-
+target` had no `autoAdvanceWhen` at all - the one thing that could have caught a
+direct O2 hit (which happens automatically and skips target-selection entirely
+whenever the opponent has no Apex, since the opponent isn't fully scripted and
+this is a real, common scenario) had nothing to detect it. Added the same
+`hasAttacked` check its sibling `attack-target` already had. While tracing this,
+also fixed the actual visible symptom - both attack-target steps' instruction
+text now adapts to whether an enemy Apex genuinely exists at that moment,
+instead of permanently saying "attack the enemy Apex" even when there isn't one
+to attack (exactly the confusion reported: "there is no Enemy Apex, it attacks
+their O2 directly").
+
+**Verified concretely, not just read**: checks confirm the fixed autoAdvanceWhen
+actually returns true only once the attack has genuinely happened (not
+prematurely), and that the adaptive text genuinely switches wording between the
+two real scenarios rather than just existing as a function. A real DOM mount
+confirms an already-played Apex carries the stay-bright class, and confirms the
+phase prompt now renders ahead of Row 1's Battle Log button rather than in its
+old spot between the boards.
+
+**Verified**: full regression suite (535+ checks across 28 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
+## Commit 29.6: Restart actually restarts the tutorial now
+
+**"Restart doesn't restart the tutorial at all. It restarts the tutorial MENU, not
+the whole thing."** - exactly right. `Restart` only ever called `setStep(0)`,
+resetting the panel's own step counter while leaving every real game state
+change so far - Apex played, Engine played, cards spent, hand contents, O2,
+Momentum - completely untouched. A player restarting mid-tutorial would see
+"Step 1: Play an Apex" text again, layered over a board that still showed
+whatever they'd already done.
+
+**Fix**: `Restart` now calls the exact same `startNewGame(...)` the tutorial uses
+to begin in the first place, re-enforcing the fixed Neon Underground vs Dark
+White matchup and the scripted opening hand regardless of what was on screen
+before, then resets the step counter - a genuinely fresh attempt, not a fresh
+label over stale state. Since `TutorialPanel` (and its Restart button) already
+renders alongside the win screen too, this same fix also covers restarting from
+a completed match, without needing a second, separate implementation there.
+
+**Verified**: mid-tutorial state (an Apex and an Engine already in play) is
+confirmed present before Restart, then confirmed genuinely gone afterward -
+along with the scripted hand being back in its Step 1 state, the turn counter
+back to 1, and the tutorial step counter back to 0. Full regression suite (530+
+checks across 28 files, one new this commit) and a fresh 72-game simulation both
+ran clean, plus clean `tsc`/`eslint`/build. The one previously-documented flaky
+test (23.2) flaked again in this run's batch sweep, unchanged and consistent
+with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

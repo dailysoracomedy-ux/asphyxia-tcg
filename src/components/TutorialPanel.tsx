@@ -58,6 +58,7 @@ export default function TutorialPanel() {
 
   if (!current) return null;
   const isPassiveStep = current.requiredAction.type === 'ack';
+  const resolvedText = typeof current.text === 'function' ? current.text(state) : current.text;
   // Live sub-status for "watch" steps - just the most recent real log line,
   // computed directly during render (not stored/reactive state) so there's no
   // effect-based reset needed when the step changes.
@@ -78,7 +79,7 @@ export default function TutorialPanel() {
         </button>
       </div>
       <div className="text-base font-bold text-emerald-200 mb-1.5">{current.title}</div>
-      <div className="text-[12px] text-white/80 leading-relaxed mb-3">{current.text}</div>
+      <div className="text-[12px] text-white/80 leading-relaxed mb-3">{resolvedText}</div>
 
       {isWatchStep && (
         <div className="mb-3 px-2 py-1.5 rounded border border-white/10 bg-black/30 text-[11px] text-cyan-200 min-h-[28px] flex items-center">
@@ -95,7 +96,16 @@ export default function TutorialPanel() {
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => setStep(0)}
+          onClick={() => {
+            // Restart means a genuinely fresh tutorial match, not just resetting
+            // the step counter back to 0 while every actual game state change so
+            // far (Apex played, cards spent, Momentum, O2, hand contents) stays
+            // exactly as it was - a real reported bug where "Restart" showed
+            // Step 1's text again over a board that still reflected mid-tutorial
+            // progress, completely mismatched with what that step expects.
+            useGameStore.getState().startNewGame('Neon Underground', 'Dark White', false, false, true);
+            setStep(0);
+          }}
           className="px-2 py-1 rounded border border-white/15 text-[10px] text-white/50 hover:bg-white/10"
         >
           Restart

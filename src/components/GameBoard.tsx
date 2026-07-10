@@ -655,6 +655,7 @@ export default function GameBoard() {
           Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
           <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
         </span>
+        {phasePrompt && <span className="hidden lg:inline text-white/40 italic">{phasePrompt}</span>}
         <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
           <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
           debug
@@ -706,10 +707,6 @@ export default function GameBoard() {
 
       {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
       <div className={`shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
-
-        {phasePrompt && (
-          <div className="text-center text-[11px] text-white/50 shrink-0">{phasePrompt}</div>
-        )}
 
         {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
 
