@@ -90,7 +90,7 @@ html, body {
   100% { transform: scale(1); filter: brightness(1); }
 }
 .vfx-attack-pulse {
-  animation: attack-pulse 400ms ease-out;
+  animation: attack-pulse 550ms ease-out;
 }
 
 @keyframes hit-flash {
@@ -99,7 +99,7 @@ html, body {
   100% { filter: brightness(1) saturate(1); }
 }
 .vfx-hit-flash {
-  animation: hit-flash 400ms ease-out;
+  animation: hit-flash 550ms ease-out;
 }
 
 @keyframes destroy-shake {
@@ -111,7 +111,7 @@ html, body {
   100% { transform: translate(0, 0) rotate(0deg); opacity: 0; filter: brightness(1) contrast(1); }
 }
 .vfx-destroy-shake {
-  animation: destroy-shake 650ms ease-in-out forwards;
+  animation: destroy-shake 800ms ease-in-out forwards;
 }
 
 @keyframes overflow-flash {
@@ -169,6 +169,16 @@ html, body {
   animation: place-glow 1000ms ease-out;
 }
 
+@keyframes banner-in {
+  0% { opacity: 0; transform: translate(-50%, -10px) scale(0.96); }
+  10% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(0.98); }
+}
+.vfx-banner-in {
+  animation: banner-in 2600ms ease-in-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .active-board-glow,
   .vfx-attack-pulse,
@@ -181,6 +191,10 @@ html, body {
   .vfx-place-glow,
   .pulse-border {
     animation: none !important;
+  }
+  .vfx-banner-in {
+    animation: none !important;
+    opacity: 1 !important;
   }
   .active-board-glow {
     box-shadow: 0 0 0 2px var(--active-glow-color, transparent) !important;
