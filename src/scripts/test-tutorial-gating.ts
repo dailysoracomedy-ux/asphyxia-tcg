@@ -56,8 +56,21 @@ function check(label: string, cond: boolean) {
 }
 
 async function main() {
-  const { tutorialActionMatches } = await import('@/tutorial/tutorialGate');
+  const { tutorialActionMatches, tutorialActionNeedsExplicitAdvance } = await import('@/tutorial/tutorialGate');
   const { TUTORIAL_STEPS } = await import('@/tutorial/tutorialSteps');
+
+  // --- Step 5 fix: "click Street-Beast, attack menu opens, tutorial doesn't
+  //     advance" was a real reported bug - selectAttacker/chooseAttack only ever
+  //     change local UI mode, never anything in GameState, so a GameState-
+  //     watching autoAdvanceWhen has nothing to detect for them. ---
+  check('selectAttacker is flagged as needing explicit step-advancement (the actual Step 5 bug)', tutorialActionNeedsExplicitAdvance('selectAttacker'));
+  check('chooseAttack is flagged as needing explicit step-advancement (the same bug, one step later)', tutorialActionNeedsExplicitAdvance('chooseAttack'));
+  check('playApex is NOT flagged - it has a real GameState signal (apexSlots) and should never double-advance', !tutorialActionNeedsExplicitAdvance('playApex'));
+  const selectAttackerSteps = TUTORIAL_STEPS.filter((s) => s.requiredAction.type === 'selectAttacker' || s.requiredAction.type === 'chooseAttack');
+  check(
+    'every selectAttacker/chooseAttack step in the actual script genuinely has no autoAdvanceWhen (confirming the bug diagnosis, not just the fix)',
+    selectAttackerSteps.length > 0 && selectAttackerSteps.every((s) => !s.autoAdvanceWhen)
+  );
 
   // --- Core gating logic (the exact function every GameBoard.tsx handler calls) ---
   check(

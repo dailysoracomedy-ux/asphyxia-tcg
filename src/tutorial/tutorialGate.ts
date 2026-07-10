@@ -16,3 +16,18 @@ export function tutorialActionMatches(attempted: RequiredAction, required: Requi
   if (attempted.type === 'advancePhase' && required.type === 'advancePhase') return attempted.phase === required.phase;
   return true; // types matched and there's nothing further to compare (selectAttacker, selectEnemyTarget, etc.)
 }
+
+/** Action types whose completion only ever changes local UI `mode` state in
+ *  GameBoard.tsx (attackerChosen / attackAwaitingTarget), never anything in the
+ *  actual GameState store - so a GameState-watching autoAdvanceWhen check
+ *  (TutorialPanel.tsx) has nothing to observe for these, and the tutorial step
+ *  needs to be advanced explicitly, right where the gate confirms the action was
+ *  allowed. This was a real, reported bug: clicking Street-Beast during the
+ *  "choose your attacker" step correctly opened the attack menu (the action
+ *  worked), but the tutorial never moved forward, because nothing was watching
+ *  for it. Every other action type changes real, persisted state that
+ *  autoAdvanceWhen already detects on its own - this list should only ever
+ *  contain the exceptions, not become the default path. */
+export function tutorialActionNeedsExplicitAdvance(actionType: RequiredAction['type']): boolean {
+  return actionType === 'selectAttacker' || actionType === 'chooseAttack';
+}

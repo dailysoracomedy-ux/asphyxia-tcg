@@ -16,7 +16,7 @@ import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS, type RequiredAction } from '@/tutorial/tutorialSteps';
-import { tutorialActionMatches } from '@/tutorial/tutorialGate';
+import { tutorialActionMatches, tutorialActionNeedsExplicitAdvance } from '@/tutorial/tutorialGate';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
@@ -98,6 +98,18 @@ export default function GameBoard() {
     if (!tutorialActionMatches(action, step.requiredAction)) {
       setTutorialToast('Follow the tutorial step first.');
       return true;
+    }
+    // selectAttacker and chooseAttack only ever change local UI `mode` state
+    // (attackerChosen / attackAwaitingTarget), never anything in the actual
+    // GameState store - so TutorialPanel's GameState-watching autoAdvanceWhen
+    // has nothing to observe for these two action types specifically, and the
+    // step would otherwise never advance even though the click genuinely
+    // succeeded (this was the actual bug behind "I click Street-Beast, the
+    // attack menu opens, but the tutorial doesn't move forward" - the action
+    // worked; nothing was watching for it). Every other action type changes
+    // real, persisted state that TutorialPanel already detects on its own.
+    if (tutorialActionNeedsExplicitAdvance(action.type)) {
+      useTutorialStore.getState().setStep(Math.min(TUTORIAL_STEPS.length - 1, tutorialStep + 1));
     }
     return false;
   }

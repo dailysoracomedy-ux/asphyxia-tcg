@@ -1910,6 +1910,44 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
 in this run's batch sweep, unchanged and consistent with the prior finding.
 
+## Commit 29.2: fixed the tutorial getting stuck on "choose your attacker"
+
+**Reported**: clicking Street-Beast on the tutorial's "choose your attacker" step
+correctly opened the attack menu - the click genuinely worked - but the tutorial
+itself never advanced.
+
+**Root cause, confirmed by tracing it rather than guessed at**: the tutorial
+advances each step by watching real `GameState` for the right thing to happen
+(an Apex in a slot, a Support attached, `phase === 'Combat'`, etc.). But selecting
+an attacker or choosing which attack to use only ever changes *local UI state*
+in `GameBoard.tsx` (`mode.kind` becoming `'attackerChosen'` or
+`'attackAwaitingTarget'`) - neither one touches the actual game store at all until
+the attack is *declared*. So the click succeeded exactly as it should have, and
+there was simply nothing in `GameState` for the watcher to see.
+
+**Fix**: extracted a small, named, exported function -
+`tutorialActionNeedsExplicitAdvance()` in `tutorialGate.ts` - identifying the two
+action types with this exact problem (`selectAttacker`, `chooseAttack`). The
+tutorial's action gate now advances the step explicitly and immediately once it
+confirms one of these two specific actions was allowed, rather than continuing to
+wait on a state signal that was never going to arrive. Every other action type
+(playing a card, declaring the actual attack, entering Combat) already changes
+real persisted state, so they're untouched and still detected the original way -
+this fix is deliberately narrow, not a rework of the whole advancement system.
+
+**Verified concretely**: added checks confirming (a) both affected action types
+are correctly flagged by the new function, (b) a real action type with a genuine
+GameState signal (`playApex`) is *not* flagged - guarding against the fix
+overcorrecting into every step double-advancing, and (c) every actual step in the
+shipped script using `selectAttacker`/`chooseAttack` truly has no
+`autoAdvanceWhen` of its own, confirming the original diagnosis was right, not
+just that the patch looks plausible.
+
+**Verified**: full regression suite (495+ checks across 24 files, extended this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
