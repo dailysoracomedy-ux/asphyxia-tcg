@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/gameStore';
 import NewGameMenu from '@/components/NewGameMenu';
 import GameBoard from '@/components/GameBoard';
 import DevCardGallery from '@/components/DevCardGallery';
+import MusicController from '@/audio/MusicController';
 
 export default function Home() {
   const status = useGameStore((s) => s.status);
@@ -13,7 +14,19 @@ export default function Home() {
   // resets, or the actual match lifecycle.
   const [showDeveloper, setShowDeveloper] = useState(false);
 
-  if (showDeveloper) return <DevCardGallery onBack={() => setShowDeveloper(false)} />;
-  if (status === 'menu') return <NewGameMenu onOpenDeveloper={() => setShowDeveloper(true)} />;
-  return <GameBoard />;
+  return (
+    <>
+      {/* Mounted once here (not per-screen) so the same <audio> element and
+          playlist position persist seamlessly across menu -> game -> game-over,
+          rather than restarting the track every time the screen switches. */}
+      <MusicController />
+      {showDeveloper ? (
+        <DevCardGallery onBack={() => setShowDeveloper(false)} />
+      ) : status === 'menu' ? (
+        <NewGameMenu onOpenDeveloper={() => setShowDeveloper(true)} />
+      ) : (
+        <GameBoard />
+      )}
+    </>
+  );
 }
