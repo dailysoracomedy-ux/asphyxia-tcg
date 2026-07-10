@@ -40,6 +40,9 @@ export default function HotseatResponseGate({ state }: { state: GameState }) {
   // response stages. The AI driver elsewhere resolves it on its own short delay;
   // the human just sees the board pause briefly, same as any other "AI is
   // thinking" moment, and then the result lands in the Battle Log as normal.
+  // In AI vs AI Showcase mode (Commit 29), this applies unconditionally - nobody
+  // is the human, so no response decision should ever show a popup at all.
+  if (item && state.aiVsAiMode) return null;
   if (item && state.vsAI && respondingPlayerOf(item) === 'player2') {
     return null;
   }

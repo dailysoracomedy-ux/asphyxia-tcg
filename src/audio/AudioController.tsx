@@ -29,6 +29,14 @@ function sfxForEvent(e: VisualEvent): SfxKey | null {
       return 'card.reactPlay';
     case 'CARD_NEGATED':
       return 'card.negatePlay';
+    case 'MOMENTUM_GAINED':
+      return 'resource.momentumGain';
+    case 'MOMENTUM_SPENT':
+      return 'resource.momentumSpend';
+    case 'ENGINE_TRIGGER':
+      return 'engine.trigger';
+    case 'RIFT_TRIGGER':
+      return 'rift.trigger';
     case 'CARD_PLACED': {
       if (!e.cardDefId) return 'card.enginePlay';
       const def = getCardDef(e.cardDefId);
@@ -50,6 +58,10 @@ const EVENT_TYPES_HANDLED: VisualEventType[] = [
   'REACT_PLAYED',
   'CARD_NEGATED',
   'CARD_PLACED',
+  'MOMENTUM_GAINED',
+  'MOMENTUM_SPENT',
+  'ENGINE_TRIGGER',
+  'RIFT_TRIGGER',
 ];
 
 export default function AudioController() {
@@ -62,14 +74,6 @@ export default function AudioController() {
       seenIds.current.add(e.id);
       const key = sfxForEvent(e);
       if (key) playSfx(key);
-      // A React costs Momentum to play - a second, distinct sound layered on top
-      // gives that cost its own audible beat without needing a dedicated
-      // MOMENTUM_GAINED/SPENT event wired through gameStore.ts and every card
-      // effect that touches Momentum (a much larger, riskier change deferred for
-      // a future pass - see the README).
-      if (e.type === 'REACT_PLAYED' || e.type === 'CARD_NEGATED') {
-        playSfx('resource.momentumSpend');
-      }
     }
   }, [events]);
 

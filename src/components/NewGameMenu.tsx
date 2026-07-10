@@ -105,6 +105,23 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
           START NEW GAME
         </button>
 
+        <div className="flex gap-3 mt-3">
+          <button
+            type="button"
+            onClick={() => startNewGame('Neon Underground', 'Dark White', false, false, true)}
+            className="flex-1 py-2 rounded-md font-bold text-xs tracking-widest border-2 border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10 transition-all"
+          >
+            LEARN TO PLAY
+          </button>
+          <button
+            type="button"
+            onClick={() => startNewGame(p1, p2, false, true)}
+            className="flex-1 py-2 rounded-md font-bold text-xs tracking-widest border-2 border-fuchsia-400/50 text-fuchsia-300 hover:bg-fuchsia-400/10 transition-all"
+          >
+            WATCH AI VS AI
+          </button>
+        </div>
+
         <p className="text-center text-white/25 text-[10px] mt-4">
           {vsAI
             ? 'You play as Player 1. The built-in AI controls Player 2 and takes its turns automatically.'

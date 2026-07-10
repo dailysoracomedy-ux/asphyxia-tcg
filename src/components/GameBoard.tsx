@@ -13,18 +13,40 @@ import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
+import TutorialPanel from './TutorialPanel';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
+import { canPlayCardFromHand } from '@/lib/cardPlayability';
 import AudioSettingsControl from '@/audio/AudioSettingsControl';
 import { useCeremonyBusy } from '@/store/animationStore';
+import { useShowcaseStore, currentShowcaseMultiplier } from '@/store/showcaseStore';
 import VoidInspectModal from './VoidInspectModal';
 import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
 import { aiPlayOneMainPhaseAction, aiPlayOneCombatAction, aiDecideControlConflict, aiChooseBinaryRiftBonus, aiChooseResponse } from '@/game/ai';
-import { getOverdriveEligibility } from '@/game/rules';
+import {
+  getOverdriveEligibility,
+  findApexAnywhere,
+  getPreviewAttackDamage,
+  getEffectiveDef,
+  overflowToO2Loss,
+} from '@/game/rules';
 
 const PHASE_LABEL: Record<string, string> = { Start: 'Draw', Main: 'Main', Combat: 'Combat', End: 'End' };
+
+const ACTION_LOCK_MS = 500;
+/** Module-level, not inside the component, specifically so the Date.now() call
+ *  isn't flagged as an impure call during render - these are only ever invoked
+ *  from event handlers (never during the render pass itself), but React's
+ *  stricter lint rules can't distinguish that from the function's static
+ *  location alone. Takes the ref as a parameter rather than closing over one. */
+function isActionLockedUntil(ref: React.RefObject<number>): boolean {
+  return Date.now() < ref.current;
+}
+function setActionLockUntil(ref: React.RefObject<number>) {
+  ref.current = Date.now() + ACTION_LOCK_MS;
+}
 
 type Mode =
   | { kind: 'idle' }
@@ -100,7 +122,7 @@ export default function GameBoard() {
   useEffect(() => {
     if (state.status !== 'playing' || state.phase !== 'Combat') return;
     if (state.pendingResponseQueue.length > 0) return;
-    if (state.vsAI && state.activePlayerId === 'player2') return; // never auto-ends the AI's turn
+    if ((state.vsAI && state.activePlayerId === 'player2') || state.aiVsAiMode) return; // never auto-ends an AI-controlled turn
     const active = state.players[state.activePlayerId];
     const anyApexCanStillAttack = active.apexSlots.some((a) => a && !a.hasAttacked);
     if (anyApexCanStillAttack) return;
@@ -108,53 +130,68 @@ export default function GameBoard() {
     return () => clearTimeout(t);
   }, [state]);
 
-  // AI driver: only active in Vs AI mode, and only ever acts for player2. Re-runs on
-  // every state change (since each AI action mutates the store and produces a new
-  // state reference), which naturally forms a "decide one thing, wait, re-evaluate"
-  // loop without needing a manual queue. Every branch bails out immediately if it's
-  // not player2's turn, the game has ended, or a human response is pending - so the
-  // AI can never act while the human needs to make a choice.
+  // AI driver: active in Vs AI mode (always player2) and in AI vs AI Showcase mode
+  // (Commit 29 - both players). Re-runs on every state change (since each AI
+  // action mutates the store and produces a new state reference), which naturally
+  // forms a "decide one thing, wait, re-evaluate" loop without needing a manual
+  // queue. Every branch bails out immediately if it's not an AI-controlled
+  // player's turn, the game has ended, a human response is pending, or (Showcase
+  // mode) playback is paused.
   //
   // Commit 25: also bails out while the game is "in ceremony" (an action banner is
   // showing, or any other event with a ceremony duration is still playing out) -
   // this is the actual fix for AI actions outrunning the banner explaining them.
   // ceremonyBusy is a reactive subscription (not a ref), specifically so this
   // effect re-fires the moment ceremony clears, the same way it already re-fires
-  // on every state change - the AI's own decision timing (the 600-700ms below) then
-  // still applies on top, exactly as before.
+  // on every state change - the AI's own decision timing (the 600-700ms below,
+  // scaled by Showcase speed) then still applies on top, exactly as before.
   const ceremonyBusy = useCeremonyBusy();
+  const showcasePaused = useShowcaseStore((s) => s.active && s.paused);
   useEffect(() => {
-    if (!state.vsAI || state.status !== 'playing') return;
-    if (ceremonyBusy) return;
+    if (!state.vsAI && !state.aiVsAiMode) return;
+    if (state.status !== 'playing') return;
+    if (ceremonyBusy || showcasePaused) return;
+    const mult = currentShowcaseMultiplier();
+    // In normal Vs AI, only player2 is ever AI-controlled. In Showcase mode, both
+    // players are - "is this player AI-controlled" reduces to just "is it their
+    // turn/response to make" in that case.
+    const isAiControlled = (pid: PlayerId) => (state.aiVsAiMode ? true : pid === 'player2');
 
-    // A response window may need EITHER player - only act if it's specifically AI's turn to respond.
+    // A response window may need EITHER player - only act if it's specifically an AI's turn to respond.
     if (state.pendingResponseQueue.length > 0) {
       const item = state.pendingResponseQueue[0];
-      if (item.stage === 'reactionChoice' && item.respondingPlayerId === 'player2') {
-        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse('player2', item)), 700);
+      if (item.stage === 'reactionChoice' && isAiControlled(item.respondingPlayerId)) {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse(item.respondingPlayerId, item)), 700 * mult);
         return () => clearTimeout(t);
       }
-      if (item.stage === 'negateWindow' && item.negatingPlayerId === 'player2') {
-        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse('player2', item)), 700);
+      if (item.stage === 'negateWindow' && isAiControlled(item.negatingPlayerId)) {
+        const t = setTimeout(() => useGameStore.getState().resolveResponse(aiChooseResponse(item.negatingPlayerId, item)), 700 * mult);
         return () => clearTimeout(t);
       }
-      if (item.stage === 'civilWarChoice' && item.playerId === 'player2') {
-        const t = setTimeout(() => useGameStore.getState().resolveResponse({ type: 'civilWar', pick: aiChooseBinaryRiftBonus('player2') }), 600);
+      if (item.stage === 'civilWarChoice' && isAiControlled(item.playerId)) {
+        const t = setTimeout(
+          () => useGameStore.getState().resolveResponse({ type: 'civilWar', pick: aiChooseBinaryRiftBonus(item.playerId) }),
+          600 * mult
+        );
         return () => clearTimeout(t);
       }
-      if (item.stage === 'humanErrorChoice' && item.playerId === 'player2') {
-        const t = setTimeout(() => useGameStore.getState().resolveResponse({ type: 'humanError', pick: aiChooseBinaryRiftBonus('player2') }), 600);
+      if (item.stage === 'humanErrorChoice' && isAiControlled(item.playerId)) {
+        const t = setTimeout(
+          () => useGameStore.getState().resolveResponse({ type: 'humanError', pick: aiChooseBinaryRiftBonus(item.playerId) }),
+          600 * mult
+        );
         return () => clearTimeout(t);
       }
       return; // some other response is pending (likely awaiting the human) - AI waits
     }
 
-    if (state.activePlayerId !== 'player2') return; // not AI's turn
+    if (!isAiControlled(state.activePlayerId)) return; // not an AI-controlled player's turn
+    const acting = state.activePlayerId;
 
     if (state.phase === 'Start' && !state.startPhasePending && state.riftSpace?.id === 'ControlConflict') {
-      const active = state.players.player2;
+      const active = state.players[acting];
       if (active.supportSlots.some(Boolean) && !active.lockedSupportInstanceId) {
-        const t = setTimeout(() => aiDecideControlConflict('player2'), 600);
+        const t = setTimeout(() => aiDecideControlConflict(acting), 600 * mult);
         return () => clearTimeout(t);
       }
       return; // otherwise let the shared Draw Phase effect above auto-advance to Main
@@ -162,20 +199,20 @@ export default function GameBoard() {
 
     if (state.phase === 'Main') {
       const t = setTimeout(() => {
-        const acted = aiPlayOneMainPhaseAction('player2');
+        const acted = aiPlayOneMainPhaseAction(acting);
         if (!acted) useGameStore.getState().advancePhase('Combat');
-      }, 650);
+      }, 650 * mult);
       return () => clearTimeout(t);
     }
 
     if (state.phase === 'Combat') {
       const t = setTimeout(() => {
-        const acted = aiPlayOneCombatAction('player2');
+        const acted = aiPlayOneCombatAction(acting);
         if (!acted) useGameStore.getState().endTurn();
-      }, 650);
+      }, 650 * mult);
       return () => clearTimeout(t);
     }
-  }, [state, ceremonyBusy]);
+  }, [state, ceremonyBusy, showcasePaused]);
   const [lastSeenLogCount, setLastSeenLogCount] = useState(0);
 
   /**
@@ -202,6 +239,11 @@ export default function GameBoard() {
     };
   }
 
+  // "What can I do now?" prompt (Commit 29 Flow QoL) - short, derived guidance text
+  // shown above the board. Every mode that already has its own ConfirmBar/target-
+  // selection UI explains itself there; this specifically covers the "idle, no
+  // card selected yet" moments where a new player would otherwise have no idea
+  // what their options even are.
   // Brief pacing lock after a significant action (attack declared, card played) -
   // game logic itself stays fully instant (see gameStore.ts), this only gates how
   // soon the UI accepts the *next* significant action, so the animation that just
@@ -210,24 +252,33 @@ export default function GameBoard() {
   // itself triggered re-renders would fight with the very animations it's trying
   // to protect.
   const actionLockedUntilRef = useRef(0);
-  const ACTION_LOCK_MS = 500;
   function isActionLocked(): boolean {
-    return Date.now() < actionLockedUntilRef.current;
+    return isActionLockedUntil(actionLockedUntilRef);
   }
   function lockActions() {
-    actionLockedUntilRef.current = Date.now() + ACTION_LOCK_MS;
+    setActionLockUntil(actionLockedUntilRef);
   }
 
   if (state.status === 'selectingOpeningApex') {
-    return <OpeningApexScreen />;
+    return (
+      <>
+        <OpeningApexScreen />
+        {state.tutorialMode && <TutorialPanel />}
+      </>
+    );
   }
   if (state.status === 'gameover') {
-    return <GameOverScreen />;
+    return (
+      <>
+        <GameOverScreen />
+        {state.tutorialMode && <TutorialPanel />}
+      </>
+    );
   }
   if (state.status !== 'playing') return null;
 
   const activeId = state.activePlayerId;
-  const aiIsActing = state.vsAI && activeId === 'player2' && !state.debugMode;
+  const aiIsActing = !state.debugMode && (!!state.aiVsAiMode || (state.vsAI && activeId === 'player2'));
   const oppId: PlayerId = activeId === 'player1' ? 'player2' : 'player1';
   const activePlayer = state.players[activeId];
   const oppPlayer = state.players[oppId];
@@ -240,6 +291,30 @@ export default function GameBoard() {
   const viewerBottomId: PlayerId = state.vsAI ? 'player1' : activeId;
   const viewerTopId: PlayerId = state.vsAI ? 'player2' : oppId;
   const bottomIsActingPlayer = viewerBottomId === activeId;
+
+  // "What can I do now?" prompt (Commit 29 Flow QoL) - short, derived guidance text
+  // shown above the board. Every mode that already has its own ConfirmBar/target-
+  // selection UI explains itself there; this specifically covers the "idle, no
+  // card selected yet" moments where a new player would otherwise have no idea
+  // what their options even are.
+  function derivePhasePrompt(): string {
+    if (aiIsActing) return 'Waiting for the AI...';
+    if (!bottomIsActingPlayer) return "Waiting for the other player's turn...";
+    if (mode.kind !== 'idle') return ''; // that mode's own ConfirmBar/prompt already explains itself
+    if (state.phase === 'Start') return 'Drawing for the turn...';
+    if (state.phase === 'Main') {
+      const canPlayAnything = activePlayer.hand.some((c) => canPlayCardFromHand(state, activeId, c));
+      return canPlayAnything
+        ? 'Main Phase: play an Apex, Engine, Equip, or one Special from your hand.'
+        : 'Main Phase: nothing playable right now - advance to Combat when ready.';
+    }
+    if (state.phase === 'Combat') {
+      const canStillAttack = activePlayer.apexSlots.some((a) => a && !a.hasAttacked);
+      return canStillAttack ? 'Combat Phase: choose an Apex above to attack with.' : 'Combat Phase: no Apex left to attack with - End Turn.';
+    }
+    return '';
+  }
+  const phasePrompt = derivePhasePrompt();
 
   const selectedCard = mode.kind !== 'idle' && 'cardId' in mode ? activePlayer.hand.find((c) => c.instanceId === mode.cardId) : undefined;
 
@@ -486,6 +561,7 @@ export default function GameBoard() {
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
+      {state.tutorialMode && <TutorialPanel />}
       <AudioController />
 
       {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
@@ -515,6 +591,8 @@ export default function GameBoard() {
         </button>
       </div>
 
+      {state.aiVsAiMode && <ShowcaseControls />}
+
       {/* Row 2: Rift - hugs its own content width and centers, no stretched empty space */}
       <RiftPanel rift={state.riftSpace} />
 
@@ -543,6 +621,12 @@ export default function GameBoard() {
 
       {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
       <div className="shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto">
+
+        {phasePrompt && (
+          <div className="text-center text-[11px] text-white/50 shrink-0">{phasePrompt}</div>
+        )}
+
+        {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
           <div className="rounded-lg border border-blue-400/30 bg-[#05050a] px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
@@ -923,6 +1007,85 @@ function BattleLogDrawer({ log, onClose }: { log: GameState['log']; onClose: () 
   );
 }
 
+/** AI vs AI Showcase mode's speed/pause bar (Commit 29). Sets useShowcaseStore's
+ *  `active` flag on mount so animationStore/the AI driver start scaling their
+ *  timings immediately, and clears it on unmount (leaving the match screen) so a
+ *  stale multiplier can never leak into a later normal match. */
+function ShowcaseControls() {
+  const { speed, paused, setSpeed, togglePaused, setActive } = useShowcaseStore();
+  useEffect(() => {
+    setActive(true);
+    return () => setActive(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="shrink-0 rounded-lg border border-fuchsia-500/30 bg-[#05050a] px-2 py-1 flex items-center justify-center gap-3 text-[11px]">
+      <span className="text-fuchsia-300/70 uppercase tracking-widest text-[10px]">AI vs AI Showcase</span>
+      <button
+        type="button"
+        onClick={togglePaused}
+        className={`px-2 py-0.5 rounded border font-bold ${paused ? 'border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10' : 'border-yellow-400/60 text-yellow-300 hover:bg-yellow-400/10'}`}
+      >
+        {paused ? 'Resume' : 'Pause'}
+      </button>
+      <div className="flex gap-1">
+        {(['slow', 'normal', 'fast'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setSpeed(s)}
+            className={`px-2 py-0.5 rounded border capitalize ${speed === s ? 'border-fuchsia-400 bg-fuchsia-400/15 text-fuchsia-200' : 'border-white/15 text-white/50 hover:bg-white/10'}`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Shows the outcome against every legal target before the player commits to one -
+ *  reuses getPreviewAttackDamage/getEffectiveDef/overflowToO2Loss, the exact same
+ *  functions declareAttack itself uses to compute the real thing, so this can
+ *  never show a number that turns out to be wrong once the attack actually
+ *  resolves (Commit 29 Flow QoL). */
+function AttackOutcomePreview({ state, mode }: { state: GameState; mode: Extract<Mode, { kind: 'attackAwaitingTarget' }> }) {
+  const attackerHit = findApexAnywhere(state, mode.attackerId);
+  if (!attackerHit) return null;
+  const opponentId = attackerHit.ownerId === 'player1' ? 'player2' : 'player1';
+  const targets = state.players[opponentId].apexSlots.filter((a): a is CardInstance => !!a);
+  if (targets.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 text-[10px] w-fit max-w-full mx-auto">
+      <div className="text-white/30 uppercase tracking-widest text-center mb-1">Attack Preview</div>
+      <div className="flex flex-col gap-1">
+        {targets.map((target) => {
+          const targetDef = getCardDef(target.defId);
+          const preview = getPreviewAttackDamage(state, mode.attackerId, mode.attackId, target.instanceId);
+          if (!preview) return null;
+          const effDef = getEffectiveDef(state, target.instanceId);
+          const dmg = preview.modifiedDamage;
+          const destroyed = dmg >= effDef;
+          const overflow = destroyed ? overflowToO2Loss(dmg - effDef) : 0;
+          return (
+            <div key={target.instanceId} className="flex items-center gap-2 whitespace-nowrap">
+              <span className="text-white/60">→ {targetDef.name}:</span>
+              <span className="font-mono font-bold text-white/80">{dmg} dmg</span>
+              {destroyed ? (
+                <span className="text-red-400 font-bold">Destroyed{overflow > 0 ? ` (${overflow} overflow O2)` : ''}</span>
+              ) : (
+                <span className="text-emerald-400">Survives at {effDef - dmg} DEF</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ConfirmBar({
   text,
   onConfirm,
@@ -955,7 +1118,7 @@ function OpeningApexScreen() {
   const state = useGameStore();
   const selectOpeningApex = useGameStore((s) => s.selectOpeningApex);
   const pid = state.openingApexSelectionPlayerId;
-  const isAITurn = state.vsAI && pid === 'player2';
+  const isAITurn = (state.vsAI && pid === 'player2') || !!state.aiVsAiMode;
 
   useEffect(() => {
     if (!isAITurn || !pid) return;

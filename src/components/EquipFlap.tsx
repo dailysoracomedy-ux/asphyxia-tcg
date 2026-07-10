@@ -58,7 +58,7 @@ export default function EquipFlap({
 
   return (
     <div
-      className="relative shrink-0 overflow-hidden border-2 border-t-0 rounded-b-md"
+      className="relative shrink-0 overflow-hidden border-2 border-t-0 rounded-b-md vfx-equip-slide-in"
       style={{ width, height: flapHeight, borderColor: '#ffffff33' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

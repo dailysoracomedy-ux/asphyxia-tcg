@@ -97,8 +97,9 @@ export default function PlayerBoard({
           {flipped ? (
             <div className="flex gap-1.5">
               {player.supportSlots.map((support, i) => (
-                <SupportSlot
+                <SupportSlotOrGhost
                   key={i}
+                  slotIndex={i}
                   support={support}
                   state={state}
                   playerId={playerId}
@@ -112,7 +113,7 @@ export default function PlayerBoard({
           ) : (
             <>
               <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
-              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} />
+              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
             </>
           )}
         </div>
@@ -136,13 +137,14 @@ export default function PlayerBoard({
           {flipped ? (
             <>
               <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
-              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} />
+              <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
             </>
           ) : (
             <div className="flex gap-1.5">
               {player.supportSlots.map((support, i) => (
-                <SupportSlot
+                <SupportSlotOrGhost
                   key={i}
+                  slotIndex={i}
                   support={support}
                   state={state}
                   playerId={playerId}
@@ -194,7 +196,7 @@ function ApexSlotOrGhost({
   selected?: boolean;
   onInspect?: (instance: CardInstance) => void;
 }) {
-  const ghost = useSlotGhost(playerId, slotIndex);
+  const ghost = useSlotGhost(playerId, slotIndex, 'apex');
   if (!apex && ghost?.destroyedGhost) {
     return <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} />;
   }
@@ -291,7 +293,7 @@ function ApexSlot({
         <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction}>
           {cardEl}
         </ApexVfxOverlay>
-        <EquipFlap equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
+        <EquipFlap key={apex.equip.instanceId} equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
       </div>
     );
   }
@@ -319,6 +321,8 @@ function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId:
     ? 'vfx-hit-flash'
     : events.some((e) => e.type === 'ATTACK_DECLARED')
     ? 'vfx-attack-pulse'
+    : events.some((e) => e.type === 'ENGINE_TRIGGER')
+    ? 'vfx-engine-pulse'
     : events.some((e) => e.type === 'CARD_PLACED')
     ? 'vfx-place-glow'
     : '';
@@ -327,7 +331,14 @@ function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId:
   return (
     <div
       className={`relative ${vfxClass}`}
-      style={{ ['--react-glow-color' as string]: `${theme.primary}cc`, ['--place-glow-color' as string]: `${theme.primary}dd` }}
+      style={{
+        ['--react-glow-color' as string]: `${theme.primary}cc`,
+        ['--place-glow-color' as string]: `${theme.primary}dd`,
+        ['--engine-pulse-color' as string]: `${theme.primary}cc`,
+        ['--faction-primary' as string]: `${theme.primary}99`,
+        ['--faction-secondary' as string]: `${theme.secondary}aa`,
+        ['--faction-impact' as string]: `${theme.primary}aa`,
+      }}
     >
       {children}
       {popups.map((p) => (
@@ -340,6 +351,46 @@ function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId:
         </div>
       ))}
     </div>
+  );
+}
+
+/** Same reasoning as ApexSlotOrGhost - a destroyed chained Engine (Commit 26) now
+ *  gets the same "stay visible through the destroy animation" treatment an Apex
+ *  already had, instead of vanishing from its slot the instant it's removed from
+ *  supportSlots. */
+function SupportSlotOrGhost({
+  slotIndex,
+  support,
+  state,
+  playerId,
+  onClick,
+  disabled,
+  selected,
+  onInspect,
+}: {
+  slotIndex: number;
+  support: CardInstance | null;
+  state: GameState;
+  playerId: PlayerId;
+  onClick?: (id: string) => void;
+  disabled?: boolean;
+  selected?: boolean;
+  onInspect?: (instance: CardInstance) => void;
+}) {
+  const ghost = useSlotGhost(playerId, slotIndex, 'support');
+  if (!support && ghost?.destroyedGhost) {
+    return <SupportSlot support={ghost.destroyedGhost.instance} state={state} playerId={playerId} />;
+  }
+  return (
+    <SupportSlot
+      support={support}
+      state={state}
+      playerId={playerId}
+      onClick={onClick}
+      disabled={disabled}
+      selected={selected}
+      onInspect={onInspect}
+    />
   );
 }
 
@@ -363,7 +414,7 @@ function SupportSlot({
   // Hooks must run unconditionally on every render, so this is called before the
   // early "empty slot" return below, with a fallback id that will just never match
   // any real event when there's no support in this slot.
-  const placeEvents = useApexVisualEvents(support?.instanceId ?? '__none__').filter((e) => e.type === 'CARD_PLACED');
+  const events = useApexVisualEvents(support?.instanceId ?? '__none__');
 
   if (!support) {
     const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
@@ -379,11 +430,21 @@ function SupportSlot({
   const chainLabel = getChainLabelForSupport(state, playerId, support.instanceId);
   const supportDef = getCardDef(support.defId);
   const placeTheme = factionTheme(supportDef.faction);
+  const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
+    ? 'vfx-destroy-shake'
+    : events.some((e) => e.type === 'ENGINE_TRIGGER')
+    ? 'vfx-engine-pulse'
+    : events.some((e) => e.type === 'CARD_PLACED')
+    ? 'vfx-place-glow'
+    : '';
 
   return (
     <div
-      className={placeEvents.length > 0 ? 'vfx-place-glow rounded-md' : ''}
-      style={placeEvents.length > 0 ? { ['--place-glow-color' as string]: `${placeTheme.primary}dd` } : undefined}
+      className={`rounded-md ${vfxClass}`}
+      style={{
+        ['--place-glow-color' as string]: `${placeTheme.primary}dd`,
+        ['--engine-pulse-color' as string]: `${placeTheme.primary}cc`,
+      }}
     >
       <Card
         instance={support}

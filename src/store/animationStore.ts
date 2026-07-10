@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import { currentShowcaseMultiplier } from './showcaseStore';
 
 /**
  * Transient, UI-only visual events - deliberately a SEPARATE store from the main
@@ -19,7 +20,10 @@ export type VisualEventType =
   | 'REACT_PLAYED'
   | 'CARD_NEGATED'
   | 'MOMENTUM_GAINED'
-  | 'CARD_PLACED';
+  | 'MOMENTUM_SPENT'
+  | 'CARD_PLACED'
+  | 'ENGINE_TRIGGER'
+  | 'RIFT_TRIGGER';
 
 export interface VisualEvent {
   id: string;
@@ -48,7 +52,12 @@ export interface VisualEvent {
    *  at all (confirmed - this was the actual bug behind "I don't see any card
    *  animations"). The board renders this ghost in the vacated slot for exactly as
    *  long as this event stays alive, then the slot reverts to genuinely empty. */
-  destroyedGhost?: { instance: import('@/types/game').CardInstance; ownerId: string; slotIndex: number };
+  destroyedGhost?: { instance: import('@/types/game').CardInstance; ownerId: string; slotIndex: number; slotKind: 'apex' | 'support' };
+  /** ENGINE_TRIGGER only: the chained Apex's instance id, so both the triggering
+   *  Engine (via apexInstanceId) and the Apex it's chained to (via this field) can
+   *  each show their own pulse from one event, rather than needing two separate
+   *  emissions kept manually in sync. */
+  linkedInstanceId?: string;
 }
 
 /** How long each event type keeps the game "in ceremony" - shared by both the AI
@@ -65,6 +74,8 @@ export const CEREMONY_MS: Partial<Record<VisualEventType, number>> = {
   CARD_DESTROYED: 1100,
   OVERFLOW_DAMAGE: 900,
   O2_DAMAGE: 900,
+  ENGINE_TRIGGER: 700,
+  RIFT_TRIGGER: 800,
 };
 
 interface AnimationStoreState {
@@ -86,18 +97,20 @@ export const useAnimationStore = create<AnimationStoreState>((set) => ({
   events: [],
   ceremonyLocks: 0,
   markCeremonyBusy: (durationMs) => {
+    const scaled = durationMs * currentShowcaseMultiplier();
     set((s) => ({ ceremonyLocks: s.ceremonyLocks + 1 }));
     setTimeout(() => {
       set((s) => ({ ceremonyLocks: Math.max(0, s.ceremonyLocks - 1) }));
-    }, durationMs);
+    }, scaled);
   },
   enqueue: (event, durationMs = 700) => {
+    const scaled = durationMs * currentShowcaseMultiplier();
     const id = `vfx-${Date.now()}-${counter++}`;
     const full: VisualEvent = { ...event, id, createdAt: Date.now() };
     set((s) => ({ events: [...s.events, full] }));
     setTimeout(() => {
       set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
-    }, durationMs);
+    }, scaled);
   },
 }));
 
@@ -118,7 +131,9 @@ export function useCeremonyBusy(): boolean {
  *  happening, confirmed by reproducing it, not assumed. useShallow keeps the same
  *  array reference whenever the filtered contents haven't actually changed. */
 export function useApexVisualEvents(apexInstanceId: string): VisualEvent[] {
-  return useAnimationStore(useShallow((s) => s.events.filter((e) => e.apexInstanceId === apexInstanceId)));
+  return useAnimationStore(
+    useShallow((s) => s.events.filter((e) => e.apexInstanceId === apexInstanceId || e.linkedInstanceId === apexInstanceId))
+  );
 }
 
 /** Convenience read hook - all currently-active events for a specific player's O2/Momentum area. */
@@ -129,11 +144,15 @@ export function usePlayerVisualEvents(playerId: string): VisualEvent[] {
 /** Convenience read hook - the destroy-ghost (if any) currently occupying a
  *  specific board slot, so a vacated Apex slot can keep showing the destroyed
  *  card mid-animation instead of instantly reverting to "empty." */
-export function useSlotGhost(ownerId: string, slotIndex: number) {
+export function useSlotGhost(ownerId: string, slotIndex: number, slotKind: 'apex' | 'support') {
   return useAnimationStore(
     useShallow((s) =>
       s.events.find(
-        (e) => e.type === 'CARD_DESTROYED' && e.destroyedGhost?.ownerId === ownerId && e.destroyedGhost?.slotIndex === slotIndex
+        (e) =>
+          e.type === 'CARD_DESTROYED' &&
+          e.destroyedGhost?.ownerId === ownerId &&
+          e.destroyedGhost?.slotIndex === slotIndex &&
+          e.destroyedGhost?.slotKind === slotKind
       )
     )
   );

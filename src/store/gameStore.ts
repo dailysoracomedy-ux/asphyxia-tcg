@@ -34,6 +34,7 @@ import {
   overflowToO2Loss,
   drawCardsFn,
   findApexAnywhere,
+  getChainedSupportFor,
   getEffectiveDef,
   getEligibleResponses,
   getOverdriveEligibility,
@@ -229,7 +230,9 @@ function maybeTriggerRecursiveFailureSecondCard(draft: GameState, playerId: Play
   if (player.turnFlags.cardsPlayedThisTurn !== 2) return;
   if (player.turnFlags.recursiveGlitchPlacedThisTurn) return;
   player.turnFlags.recursiveGlitchPlacedThisTurn = true;
+  emitVfx({ type: 'RIFT_TRIGGER', playerId }, 800);
   gainMomentumFn(draft, playerId, 1);
+  emitVfx({ type: 'MOMENTUM_GAINED', playerId, label: '+1' });
   const targetApex = player.apexSlots.find(Boolean);
   if (targetApex) {
     addCounterFn(draft, targetApex.instanceId, 'glitch', 1, playerId);
@@ -385,6 +388,12 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
   const targetHit = findApexAnywhere(draft, trigger.targetInstanceId!)!;
   const destroyedDef = getCardDef(targetHit.apex.defId) as ApexDef;
   const destroyedSlotIndex = draft.players[targetHit.ownerId].apexSlots.findIndex((a) => a?.instanceId === trigger.targetInstanceId);
+  // Capture the chained Engine (if any) BEFORE destroyApexFn removes both it and
+  // the Apex in one pass (Commit 18.2's Chained Support Destruction rule) - by the
+  // time that call returns, this card is already gone from supportSlots, so its
+  // own destroy-vfx needs to be emitted from what's known right now.
+  const chainedEngine = getChainedSupportFor(draft, targetHit.ownerId, trigger.targetInstanceId!);
+  const chainedEngineDef = chainedEngine ? getCardDef(chainedEngine.defId) : null;
 
   emitVfx(
     {
@@ -393,11 +402,26 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
       faction: destroyedDef.faction,
       destroyedGhost:
         destroyedSlotIndex !== -1
-          ? { instance: JSON.parse(JSON.stringify(targetHit.apex)), ownerId: targetHit.ownerId, slotIndex: destroyedSlotIndex }
+          ? { instance: JSON.parse(JSON.stringify(targetHit.apex)), ownerId: targetHit.ownerId, slotIndex: destroyedSlotIndex, slotKind: 'apex' }
           : undefined,
     },
     800
   );
+  if (chainedEngine && chainedEngineDef) {
+    const chainedEngineSlotIndex = draft.players[targetHit.ownerId].supportSlots.findIndex((s) => s?.instanceId === chainedEngine.instanceId);
+    emitVfx(
+      {
+        type: 'CARD_DESTROYED',
+        apexInstanceId: chainedEngine.instanceId,
+        faction: chainedEngineDef.faction,
+        destroyedGhost:
+          chainedEngineSlotIndex !== -1
+            ? { instance: JSON.parse(JSON.stringify(chainedEngine)), ownerId: targetHit.ownerId, slotIndex: chainedEngineSlotIndex, slotKind: 'support' }
+            : undefined,
+      },
+      800
+    );
+  }
   destroyApexFn(draft, trigger.targetInstanceId!);
   if (apexDef?.onDestroyEnemyApex) {
     apexDef.onDestroyEnemyApex({
@@ -731,7 +755,10 @@ function applyChosenReactionAndContinue(
       const hasSmallNeon = owner.apexSlots.some(
         (a) => a && getCardDef(a.defId).faction === 'Neon Underground' && getEffectiveDef(draft, a.instanceId) <= 300
       );
-      if (hasSmallNeon) gainMomentumFn(draft, reactionOwnerId, 1);
+      if (hasSmallNeon) {
+        gainMomentumFn(draft, reactionOwnerId, 1);
+        emitVfx({ type: 'MOMENTUM_GAINED', playerId: reactionOwnerId, label: '+1' });
+      }
     }
     resolveAttackAgainstTarget(draft, trigger, newDamage);
     return;
@@ -779,7 +806,7 @@ function maybeLogActionResolved(draft: GameState) {
 // ==========================================================================
 
 interface GameStore extends GameState {
-  startNewGame: (p1: Faction, p2: Faction, vsAI?: boolean) => void;
+  startNewGame: (p1: Faction, p2: Faction, vsAI?: boolean, aiVsAiMode?: boolean, tutorialMode?: boolean) => void;
   selectOpeningApex: (playerId: PlayerId, cardInstanceId: string) => void;
   advancePhase: (phase: Phase) => void;
   endTurn: () => void;
@@ -809,11 +836,19 @@ function mutate(set: (fn: (state: GameStore) => Partial<GameStore> | GameStore) 
 export const useGameStore = create<GameStore>((set) => ({
   ...initialState(),
 
-  startNewGame: (p1Faction, p2Faction, vsAI) =>
+  startNewGame: (p1FactionArg, p2FactionArg, vsAI, aiVsAiMode, tutorialMode) =>
     mutate(set, (draft) => {
       Object.assign(draft, initialState());
+      // Learn To Play always uses the recommended Neon Underground vs Dark White
+      // matchup (per the design doc's own reasoning: Neon teaches attack/burst/
+      // Momentum, Dark White teaches control/DEF/Choke/survival) and is always
+      // played against the AI, regardless of whatever was passed in.
+      const p1Faction = tutorialMode ? 'Neon Underground' : p1FactionArg;
+      const p2Faction = tutorialMode ? 'Dark White' : p2FactionArg;
       draft.selectedFactions = { player1: p1Faction, player2: p2Faction };
-      draft.vsAI = !!vsAI;
+      draft.vsAI = tutorialMode ? true : !!vsAI;
+      draft.aiVsAiMode = !!aiVsAiMode;
+      draft.tutorialMode = !!tutorialMode;
 
       for (const [pid, faction] of [
         ['player1', p1Faction],
@@ -821,6 +856,27 @@ export const useGameStore = create<GameStore>((set) => ({
       ] as [PlayerId, Faction][]) {
         const player = freshPlayer(pid, faction);
         let deck = shuffle(buildStarterDeck(faction));
+
+        // Tutorial scripting (Commit 29): reorder player1's deck (never
+        // player2's/the AI's) so the specific card types the tutorial script
+        // references - an Engine, an Equip, a Special - are guaranteed to be
+        // among the first cards seen, rather than leaving it to chance whether a
+        // new player's very first tutorial run actually gets to try each thing.
+        // This only ever changes draw *order*, never deck composition/copy
+        // counts/card pool - the underlying rules are completely untouched.
+        if (tutorialMode && pid === 'player1') {
+          const firstOfType = (type: CardInstance['type'], defId?: string) =>
+            deck.find((c) => c.type === type && (!defId || c.defId === defId));
+          const priority = [
+            firstOfType('Apex'),
+            firstOfType('BatterySupport') ?? firstOfType('AbilitySupport'),
+            firstOfType('Equip', 'nu-plasma-edge') ?? firstOfType('Equip'),
+            firstOfType('Special'),
+          ].filter((c): c is CardInstance => !!c);
+          const rest = deck.filter((c) => !priority.includes(c));
+          deck = [...priority, ...rest];
+        }
+
         let hand: CardInstance[] = [];
         let safety = 0;
         while (safety < 25) {
@@ -1301,7 +1357,9 @@ export const useGameStore = create<GameStore>((set) => ({
       support.lockedByControlConflict = true;
       player.lockedSupportInstanceId = support.instanceId;
       logMsg(draft, `Control Conflict: ${draft.activePlayerId} locks ${getCardDef(support.defId).name} and gains 1 Momentum.`, 'rift');
+      emitVfx({ type: 'RIFT_TRIGGER', playerId: draft.activePlayerId }, 800);
       gainMomentumFn(draft, draft.activePlayerId, 1);
+      emitVfx({ type: 'MOMENTUM_GAINED', playerId: draft.activePlayerId, label: '+1' });
     }),
 
   declareAttack: (attackerInstanceId, attackId, targetInstanceId, overdriveSpend) =>
@@ -1394,7 +1452,12 @@ export const useGameStore = create<GameStore>((set) => ({
         const eligible = getOverdriveEligibility(draft, attackerInstanceId);
         if (eligible && overdriveSpend) {
           loseMomentumFn(draft, draft.activePlayerId, 1);
+          emitVfx({ type: 'MOMENTUM_SPENT', playerId: draft.activePlayerId, label: '-1' });
           logMsg(draft, `${draft.activePlayerId} spends 1 Momentum for ${eligible.supportName} Overdrive.`, 'momentum');
+          emitVfx(
+            { type: 'ENGINE_TRIGGER', apexInstanceId: eligible.supportInstanceId, linkedInstanceId: attackerInstanceId, faction: apexDef.faction },
+            700
+          );
           if (eligible.supportDefId === 'nu-spark-plug') {
             total += 100;
             logMsg(draft, 'Spark-Plug Overdrive adds +100 damage to this attack.', 'attack');
@@ -1481,6 +1544,7 @@ export const useGameStore = create<GameStore>((set) => ({
           player.hand.splice(idx, 1);
           player.voidZone.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
+          emitVfx({ type: 'MOMENTUM_SPENT', playerId: item.respondingPlayerId, label: `-${reactionDef.cost}` });
           player.turnFlags.instantsPlayedThisTurn += 1;
           emitVfx({ type: 'REACT_PLAYED', playerId: item.respondingPlayerId, faction: reactionDef.faction, label: reactionDef.name, cardDefId: cardInstance.defId });
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
@@ -1547,6 +1611,7 @@ export const useGameStore = create<GameStore>((set) => ({
             player.hand.splice(idx, 1);
             player.voidZone.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
+            emitVfx({ type: 'MOMENTUM_SPENT', playerId: item.negatingPlayerId, label: `-${negateDef.cost}` });
             player.turnFlags.instantsPlayedThisTurn += 1;
             emitVfx({ type: 'CARD_NEGATED', playerId: item.cardOwnerId, faction: item.cardFaction, label: getCardDef(item.cardDefId).name, cardDefId: item.cardDefId });
             logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
@@ -1611,8 +1676,10 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       if (item.stage === 'humanErrorChoice') {
+        emitVfx({ type: 'RIFT_TRIGGER', playerId: item.playerId }, 800);
         if (choice.type === 'humanError' && choice.pick === 'momentum') {
           gainMomentumFn(draft, item.playerId, 1);
+          emitVfx({ type: 'MOMENTUM_GAINED', playerId: item.playerId, label: '+1' });
           logMsg(draft, `Human Error: ${item.playerId} chooses +1 Momentum.`, 'rift');
         } else {
           draft.players[item.playerId].pendingAttackBonus += 100;
@@ -1622,8 +1689,10 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       if (item.stage === 'civilWarChoice') {
+        emitVfx({ type: 'RIFT_TRIGGER', playerId: item.playerId }, 800);
         if (choice.type === 'civilWar' && choice.pick === 'momentum') {
           gainMomentumFn(draft, item.playerId, 1);
+          emitVfx({ type: 'MOMENTUM_GAINED', playerId: item.playerId, label: '+1' });
           logMsg(draft, `Civil War: ${item.playerId} chooses +1 Momentum.`, 'rift');
         } else {
           draft.players[item.playerId].pendingAttackBonus += 100;

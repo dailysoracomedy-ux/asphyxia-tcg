@@ -22,14 +22,41 @@ export default function SharedStatsBar({ state, leftId, rightId }: { state: Game
     <div className="flex items-center justify-center gap-6 shrink-0 text-xs font-mono">
       <div className="flex items-center gap-3">
         <O2Stat playerId={leftId} value={left.o2} color={leftTheme.primary} />
-        <Stat label="MOM" value={`${left.momentum}/${MAX_MOMENTUM}`} color={leftTheme.primary} />
+        <MomentumStat playerId={leftId} value={left.momentum} color={leftTheme.primary} />
       </div>
       <div className="w-px h-4 bg-white/15" />
       <div className="flex items-center gap-3">
         <O2Stat playerId={rightId} value={right.o2} color={rightTheme.primary} />
-        <Stat label="MOM" value={`${right.momentum}/${MAX_MOMENTUM}`} color={rightTheme.primary} />
+        <MomentumStat playerId={rightId} value={right.momentum} color={rightTheme.primary} />
       </div>
     </div>
+  );
+}
+
+/** Same pattern as O2Stat - reacts to MOMENTUM_GAINED/MOMENTUM_SPENT for this
+ *  specific player with a brief pulse (gain, energetic brighten) or drain flicker
+ *  (spend), plus a floating +1/-1 popup. */
+function MomentumStat({ playerId, value, color }: { playerId: PlayerId; value: number; color: string }) {
+  const events = usePlayerVisualEvents(playerId).filter((e) => e.type === 'MOMENTUM_GAINED' || e.type === 'MOMENTUM_SPENT');
+  const gained = events.some((e) => e.type === 'MOMENTUM_GAINED');
+  const spent = events.some((e) => e.type === 'MOMENTUM_SPENT');
+  const vfxClass = gained ? 'vfx-momentum-pulse' : spent ? 'vfx-momentum-spend' : '';
+
+  return (
+    <span className="relative inline-block">
+      <span className={`font-bold ${vfxClass}`} style={{ color }}>
+        MOM <b>{value}/{MAX_MOMENTUM}</b>
+      </span>
+      {events.map((e) => (
+        <span
+          key={e.id}
+          className="vfx-damage-popup absolute left-1/2 -top-1 -translate-x-1/2 z-20 pointer-events-none font-mono font-bold whitespace-nowrap"
+          style={{ color: e.type === 'MOMENTUM_GAINED' ? '#4ade80' : '#f87171', textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
+        >
+          {e.label}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -63,10 +90,4 @@ function O2Stat({ playerId, value, color }: { playerId: PlayerId; value: number;
   );
 }
 
-function Stat({ label, value, color, danger }: { label: string; value: number | string; color: string; danger?: boolean }) {
-  return (
-    <span className={danger ? 'text-red-400 animate-pulse font-bold' : 'font-bold'} style={danger ? undefined : { color }}>
-      {label} <b>{value}</b>
-    </span>
-  );
-}
+

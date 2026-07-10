@@ -455,4 +455,19 @@ export interface GameState {
   gameOverReason: string | null;
   /** When true, player2 is controlled by the simple built-in AI instead of a human. */
   vsAI: boolean;
+  /** AI vs AI Showcase mode (Commit 29) - both players are AI-controlled. Kept as
+   *  a separate flag from vsAI rather than overloading it, since vsAI's existing
+   *  meaning ("player2 is AI, player1 is the human") drives several UI decisions
+   *  (which side of the board is "the viewer", hiding player2's response popups,
+   *  etc.) that don't apply here - in this mode nobody is the human, so the board
+   *  behaves like Hotseat (flips to whoever's active) while both sides are driven
+   *  by the AI. */
+  aiVsAiMode?: boolean;
+  /** Learn To Play tutorial mode (Commit 29) - a real, playable match with a
+   *  fixed Neon Underground vs Dark White matchup, guided by TutorialPanel. The
+   *  underlying game engine runs completely normally underneath - tutorial
+   *  "scripting" is milestone-based (watching real state for "an Engine was
+   *  played", "an attack was declared", etc.) rather than forcing specific plays,
+   *  which keeps it from ever needing special-cased rule exceptions of its own. */
+  tutorialMode?: boolean;
 }

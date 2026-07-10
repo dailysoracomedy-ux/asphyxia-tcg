@@ -1678,6 +1678,161 @@ new ceremony-pacing test) and a fresh 72-game simulation both ran clean, plus cl
 `tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
 in this run's batch sweep, unchanged and consistent with the prior finding.
 
+## Commit 26: faction-flavored animations, Engine/Rift/Momentum pulses, Equip slide
+
+**A real safety finding that shaped this whole commit**: `createHelpers` in
+`rules.ts` - which most card effects use to call `helpers.gainMomentum(...)` - is
+the *same function* used by `getPreviewAttackDamage`, the read-only attack-preview
+calculation. Wiring animation/SFX into `createHelpers` itself would have meant a
+"Momentum gained" sound firing just from *hovering* an attack option, without ever
+declaring it. Confirmed this by reading the actual preview code before touching
+anything, not assumed. Every new emission point in this commit is instead added at
+specific, well-contained call sites inside `gameStore.ts` that only ever run during
+real resolution - `rules.ts` stays exactly as animation-free as it's been since
+Commit 23. One real, deliberate scope cut as a result: Momentum changes that
+happen *inside* scattered card-effect callbacks (Data Thief, etc., via
+`helpers.gainMomentum`) aren't wired for visuals yet, since doing that safely would
+mean touching each one individually rather than one central point. The direct
+`gameStore.ts` call sites (Overdrive spend, React/Negate cost, Civil War/Human
+Error/Control Conflict/Recursive Failure bonuses) all are.
+
+**Faction-flavored combat animations**: `attack-pulse`, `hit-flash`, and
+`destroy-shake` now layer a faction-colored glow via CSS variables
+(`--faction-primary`/`--faction-secondary`/`--faction-impact`) on top of their
+existing brightness/shake motion, set per-card from the same `factionTheme()` data
+that's driven every faction-colored element since early in this project - no new
+color system, just wiring the existing one into three more places.
+
+**Engine-to-Apex pulse**: a new `ENGINE_TRIGGER` event carries both the triggering
+Engine's id and its chained Apex's id (`linkedInstanceId`) in one event, so both
+sides pulse from a single emission rather than needing to keep two separate events
+in sync by hand. Wired at Overdrive's spend point (Spark-Plug/Juice-Box) - the
+clearest, most contained "an Engine did something" moment already in the code.
+
+**Equip attach/swap slide**: rather than build a new event-driven animation system
+for this, gave `<EquipFlap>` a `key` tied to the Equip's own instance id. React
+already remounts a component fresh when its key changes, and that now happens on
+every attach *and* every swap - a plain CSS "slide up into place" animation on
+mount handles both cases with no new store plumbing at all.
+
+**Rift pulse**: `RiftPanel` reacts to any `RIFT_TRIGGER` event, regardless of which
+player it was for - the Rift itself is shared, board-wide state, not a per-player
+element, so it doesn't need per-player targeting the way the Engine pulse does.
+
+**Momentum gain/spend**: `MomentumStat` (replacing the old plain `Stat` in
+`SharedStatsBar`) reacts to `MOMENTUM_GAINED`/`MOMENTUM_SPENT` with a distinct
+pulse-up vs. drain-flicker animation and a floating +1/-1, reusing the
+`vfx-momentum-pulse` keyframe that existed but sat completely unused since Commit
+23 (deliberately deferred then for the exact `createHelpers` reason above).
+
+**A real bug caught and fixed while building chained-Engine destruction**: Apex
+slots and Support slots both use a 0-based index space. The existing ghost-lookup
+(`useSlotGhost`, from Commit 23.2) matched only on owner+index - fine when only
+Apexes could have a destroy-ghost, but this commit makes an Apex and its chained
+Engine destroy *simultaneously* possible (Commit 18.2's Chained Support
+Destruction rule), and an Apex-slot-0 ghost and an Engine-slot-0 ghost would have
+silently collided. Fixed with a `slotKind: 'apex' | 'support'` field. Verified
+concretely, not just reasoned about: wrote `test-chained-engine-destroy-vfx.ts`,
+confirmed it passes with the fix, then deliberately swapped the slotKind values at
+the emission site to simulate the exact mistake this field prevents, confirmed the
+test fails, then restored and confirmed clean again.
+
+**A real CSS syntax error caught by the build, not by tsc/eslint**: an earlier edit
+inserting the new `equip-slide-in` keyframe accidentally consumed the
+`@keyframes banner-in {` opening line right after it. Neither `tsc` nor `eslint`
+touch CSS at all, so this only surfaced when `npm run build` actually tried to
+parse the stylesheet - exactly why a full build is always part of verification
+here, not just the faster type/lint checks.
+
+**Verified**: full regression suite (445+ checks across 22 files, two of them new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
+## Commit 29: Demo Readiness Bundle - Flow QoL, Learn To Play, AI vs AI Showcase
+
+**Changelog note, as requested**: Commit 29 absorbs the planned Commit 27 (Flow QoL)
+and Commit 28 (Tutorial) roadmap items - these were never separately implemented,
+they were folded directly into this bundle since all three areas serve the same
+"make ASPHYXIA easier to understand and show to people" purpose. Nothing is
+missing; 27/28 were labels, not commits.
+
+**Flow QoL - several items already existed** before this commit and just got
+verified/documented here rather than rebuilt: auto-skip on zero legal responses
+(`maybeOpenResponseWindow` already returned early on an empty eligible list),
+auto-select on one legal destination (Commit 24), the unplayable-card tooltip
+(Commit 24's `getCardPlayabilityReason`), and Copy Match Log (already in the
+Battle Log drawer). What's actually new: a "what can I do now" phase prompt
+(`derivePhasePrompt`), and an attack outcome preview showing every legal target's
+damage/destroy-or-survive/overflow before committing - reusing the exact same
+`getPreviewAttackDamage`/`getEffectiveDef`/`overflowToO2Loss` functions
+`declareAttack` itself uses, so it can never show a number that turns out wrong.
+Turn-usage checklist was deliberately deferred, per the spec's own stated
+priority order (legal highlights and tutorial first) - noted here, not silently
+dropped.
+
+**A real, serious bug caught by the regression suite, not shipped**: the new phase
+prompt function was defined *before* the `aiIsActing`/`bottomIsActingPlayer`
+variables it referenced, a genuine JavaScript temporal-dead-zone bug
+(`ReferenceError: Cannot access 'aiIsActing' before initialization`) that `tsc`
+and `eslint` both missed entirely, since it's only a runtime error, not a type or
+lint violation. It broke the *entire* game - every DOM-mounted test in the suite
+started failing the moment this shipped. Caught immediately by running the full
+regression suite (not just `tsc`/`eslint`) before considering the commit done,
+fixed by moving the function to after its actual dependencies are defined, and
+every previously-failing test was re-run clean afterward. This is exactly why a
+full mount-based test suite exists on top of static checks - this specific class
+of bug is invisible to both.
+
+**AI vs AI Showcase**: turned out to need very little new AI logic - every
+decision function in `ai.ts` (`aiPlayOneMainPhaseAction`, `aiChooseResponse`,
+etc.) already took a generic `playerId`, never hardcoded to player2. Only the
+*driver* in `GameBoard.tsx` was hardcoded. Added a new `aiVsAiMode` flag
+(deliberately separate from `vsAI`, whose existing meaning - "player2 is AI, the
+human is player1" - drives board orientation and response-hiding logic that
+doesn't apply when nobody's human) and generalized the driver's hardcoded
+`'player2'` checks to whichever player is actually active. Speed control
+(`showcaseStore.ts`) is a single multiplier read by `animationStore.ts`'s
+duration calculations and the driver's own decision timers - 1x whenever Showcase
+mode isn't active, so it's a genuine no-op everywhere else. Verified concretely:
+a real DOM-mounted test starts a Showcase match and confirms the game actually
+progresses (turn advances or the log grows) with zero simulated human input, and
+confirms Fast's multiplier is measurably lower than Normal's and Slow's measurably
+higher - not just that the values exist.
+
+**Learn To Play**: a real, playable match (not a slideshow) with the recommended
+Neon Underground vs Dark White matchup enforced regardless of what's passed in,
+paired with `TutorialPanel.tsx` - a 10-step guide that auto-advances when it
+detects the relevant milestone in real game state (an Engine played, an Equip
+attached, an attack declared, Momentum gained, a Special played) while always
+allowing manual Next/Back/Restart, matching the spec's explicit "teach the game,
+don't test the player" goal. Deliberately milestone-based rather than fully
+scripting the AI or forcing specific plays - keeps the tutorial from ever needing
+its own special-cased rule exceptions, since the real engine runs completely
+normally underneath. The one piece of actual scripting: player1's opening deck is
+reordered (never player2's) so an Engine, an Equip, and a Special are guaranteed
+among the first cards seen - draw *order* only, never deck composition or copy
+counts. Verified the scripted hand genuinely contains the referenced card types,
+not just that the reordering code exists, and verified the panel actually renders
+and reflects step changes in the real mounted DOM.
+
+**Other deliberate scope cuts, stated directly**: no separate AI-vs-AI matchup
+picker UI (reuses whatever factions are already selected in the existing faction
+pickers before pressing "Watch AI vs AI" - a smaller, lower-risk addition than a
+whole second picker); no Step Forward button (Pause/Resume covers the spec's
+required behavior; TODO for one more control); no dedicated "Copy Build Info"
+button in a Developer screen (`BUILD_VERSION` is already visible in both the top
+bar and the main menu).
+
+**Verified**: full regression suite (475+ checks across 23 files, two of them new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding. A
+second, unrelated timing flake was found and fixed in this commit's own new
+tutorial test (widened wait margins after a `setStep` call, the same category of
+fix already applied elsewhere in this suite) - caught and fixed before shipping,
+not left in.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

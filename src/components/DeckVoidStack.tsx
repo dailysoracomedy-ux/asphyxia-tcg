@@ -1,5 +1,7 @@
 'use client';
 
+import { useAnimationStore } from '@/store/animationStore';
+
 /**
  * Compact visual stack for a player's Deck or Void, shown in the board row's
  * otherwise-empty outer column (mirrors whichever side doesn't have Support slots -
@@ -12,20 +14,37 @@ export default function DeckVoidStack({
   count,
   onClick,
   accentColor,
+  playerId,
 }: {
   label: 'DECK' | 'VOID';
   count: number;
   onClick?: () => void;
   accentColor: string;
+  /** Optional - when given, VOID pulses whenever a card actually lands in this
+   *  player's Void (a destroyed Apex/Engine, or a negated card). DECK deliberately
+   *  doesn't pulse on draw yet - that would need a dedicated draw event wired
+   *  through Draw Phase's auto-resolve, a larger change deferred for now (see
+   *  the README). */
+  playerId?: string;
 }) {
   const isEmpty = count === 0;
   const Wrapper = onClick && !isEmpty ? 'button' : 'div';
+  const pulsing = useAnimationStore((s) =>
+    label === 'VOID' && playerId
+      ? s.events.some(
+          (e) =>
+            (e.type === 'CARD_DESTROYED' && e.destroyedGhost?.ownerId === playerId) ||
+            (e.type === 'CARD_NEGATED' && e.playerId === playerId)
+        )
+      : false
+  );
 
   return (
     <Wrapper
       type={Wrapper === 'button' ? 'button' : undefined}
       onClick={onClick && !isEmpty ? onClick : undefined}
-      className={`relative flex flex-col items-center gap-1 shrink-0 ${onClick && !isEmpty ? 'cursor-pointer hover:-translate-y-0.5 transition-transform' : ''}`}
+      className={`relative flex flex-col items-center gap-1 shrink-0 ${onClick && !isEmpty ? 'cursor-pointer hover:-translate-y-0.5 transition-transform' : ''} ${pulsing ? 'vfx-place-glow' : ''}`}
+      style={pulsing ? { ['--place-glow-color' as string]: `${accentColor}cc` } : undefined}
       title={label === 'VOID' ? (isEmpty ? 'Void is empty' : 'Click to inspect Void') : undefined}
     >
       <span className="text-[10px] font-bold tracking-widest" style={{ color: accentColor }}>

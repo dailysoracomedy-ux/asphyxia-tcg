@@ -6,6 +6,7 @@ import { getCardDef } from '@/data/cards';
 import { getCardArt } from '@/lib/cardArt';
 import { factionTheme } from '@/lib/theme';
 import { useAnimationStore, CEREMONY_MS, type VisualEvent } from '@/store/animationStore';
+import { currentShowcaseMultiplier } from '@/store/showcaseStore';
 
 const BANNER_TYPES: VisualEvent['type'][] = ['CARD_PLACED', 'REACT_PLAYED', 'CARD_NEGATED'];
 const FALLBACK_DISPLAY_MS = 900;
@@ -62,7 +63,7 @@ export default function ActionBanner({ state }: { state: GameState }) {
   }, [events]);
 
   const current = queue[0] ?? null;
-  const displayMs = current ? (CEREMONY_MS[current.type] ?? FALLBACK_DISPLAY_MS) : FALLBACK_DISPLAY_MS;
+  const displayMs = (current ? CEREMONY_MS[current.type] ?? FALLBACK_DISPLAY_MS : FALLBACK_DISPLAY_MS) * currentShowcaseMultiplier();
 
   useEffect(() => {
     if (!current) return;
