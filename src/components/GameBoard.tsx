@@ -15,7 +15,7 @@ import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import { useTutorialStore } from '@/store/tutorialStore';
-import { TUTORIAL_STEPS, type RequiredAction } from '@/tutorial/tutorialSteps';
+import { TUTORIAL_STEPS, type RequiredAction, TUTORIAL_PACING_MULTIPLIER } from '@/tutorial/tutorialSteps';
 import { tutorialActionMatches, tutorialActionNeedsExplicitAdvance } from '@/tutorial/tutorialGate';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
@@ -192,6 +192,21 @@ export default function GameBoard() {
   // scaled by Showcase speed) then still applies on top, exactly as before.
   const ceremonyBusy = useCeremonyBusy();
   const showcasePaused = useShowcaseStore((s) => s.active && s.paused);
+
+  // Tutorial-mode pacing (Commit 29.3): reuses the exact same speed-scaling
+  // mechanism built for AI vs AI Showcase (which already scales ceremony
+  // durations, banner dwell time, and the AI driver's own decision timers)
+  // rather than building separate tutorial-specific timing logic. Reported: the
+  // opponent's scripted attack happened too fast to actually watch/understand.
+  // No visible speed controls render here (ShowcaseControls stays showcase-only)
+  // - this just quietly asks the same mechanism to slow down while a tutorial
+  // match is active, and hands control back the moment it isn't.
+  useEffect(() => {
+    if (!state.tutorialMode) return;
+    useShowcaseStore.getState().setSpeedMultiplier(TUTORIAL_PACING_MULTIPLIER);
+    useShowcaseStore.getState().setActive(true);
+    return () => useShowcaseStore.getState().setActive(false);
+  }, [state.tutorialMode]);
   useEffect(() => {
     if (!state.vsAI && !state.aiVsAiMode) return;
     if (state.status !== 'playing') return;

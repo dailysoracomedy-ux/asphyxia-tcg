@@ -1948,6 +1948,64 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
 in this run's batch sweep, unchanged and consistent with the prior finding.
 
+## Commit 29.3: tutorial robustness pass - live feedback, timeout safety net, slower opponent pacing
+
+Two more real reports: stuck on the "watch the opponent" step even after the
+attack visibly happened, and the opponent's turn moving too fast to actually
+follow.
+
+**The exact Step 9 bug**: `opponent-overflow`'s advance condition required BOTH
+"player1 has no Apex" AND "it's player1's turn again" - the second clause meant
+waiting for the *entire* rest of the opponent's turn to finish and pass back,
+long after the actual destruction (the thing the step is about) had already
+happened. Dropped the second clause entirely - it now advances the instant the
+Apex is actually gone, matching what the step is supposed to be watching for.
+
+**Opponent pacing, reusing infrastructure rather than building new timing
+logic**: `GameBoard.tsx` now quietly activates the exact same speed-scaling
+mechanism built for AI vs AI Showcase (Commit 29.1) whenever a tutorial match is
+active - no new plumbing, no visible speed controls (those stay Showcase-only),
+just the same multiplier already driving ceremony durations, banner dwell time,
+and the AI driver's own decision timers, now also triggered by
+`state.tutorialMode`. Set to 2.6x specifically for tutorial (noticeably slower
+than Showcase's own 2x default) since there's no adjustable slider here to fall
+back on if it's still too fast for a first-time viewer.
+
+**A general safety net, not just a one-off patch**: every "watch the opponent"
+step now shows the live, real Battle Log line as it happens (computed directly
+from `state.log` during render, not a separate synced copy) so the panel is
+actually describing the current moment instead of one static paragraph read once
+at the start. And every one of these steps now has a 9-second timeout after which
+a "Continue anyway" button appears - so a future step whose detection condition
+turns out to have a similar gap (impossible to fully rule out in advance) fails
+safe with a way forward, instead of silently stranding someone the way this one
+did.
+
+**A real lint catch worth noting**: an early draft reset tracked state
+synchronously inside `useEffect` bodies (`setTimedOut(false)` on every step
+change, `setLiveLine(null)` when leaving a watch step) - flagged by a stricter
+rule (`react-hooks/set-state-in-effect`) as exactly the kind of pattern that
+causes wasted extra render passes. Fixed properly rather than suppressed: the
+timeout fallback is now an isolated component remounted via `key={step}` (so a
+fresh mount gives it fresh state for free, no explicit reset needed), and the
+live log line is now a plain value computed during render instead of state that
+needed syncing at all.
+
+**Verified the actual reported bug, not just the code around it**: a check
+directly confirms the corrected condition advances the instant the Apex is gone
+regardless of whose turn it currently is (the literal bug), and a second check
+confirms it correctly stays put while the Apex is still alive. The timeout
+fallback is verified by pausing the AI driver *and* explicitly forcing the
+watch condition to stay false, so the check is isolating the timeout specifically
+- the first draft of this test didn't do that and passed for the wrong reason
+(the real match resolved the condition naturally before the timeout was ever
+reached), caught and fixed before shipping.
+
+**Verified**: full regression suite (505+ checks across 25 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

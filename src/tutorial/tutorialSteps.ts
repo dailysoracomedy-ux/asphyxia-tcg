@@ -29,6 +29,15 @@ export type RequiredAction =
   | { type: 'waitForOpponent' } // no player action - watch the opponent's scripted turn
   | { type: 'win' };
 
+/** How much to slow ceremony/AI-decision timing during a tutorial match (Commit
+ *  29.3) - reuses AI vs AI Showcase's speed-scaling mechanism entirely (see
+ *  GameBoard.tsx's tutorial-pacing effect), just with a value picked for "a new
+ *  player watching a one-time scripted walkthrough" rather than "someone
+ *  choosing their own comfortable pace for repeated viewing" - noticeably
+ *  slower than Showcase's own 2x default, since there's no user-adjustable
+ *  slider here to fall back on if it's still too fast. */
+export const TUTORIAL_PACING_MULTIPLIER = 2.6;
+
 export interface TutorialStep {
   id: string;
   title: string;
@@ -118,7 +127,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: 'Your opponent is taking their turn and will attack Street-Beast. If your Apex is destroyed, any damage beyond its DEF becomes overflow O2 damage straight to you.',
     requiredAction: { type: 'waitForOpponent' },
     highlight: { kind: 'o2Display' },
-    autoAdvanceWhen: (s) => !s.players.player1.apexSlots.some(Boolean) && s.activePlayerId === 'player1',
+    autoAdvanceWhen: (s) => !s.players.player1.apexSlots.some(Boolean),
   },
   {
     id: 'apex-recovery',
