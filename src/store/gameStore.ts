@@ -22,7 +22,7 @@ import { freshTurnFlags } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { buildStarterDeck, shuffle } from '@/data/decks';
 import { determineRiftSpace } from '@/game/rifts';
-import { useAnimationStore, type VisualEvent } from './animationStore';
+import { useAnimationStore, CEREMONY_MS, type VisualEvent } from './animationStore';
 import {
   DIRECT_O2_CAP_PER_TURN,
   MAX_ABILITY_SUPPORTS,
@@ -371,6 +371,8 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
 function emitVfx(event: Omit<VisualEvent, 'id' | 'createdAt'>, durationMs?: number) {
   try {
     useAnimationStore.getState().enqueue(event, durationMs);
+    const ceremonyMs = CEREMONY_MS[event.type];
+    if (ceremonyMs) useAnimationStore.getState().markCeremonyBusy(ceremonyMs);
   } catch {
     // Visual-only - never let an animation-store hiccup affect gameplay.
   }

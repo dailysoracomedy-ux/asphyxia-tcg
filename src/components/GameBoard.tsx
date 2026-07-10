@@ -13,6 +13,10 @@ import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
+import AudioController from '@/audio/AudioController';
+import { playSfx } from '@/audio/sfx';
+import AudioSettingsControl from '@/audio/AudioSettingsControl';
+import { useCeremonyBusy } from '@/store/animationStore';
 import VoidInspectModal from './VoidInspectModal';
 import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
@@ -110,8 +114,18 @@ export default function GameBoard() {
   // loop without needing a manual queue. Every branch bails out immediately if it's
   // not player2's turn, the game has ended, or a human response is pending - so the
   // AI can never act while the human needs to make a choice.
+  //
+  // Commit 25: also bails out while the game is "in ceremony" (an action banner is
+  // showing, or any other event with a ceremony duration is still playing out) -
+  // this is the actual fix for AI actions outrunning the banner explaining them.
+  // ceremonyBusy is a reactive subscription (not a ref), specifically so this
+  // effect re-fires the moment ceremony clears, the same way it already re-fires
+  // on every state change - the AI's own decision timing (the 600-700ms below) then
+  // still applies on top, exactly as before.
+  const ceremonyBusy = useCeremonyBusy();
   useEffect(() => {
     if (!state.vsAI || state.status !== 'playing') return;
+    if (ceremonyBusy) return;
 
     // A response window may need EITHER player - only act if it's specifically AI's turn to respond.
     if (state.pendingResponseQueue.length > 0) {
@@ -161,7 +175,7 @@ export default function GameBoard() {
       }, 650);
       return () => clearTimeout(t);
     }
-  }, [state]);
+  }, [state, ceremonyBusy]);
   const [lastSeenLogCount, setLastSeenLogCount] = useState(0);
 
   /**
@@ -180,6 +194,7 @@ export default function GameBoard() {
     return (e: React.MouseEvent<HTMLButtonElement>) => {
       e.currentTarget.blur();
       const scrollY = window.scrollY;
+      playSfx('ui.click');
       handler();
       requestAnimationFrame(() => {
         if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
@@ -471,6 +486,7 @@ export default function GameBoard() {
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
+      <AudioController />
 
       {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-3 text-[11px] text-white/50">
@@ -482,6 +498,7 @@ export default function GameBoard() {
           <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
           debug
         </label>
+        <AudioSettingsControl compact />
         <button
           type="button"
           onClick={() => {
@@ -991,6 +1008,14 @@ function GameOverScreen() {
   const [showLog, setShowLog] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [showFallback, setShowFallback] = useState(false);
+
+  useEffect(() => {
+    // From the human's perspective in Vs AI mode; in Hotseat a human won either
+    // way, so it's always a win worth a victory cue.
+    const isHumanLoss = state.vsAI && state.winnerId === 'player2';
+    playSfx(isHumanLoss ? 'match.defeat' : 'match.victory');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleCopyLog() {
     const text = formatLogAsText(state.log);

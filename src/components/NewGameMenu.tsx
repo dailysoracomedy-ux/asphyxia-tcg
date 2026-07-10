@@ -5,6 +5,7 @@ import type { Faction } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
+import AudioSettingsControl from '@/audio/AudioSettingsControl';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
 
@@ -60,6 +61,9 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
           <span className="text-fuchsia-400 text-shadow-glow">ASPHYXIA</span>
         </h1>
         <p className="text-center text-white/40 text-xs tracking-[0.3em] mb-8">v0.2.1 · LOCAL HOTSEAT PROTOTYPE</p>
+        <div className="flex justify-center mb-6">
+          <AudioSettingsControl />
+        </div>
 
         <div className="text-center -mt-6 mb-6">
           <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">

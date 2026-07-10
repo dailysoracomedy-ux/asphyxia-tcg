@@ -1610,6 +1610,74 @@ both ran clean, plus clean `tsc`/`eslint`/build. The one previously-documented
 flaky test (23.2) flaked again in this run's batch sweep, unchanged and consistent
 with the prior finding.
 
+## Commit 25: AI pacing fixed at the root, SFX framework, background music
+
+**The actual bug behind "AI actions outrun the banner explaining them"**: the
+action banner's queue lived entirely in `ActionBanner.tsx`'s own local `useState`,
+invisible to anything else - including the AI driver, which acted on its own
+fixed 600-700ms timer regardless of whether a 2.6-second banner was still showing
+from two actions ago. Fixed by adding a shared, reference-counted "ceremony" lock
+to `animationStore.ts` (`markCeremonyBusy`/`ceremonyLocks`) - a counter, not a
+boolean, since several events routinely fire within one synchronous mutation (one
+attack can emit `ATTACK_DECLARED`, then `CARD_HIT`, then `CARD_DESTROYED`, all in a
+single `declareAttack` call). `gameStore.ts`'s existing `emitVfx` helper now marks
+this lock centrally for every banner-worthy event type, and the AI driver
+(`GameBoard.tsx`) subscribes to it reactively and holds its next decision until it
+clears. `ActionBanner.tsx` was also switched from one flat 2600ms display duration
+to the same per-type `CEREMONY_MS` map the AI gate uses, so the two literally
+cannot drift apart from each other again - one source of truth for both.
+
+**Verified this is the actual fix, not just plausible-looking code**: wrote
+`test-ai-ceremony-pacing.ts`, which holds a real ceremony lock open and confirms
+the AI takes zero action well past its normal decision timer, then confirms it
+resumes once the lock clears. Then deliberately reverted the fix and re-ran the
+test to confirm it fails without it, then restored the fix and confirmed it passes
+again - the same prove-the-test-is-real discipline used for the 23.1/23.2 fixes.
+
+**SFX framework** (`src/audio/sfx.ts`): a typed `SfxKey` registry covering every
+category from the spec (UI, card, combat, resources, mechanics, match end). No
+sound files exist yet, so every key is a small synthesized Web Audio tone rather
+than an mp3 - explicitly allowed by the spec, and means the framework is fully
+wired and usable today rather than blocked on assets. Swapping in real files later
+only touches `sfx.ts` internals; `playSfx(key)` and every call site elsewhere
+stays the same. `AudioController.tsx` is a silent, render-nothing component that
+watches the same `animationStore` events `ActionBanner` already watches and plays
+the matching sound the instant a new one appears - `gameStore.ts` and `rules.ts`
+stay completely audio-unaware, exactly like they stay animation-unaware.
+
+**Background music**, from your follow-up ask: `MUSIC_TRACKS` in
+`src/audio/musicTracks.ts` is an empty array with instructions for adding your own
+songs (drop the file in `/public/audio/music/`, add one entry) - the same
+"framework ready, assets swappable later" pattern as the SFX tones and the card art
+system before it. `MusicController.tsx` shuffles the list into a playlist and loops
+it via a single shared `<audio>` element, mounted once at the app root
+(`app/page.tsx`) rather than per-screen, so the same element and playlist position
+persist across menu → game → game-over instead of restarting on every screen
+transition. Music defaults to **muted** on purpose - not a policy workaround so
+much as the friendlier default regardless, and it also means the first real
+`.play()` attempt always happens in direct response to someone pressing the
+toggle, which is exactly the kind of user gesture browsers require anyway rather
+than something to route around.
+
+**Audio settings**: `audioStore.ts` holds two fully independent mute/volume pairs
+(SFX and music), since wanting one without the other is a completely reasonable
+preference, persisted to `localStorage` via Zustand's own `persist` middleware.
+`AudioSettingsControl.tsx` is one shared component used in both the in-game top bar
+and the main menu.
+
+**Simulation safety**: nothing in this commit touches `gameStore.ts`'s actual
+mutation logic, `rules.ts`, `ai.ts`'s decision-making, or `simulate.ts` itself -
+the ceremony lock, SFX, and music are all consumed exclusively by mounted React
+components (`GameBoard.tsx`'s AI-driver effect, `AudioController`,
+`MusicController`), none of which `simulate.ts` or any test file ever imports or
+renders. Confirmed, not assumed: the 72-game simulation completed in its normal
+timeframe.
+
+**Verified**: full regression suite (430+ checks across 21 files, including the
+new ceremony-pacing test) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

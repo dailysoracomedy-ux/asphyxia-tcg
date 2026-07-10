@@ -51,15 +51,46 @@ export interface VisualEvent {
   destroyedGhost?: { instance: import('@/types/game').CardInstance; ownerId: string; slotIndex: number };
 }
 
+/** How long each event type keeps the game "in ceremony" - shared by both the AI
+ *  pacing gate (Commit 25) and ActionBanner's own per-event display duration, so
+ *  the two can never drift out of sync with each other the way the AI's fixed
+ *  600-700ms timer and the banner's flat 2600ms display previously did. Numbers
+ *  match the ranges given in the Commit 25 spec - snappy, not sluggish. */
+export const CEREMONY_MS: Partial<Record<VisualEventType, number>> = {
+  CARD_PLACED: 900,
+  REACT_PLAYED: 1000,
+  CARD_NEGATED: 1100,
+  ATTACK_DECLARED: 700,
+  CARD_HIT: 900,
+  CARD_DESTROYED: 1100,
+  OVERFLOW_DAMAGE: 900,
+  O2_DAMAGE: 900,
+};
+
 interface AnimationStoreState {
   events: VisualEvent[];
   enqueue: (event: Omit<VisualEvent, 'id' | 'createdAt'>, durationMs?: number) => void;
+  /** Reference count, not a boolean or a single timestamp - several events
+   *  routinely fire within one synchronous game-store mutation (a single attack
+   *  can emit ATTACK_DECLARED, then CARD_HIT, then CARD_DESTROYED, all in one
+   *  `declareAttack` call). A counter means the game only leaves "ceremony" once
+   *  every one of those has actually finished its own display window, not just
+   *  the first or the last. */
+  ceremonyLocks: number;
+  markCeremonyBusy: (durationMs: number) => void;
 }
 
 let counter = 0;
 
 export const useAnimationStore = create<AnimationStoreState>((set) => ({
   events: [],
+  ceremonyLocks: 0,
+  markCeremonyBusy: (durationMs) => {
+    set((s) => ({ ceremonyLocks: s.ceremonyLocks + 1 }));
+    setTimeout(() => {
+      set((s) => ({ ceremonyLocks: Math.max(0, s.ceremonyLocks - 1) }));
+    }, durationMs);
+  },
   enqueue: (event, durationMs = 700) => {
     const id = `vfx-${Date.now()}-${counter++}`;
     const full: VisualEvent = { ...event, id, createdAt: Date.now() };
@@ -69,6 +100,15 @@ export const useAnimationStore = create<AnimationStoreState>((set) => ({
     }, durationMs);
   },
 }));
+
+/** Whether the game is currently "in ceremony" - i.e. showing an action banner or
+ *  otherwise mid-way through explaining something that just happened. The AI
+ *  driver (GameBoard.tsx) subscribes to this reactively and holds its next
+ *  decision until it clears; simulate.ts and the store-logic tests never import
+ *  this hook at all, so headless runs are structurally unaffected by it. */
+export function useCeremonyBusy(): boolean {
+  return useAnimationStore((s) => s.ceremonyLocks > 0);
+}
 
 /** Convenience read hook - all currently-active events for a specific Apex.
  *  Wrapped in useShallow: without it, the inline .filter() below returns a brand

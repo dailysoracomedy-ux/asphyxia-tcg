@@ -5,13 +5,14 @@ import type { GameState } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { getCardArt } from '@/lib/cardArt';
 import { factionTheme } from '@/lib/theme';
-import { useAnimationStore, type VisualEvent } from '@/store/animationStore';
+import { useAnimationStore, CEREMONY_MS, type VisualEvent } from '@/store/animationStore';
 
 const BANNER_TYPES: VisualEvent['type'][] = ['CARD_PLACED', 'REACT_PLAYED', 'CARD_NEGATED'];
-const DISPLAY_MS = 2600;
+const FALLBACK_DISPLAY_MS = 900;
 
 interface QueuedBanner {
   id: string;
+  type: VisualEvent['type'];
   playerId?: string;
   cardDefId?: string;
   faction?: string;
@@ -47,6 +48,7 @@ export default function ActionBanner({ state }: { state: GameState }) {
       ...q,
       ...fresh.map((e) => ({
         id: e.id,
+        type: e.type,
         playerId: e.playerId,
         cardDefId: e.cardDefId,
         faction: e.faction,
@@ -60,11 +62,13 @@ export default function ActionBanner({ state }: { state: GameState }) {
   }, [events]);
 
   const current = queue[0] ?? null;
+  const displayMs = current ? (CEREMONY_MS[current.type] ?? FALLBACK_DISPLAY_MS) : FALLBACK_DISPLAY_MS;
 
   useEffect(() => {
     if (!current) return;
-    const t = setTimeout(() => setQueue((q) => q.slice(1)), DISPLAY_MS);
+    const t = setTimeout(() => setQueue((q) => q.slice(1)), displayMs);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current]);
 
   if (!current || !current.cardDefId) return null;
@@ -76,7 +80,7 @@ export default function ActionBanner({ state }: { state: GameState }) {
     <div
       key={current.id}
       className="fixed left-1/2 top-[18%] z-40 pointer-events-none vfx-banner-in"
-      style={{ ['--banner-color' as string]: theme.primary }}
+      style={{ ['--banner-color' as string]: theme.primary, animationDuration: `${displayMs}ms` }}
     >
       <div
         className="flex items-center gap-3 rounded-lg border-2 px-4 py-2.5 max-w-md"
