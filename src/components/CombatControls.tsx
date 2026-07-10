@@ -28,11 +28,12 @@ export default function CombatControls({
   awaitingTarget,
 }: CombatControlsProps) {
   if (!apexDef) {
-    return (
-      <div className="rounded-lg border border-orange-500/30 bg-[#05050a] p-3 text-xs text-white/40">
-        Select one of your Apexes above to attack with it.
-      </div>
-    );
+    // The "select an Apex to attack with" guidance is already covered by the
+    // more compact phasePrompt text above the board (Commit 29) - this used to
+    // duplicate that in its own bordered/padded box, which was real, reported
+    // visual clutter (two boxes saying almost the same thing, one of them
+    // pushing the Equip flap out of view below it).
+    return null;
   }
 
   return (

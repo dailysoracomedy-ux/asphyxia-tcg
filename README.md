@@ -2071,6 +2071,36 @@ commit, one fixed) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
 in this run's batch sweep, unchanged and consistent with the prior finding.
 
+## Commit 29.5: ConfirmBar unblocked, redundant "select an Apex" box removed
+
+**"I can't confirm because of the blackout screen"** - a real bug in 29.4's own
+overlay. The dim overlay (z-30) had no awareness of `ConfirmBar` or the Overdrive
+prompt, neither of which had any elevated z-index of their own - so the overlay
+sat directly above them, silently swallowing clicks meant for "Confirm." Fixed by
+wrapping the entire block of mode-dependent confirmation UI (every `ConfirmBar`
+variant plus the Overdrive prompt - nine separate conditionals in total) in one
+shared container that gets the same above-overlay z-index treatment whenever
+`tutorialMode` is active, rather than patching each prompt individually. Outside
+tutorial mode this wrapper renders as `display: contents` specifically so it adds
+zero extra layout nesting to Row 8's existing flex/gap structure - normal play's
+spacing is untouched.
+
+**The two redundant boxes from the screenshot**: `CombatControls`' own "Select
+one of your Apexes above to attack with it." box duplicated the newer, more
+compact `phasePrompt` text (Commit 29) - two boxes saying nearly the same thing,
+one of them bordered and padded, pushing the Equip flap out of view below it.
+Removed the older, heavier box entirely; the lighter phasePrompt already covers
+this guidance on its own.
+
+**Verified**: a real DOM-mounted test confirms the confirmation-UI wrapper
+actually carries the above-overlay class during a live tutorial match (not just
+that the CSS class exists somewhere), and confirms `CombatControls` renders
+nothing at all in the no-Apex-selected state - not just different text, genuinely
+no box. Full regression suite (525+ checks across 27 files, one new this commit)
+and a fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build.
+The one previously-documented flaky test (23.2) flaked again in this run's batch
+sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
