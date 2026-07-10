@@ -290,7 +290,7 @@ function ApexSlot({
     const apexArtWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div className="flex flex-col shrink-0" style={{ width: apexArtWidth }}>
-        <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction}>
+        <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'}>
           {cardEl}
         </ApexVfxOverlay>
         <EquipFlap key={apex.equip.instanceId} equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
@@ -299,7 +299,7 @@ function ApexSlot({
   }
 
   return (
-    <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction}>
+    <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'}>
       {cardEl}
     </ApexVfxOverlay>
   );
@@ -312,7 +312,17 @@ function ApexSlot({
  *  class at a time (destroy takes priority over hit takes priority over the
  *  attack-declare pulse) since these fire in sequence during one attack, not
  *  simultaneously, and stacking classes would just fight each other visually. */
-function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId: string; faction: Faction; children: React.ReactNode }) {
+function ApexVfxOverlay({
+  apexInstanceId,
+  faction,
+  children,
+  spotlight,
+}: {
+  apexInstanceId: string;
+  faction: Faction;
+  children: React.ReactNode;
+  spotlight?: boolean;
+}) {
   const events = useApexVisualEvents(apexInstanceId);
   const theme = factionTheme(faction);
   const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
@@ -330,7 +340,7 @@ function ApexVfxOverlay({ apexInstanceId, faction, children }: { apexInstanceId:
 
   return (
     <div
-      className={`relative ${vfxClass}`}
+      className={`relative ${vfxClass} ${spotlight ? 'tutorial-spotlight' : ''}`}
       style={{
         ['--react-glow-color' as string]: `${theme.primary}cc`,
         ['--place-glow-color' as string]: `${theme.primary}dd`,

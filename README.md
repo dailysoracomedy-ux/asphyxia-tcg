@@ -2006,6 +2006,71 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
 in this run's batch sweep, unchanged and consistent with the prior finding.
 
+## Commit 29.4: tutorial lockdown - no more free reign before Continue, dim/spotlight overlay, a major hidden bug
+
+**Fix #1 - the exact reported bug**: `OpeningApexScreen` had zero tutorial
+awareness; it rendered as a sibling to the tutorial's intro step, fully
+interactive the whole time. Rather than trying to overlay/block that screen,
+tutorial games now skip it entirely - `startNewGame`'s tutorial branch goes
+straight to `status: 'playing'` with both players starting at zero Apexes, and
+"play your first Apex" becomes a completely ordinary, already-gated Main-Phase
+Apex play (the exact same `blockedByTutorial` gate every other step already uses)
+rather than a special, separately-secured "opening selection" concept. One
+architecture, not two.
+
+**A major, previously-undiscovered bug found by direct testing, not assumed**:
+making that change surfaced something serious - "The first player cannot attack
+on their very first turn," a real and correct rule for normal play, was silently
+blocking the tutorial's own Step 6 attack. Confirmed directly: declared the exact
+attack Step 6 requires, and `hasAttacked` came back `false` with that exact log
+message. This means the tutorial has likely never actually let a real attack
+through at that point, silently, since it was first built - the step's own
+`autoAdvanceWhen` would just wait forever for `hasAttacked` to become true, watching
+a condition that could never be satisfied. Fixed narrowly: tutorial mode simply
+never sets `isFirstTurnOverall` (a rule that exists to stop a coinflip winner
+from getting a free alpha strike before the opponent can set up - not a concern
+in a fully scripted, single-player teaching sequence). Confirmed working with the
+identical attack immediately after the fix, and confirmed normal games are
+completely untouched - `isFirstTurnOverall` still applies exactly as before there.
+
+**Dim/spotlight overlay** (`TutorialOverlay.tsx`): a single full-screen semi-
+transparent layer (z-30) that swallows every click by default and shows the
+"follow the tutorial" toast, sitting above the normal board but below the
+tutorial panel (z-40) and every modal (z-50+, so a React response window during
+a tutorial React step is completely unaffected). Whatever the current step
+highlights gets a new `tutorial-spotlight` class - raises it to z-35, above the
+overlay, so it's the one thing that stays genuinely clickable, reusing the exact
+same highlight-computation sites already built for the pulsing ring (Hand.tsx,
+PlayerBoard.tsx's `ApexVfxOverlay`, the Combat Phase button) rather than a
+parallel system. `blockedByTutorial()` remains the authoritative gameplay-side
+gate; this is the input-layer reinforcement of the same rule, so a stray click
+can't even reach a handler to begin with.
+
+**A real flake found and fixed while verifying the pacing fix from 29.3, not
+hidden**: a test checking that tutorial mode activates the Showcase-speed
+mechanism failed intermittently. Traced it directly (not guessed): a diagnostic
+script confirmed the effect *does* fire correctly, just later than the test's
+80ms wait allowed for in this specific jsdom + createRoot environment - at 500ms
+it fires reliably every time. Not a product bug; the test's timing margin was
+too tight, matching the same category of fix already applied elsewhere in this
+suite. Widened it and re-verified stable across repeated runs.
+
+**Deliberate scope decisions, stated directly**: the opponent's turns still lean
+on the existing (real, unmodified) AI rather than a fully separate scripted
+opponent state machine - the same tradeoff made in 29.1, reaffirmed here rather
+than revisited, since the setup-level guarantees (which apex the opponent opens
+with, etc.) continue to produce reliable outcomes through real combat math. The
+spotlight overlay covers hand cards, Apex slots, and the Combat Phase button (the
+highest-value, most report-relevant targets) - not yet extended to every
+individual attack-choice button or Rift-choice button named in the spec, since
+the existing gating already blocks a wrong choice there even without the
+z-index-raising visual treatment.
+
+**Verified**: full regression suite (520+ checks across 26 files, one new this
+commit, one fixed) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -317,6 +317,7 @@ export function searchPileForApex(pile: CardInstance[]): { apex: CardInstance | 
 export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) {
   const player = draft.players[playerId];
   if (player.apexSlots.some(Boolean)) return; // still controls at least one Apex - nothing to do
+  if (draft.tutorialMode && draft.tutorialAwaitingFirstApex && playerId === 'player1') return;
 
   // Step 1: an Apex in hand must be force-played.
   const handApexIdx = player.hand.findIndex((c) => c.type === 'Apex');
@@ -849,6 +850,7 @@ export const useGameStore = create<GameStore>((set) => ({
       draft.vsAI = tutorialMode ? true : !!vsAI;
       draft.aiVsAiMode = !!aiVsAiMode;
       draft.tutorialMode = !!tutorialMode;
+      draft.tutorialAwaitingFirstApex = !!tutorialMode;
 
       for (const [pid, faction] of [
         ['player1', p1Faction],
@@ -905,8 +907,34 @@ export const useGameStore = create<GameStore>((set) => ({
       }
 
       draft.riftSpace = determineRiftSpace(p1Faction, p2Faction);
-      draft.status = 'selectingOpeningApex';
-      draft.openingApexSelectionPlayerId = 'player1';
+      if (tutorialMode) {
+        // Skip normal opening-Apex selection entirely (Commit 29.4) - the
+        // previous approach left the normal selection screen fully clickable
+        // underneath/alongside the tutorial's own intro step, a real reported
+        // bug (the player could pick any Apex before ever pressing Continue).
+        // Player1 always goes first in the tutorial, matching the scripted
+        // script; both players start with zero Apexes in play, and the
+        // tutorial's own Step 1 gating (blockedByTutorial) guides the player
+        // through what is otherwise a completely ordinary Main-Phase Apex
+        // play - no special-cased "first Apex" logic needed at all.
+        draft.activePlayerId = 'player1';
+        draft.firstPlayerId = 'player1';
+        draft.turnNumber = 1;
+        // Deliberately NOT setting isFirstTurnOverall here - that rule exists to
+        // stop a coinflip winner from getting a free alpha strike before the
+        // opponent can set up, which doesn't meaningfully apply to a fully
+        // scripted, single-player teaching sequence. Confirmed by direct testing
+        // (not assumed) that leaving it true silently blocks Step 6's entire
+        // attack with "The first player cannot attack on their very first turn" -
+        // the tutorial's own autoAdvanceWhen check would then never see
+        // hasAttacked become true, and the step would never advance.
+        draft.status = 'playing';
+        draft.phase = 'Start';
+        draft.startPhasePending = true;
+      } else {
+        draft.status = 'selectingOpeningApex';
+        draft.openingApexSelectionPlayerId = 'player1';
+      }
       logMsg(draft, `New game: ${p1Faction} vs ${p2Faction}. Rift Space: ${draft.riftSpace.name}.`, 'info');
       logMsg(draft, draft.riftSpace.description, 'rift');
     }),
@@ -1008,6 +1036,7 @@ export const useGameStore = create<GameStore>((set) => ({
       const [card] = player.hand.splice(idx, 1);
       player.apexSlots[targetSlot] = card;
       player.turnFlags.cardsPlayedThisTurn += 1;
+      if (draft.tutorialMode && playerId === 'player1') draft.tutorialAwaitingFirstApex = false;
       const def = getCardDef(card.defId) as ApexDef;
       emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       if (def.onEnterPlay) {

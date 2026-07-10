@@ -470,4 +470,13 @@ export interface GameState {
    *  played", "an attack was declared", etc.) rather than forcing specific plays,
    *  which keeps it from ever needing special-cased rule exceptions of its own. */
   tutorialMode?: boolean;
+  /** True only from tutorial start until the player successfully plays their
+   *  first Apex (Commit 29.4). Without this, maybeRunEmergencyApexDraw's normal
+   *  "no Apex at Main Phase start" safety valve would auto-play Street-Beast the
+   *  instant the tutorial's first Main Phase began - correct behavior for a
+   *  normal match, but it would completely skip over Step 1's actual teaching
+   *  moment (the player manually playing their first Apex) before the player
+   *  ever got a chance to. Cleared the moment the real play happens, so Step 8's
+   *  own recovery demonstration later in the same match is entirely unaffected. */
+  tutorialAwaitingFirstApex?: boolean;
 }

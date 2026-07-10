@@ -48,7 +48,7 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label, 
           const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
           const tutorialHighlighted = tutorialHighlightDefId === c.defId;
           return (
-            <div key={c.instanceId} title={reason ?? undefined}>
+            <div key={c.instanceId} title={reason ?? undefined} className={tutorialHighlighted ? 'tutorial-spotlight' : undefined}>
               <Card
                 instance={c}
                 size="hand"

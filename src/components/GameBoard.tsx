@@ -14,6 +14,7 @@ import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
+import TutorialOverlay from './TutorialOverlay';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS, type RequiredAction, TUTORIAL_PACING_MULTIPLIER } from '@/tutorial/tutorialSteps';
 import { tutorialActionMatches, tutorialActionNeedsExplicitAdvance } from '@/tutorial/tutorialGate';
@@ -639,6 +640,7 @@ export default function GameBoard() {
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
+      <TutorialOverlay onBlockedClick={() => setTutorialToast('Follow the tutorial step first.')} />
       {state.tutorialMode && <TutorialPanel />}
       {tutorialToast && (
         <div className="fixed top-[8%] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg border-2 border-yellow-400/60 bg-[#05050ae8] text-yellow-200 text-sm font-bold shadow-[0_0_20px_rgba(250,204,21,0.3)] pointer-events-none">
@@ -1047,7 +1049,7 @@ function PhaseButton({
           : enabled
           ? 'border-cyan-400/50 hover:bg-cyan-400/10 text-cyan-200'
           : 'border-white/10 text-white/20 cursor-not-allowed'
-      } ${highlighted ? 'pulse-border ring-2 ring-emerald-400' : ''}`}
+      } ${highlighted ? 'pulse-border ring-2 ring-emerald-400 tutorial-spotlight' : ''}`}
     >
       {label}
     </button>

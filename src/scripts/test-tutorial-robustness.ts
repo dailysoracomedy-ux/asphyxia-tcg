@@ -81,7 +81,7 @@ async function main() {
   const container = dom.window.document.getElementById('root')!;
   const root = createRoot(container as unknown as Element);
   root.render(React.createElement(GameBoard));
-  await new Promise((r) => setTimeout(r, 80));
+  await new Promise((r) => setTimeout(r, 500));
 
   check(
     'entering a tutorial match activates the speed-scaling mechanism at the tutorial-specific multiplier',
