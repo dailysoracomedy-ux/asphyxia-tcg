@@ -181,6 +181,15 @@ html, body {
 /* Commit 29.4: raises whatever the current tutorial step highlights above the
    dim overlay (z-30) so it's the one thing that stays genuinely clickable, with
    a glow to make it unmistakable which element to interact with. */
+/* Commit 29.4.1: minimal z-index elevation, no glow/ring - for whole UI regions
+   (like the ConfirmBar/prompt area) that need to stay clickable above the
+   tutorial dim overlay without the visual spotlight treatment being appropriate
+   for an entire row rather than one specific card/button. */
+.tutorial-above-overlay {
+  position: relative;
+  z-index: 35;
+}
+
 .tutorial-spotlight {
   position: relative;
   z-index: 35;
