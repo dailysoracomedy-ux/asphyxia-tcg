@@ -178,6 +178,16 @@ html, body {
   animation: momentum-pulse 500ms ease-out;
 }
 
+/* Commit 29.4: raises whatever the current tutorial step highlights above the
+   dim overlay (z-30) so it's the one thing that stays genuinely clickable, with
+   a glow to make it unmistakable which element to interact with. */
+.tutorial-spotlight {
+  position: relative;
+  z-index: 35;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.9), 0 0 24px 6px rgba(52, 211, 153, 0.5);
+}
+
 @keyframes momentum-spend {
   0% { filter: brightness(1); opacity: 1; }
   30% { filter: brightness(0.5) saturate(0.6); opacity: 0.6; }
