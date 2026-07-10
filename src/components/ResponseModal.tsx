@@ -3,6 +3,8 @@
 import type { GameState, ReactionDef } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { useGameStore, type ResponseChoice } from '@/store/gameStore';
+import { useTutorialStore } from '@/store/tutorialStore';
+import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 
 function describeTrigger(state: GameState, item: GameState['pendingResponseQueue'][number]): string {
   if (item.stage !== 'reactionChoice') return '';
@@ -69,11 +71,19 @@ function ReactionPrompt({
   onChoose: (choice: ResponseChoice) => void;
 }) {
   const player = state.players[item.respondingPlayerId];
-  const eligible = player.hand.filter((c) => {
+  let eligible = player.hand.filter((c) => {
     if (c.type !== 'Reaction') return false;
     const def = getCardDef(c.defId) as ReactionDef;
     return def.trigger === item.trigger.kind && player.momentum >= def.cost;
   });
+  // Commit 29.1: during a gated "play this exact React" tutorial step, only show
+  // that one card - even if the player happens to have another eligible Reaction
+  // in hand, showing it would undercut the whole point of a locked, focused step.
+  const tutorialStep = useTutorialStore((s) => s.step);
+  const requiredReactDefId = state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.requiredAction.type === 'playReact'
+    ? (TUTORIAL_STEPS[tutorialStep].requiredAction as { type: 'playReact'; defId: string }).defId
+    : null;
+  if (requiredReactDefId) eligible = eligible.filter((c) => c.defId === requiredReactDefId);
 
   return (
     <>

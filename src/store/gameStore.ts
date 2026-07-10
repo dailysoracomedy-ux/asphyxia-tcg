@@ -857,24 +857,33 @@ export const useGameStore = create<GameStore>((set) => ({
         const player = freshPlayer(pid, faction);
         let deck = shuffle(buildStarterDeck(faction));
 
-        // Tutorial scripting (Commit 29): reorder player1's deck (never
-        // player2's/the AI's) so the specific card types the tutorial script
-        // references - an Engine, an Equip, a Special - are guaranteed to be
-        // among the first cards seen, rather than leaving it to chance whether a
-        // new player's very first tutorial run actually gets to try each thing.
-        // This only ever changes draw *order*, never deck composition/copy
-        // counts/card pool - the underlying rules are completely untouched.
+        // Tutorial scripting (Commit 29 / 29.1): reorder each player's deck (never
+        // composition/copy counts, only draw *order*) so the specific cards the
+        // scripted tutorial references are guaranteed to show up when needed,
+        // rather than leaving a first-time player's actual teaching moment to
+        // chance. Player1 gets the cards the script names by name (Street-Beast,
+        // Dead Battery, Plasma Edge, Overclock in the opening hand; Glitch Step
+        // and Static Jack guaranteed among the first draws after). Player2 (the
+        // scripted/AI opponent) gets Overseer Prime first specifically because
+        // its 400 DEF is comfortably below Neon Pounce's 500 damage - the
+        // opening-Apex destruction in the script happens through real combat
+        // math against a chosen opponent, never a fabricated stat.
         if (tutorialMode && pid === 'player1') {
-          const firstOfType = (type: CardInstance['type'], defId?: string) =>
-            deck.find((c) => c.type === type && (!defId || c.defId === defId));
+          const byDefId = (defId: string) => deck.find((c) => c.defId === defId);
           const priority = [
-            firstOfType('Apex'),
-            firstOfType('BatterySupport') ?? firstOfType('AbilitySupport'),
-            firstOfType('Equip', 'nu-plasma-edge') ?? firstOfType('Equip'),
-            firstOfType('Special'),
+            byDefId('nu-street-beast'),
+            byDefId('nu-dead-battery'),
+            byDefId('nu-plasma-edge'),
+            byDefId('nu-overclock'),
+            byDefId('nu-glitch-step'),
+            byDefId('nu-static-jack'),
           ].filter((c): c is CardInstance => !!c);
           const rest = deck.filter((c) => !priority.includes(c));
           deck = [...priority, ...rest];
+        }
+        if (tutorialMode && pid === 'player2') {
+          const opener = deck.find((c) => c.defId === 'dw-pale-executioner') ?? deck.find((c) => c.type === 'Apex');
+          if (opener) deck = [opener, ...deck.filter((c) => c !== opener)];
         }
 
         let hand: CardInstance[] = [];

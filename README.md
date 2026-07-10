@@ -1833,6 +1833,83 @@ tutorial test (widened wait margins after a `setStep` call, the same category of
 fix already applied elsewhere in this suite) - caught and fixed before shipping,
 not left in.
 
+## Commit 29.1: locked/gated tutorial rewrite, AI vs AI speed slider
+
+**AI vs AI speed slider**: replaced the 3 discrete Slow/Normal/Fast buttons with a
+real continuous `<input type="range">` (0.5x-4x), and raised the *default* itself
+from 1x to 2x - reported as "so fast it's hard to keep up" even at the old Slow
+setting (1.75x), so the fix wasn't just adding a slider, it was making the whole
+range meaningfully slower out of the box, before anyone touches the control.
+
+**Tutorial: rebuilt around real gating, not just tips on a real match.** The core
+complaint - "gives people free reign without even knowing the first thing to do" -
+was accurate: 29's tutorial was a real match with a floating advisory panel a
+player could click "Next" straight through. 29.1 replaces that with:
+
+- **A step model with a `requiredAction`** (`src/tutorial/tutorialSteps.ts`) - 17
+  steps, each specifying exactly what the player must do (play this exact card,
+  choose this exact attack, click this exact target), not just what to read.
+- **Real input gating** (`blockedByTutorial()` in `GameBoard.tsx`): every relevant
+  click handler - playing a card, selecting an attacker, choosing an attack,
+  selecting a target, advancing to Combat, choosing a React - checks the attempted
+  action against the current step's `requiredAction` *before* calling the
+  underlying store action. A mismatch blocks the action entirely and shows a
+  toast ("Follow the tutorial step first."), rather than letting it through and
+  hoping the player follows along.
+- **A locked, prominent panel**, not a small corner overlay: centered, larger, and
+  critically, **Next only appears on the 2 purely passive "read and continue"
+  steps** - every action-gated step has no skip button at all; it only advances
+  when the real required action actually happens (detected via each step's own
+  `autoAdvanceWhen` state check, e.g. "does player1 now control a Support with
+  this exact defId").
+- **Highlighting** reuses the existing `'valid-target'` ring/pulse styling already
+  used throughout the game for legal-target indication (Commit 29) - the specific
+  hand card, the specific Apex, the Combat Phase button - rather than building a
+  parallel highlight system with different visuals for the same underlying idea.
+
+**Scripted setup uses real game math, not fabricated outcomes.** The doc's Step 6
+says "script the result so the enemy Apex is destroyed" - rather than rigging a
+number, `startNewGame`'s tutorial branch reorders player2's deck so its opening
+Apex is specifically Overseer Prime/Pale Executioner (300-400 DEF), comfortably
+below Street-Beast's Neon Pounce (500 damage, 1 Sync) - the destruction happens
+through the same combat math every other attack in the game uses. Player1's deck
+is similarly reordered (draw order only, never composition or copy counts) so
+Street-Beast, Dead Battery, Plasma Edge, and Overclock are guaranteed in the
+opening hand, with Glitch Step and Static Jack guaranteed among the very next
+draws.
+
+**Deliberate scope decisions, stated directly rather than silently dropped:**
+- **The opponent's turns lean on the existing AI** (biased toward attacking, which
+  it already does reasonably well) rather than frame-perfect scripted choreography
+  for every beat. This was a real tradeoff: full deterministic scripting of every
+  opponent action (exact attack choice, exact timing) is significantly more
+  fragile and harder to verify than "guarantee the opponent's *options* produce
+  the right teaching moment through real math," which is what's actually built.
+- **Steps 11 (Rift-choice-specific), 14 (Negate demonstration), and 15
+  (second-Apex direct attack)** from the original 16-step outline are not built as
+  separately gated, hyper-specific steps - the spec itself explicitly permitted
+  deferring the Negate step if it was too much for one pass, and the same
+  reasoning applied here to keep the shipped 17-step tutorial solid rather than
+  stretch to 20+ steps with weaker guarantees on each.
+- **React gating is a hand-filter, not a full lock.** During the react-window
+  step, `ResponseModal.tsx` only *shows* the required React (Glitch Step) among
+  eligible options, rather than also disabling the "Pass" button - noted directly
+  rather than claimed as fully locked.
+
+**A real, honestly-stated test coverage gap**: this project's test harness has no
+DOM click-simulation tool (no `fireEvent`-equivalent), so `test-tutorial-gating.ts`
+verifies `tutorialActionMatches()` directly - the exact function every gating
+check calls - with real mismatched/matched action pairs, plus the scripted
+deck/hand setup and a real DOM mount confirming Next is genuinely absent on a
+gated step. It does not simulate an actual wrong click flowing through
+`GameBoard.tsx`'s real handlers end-to-end. Flagged plainly, the same way Commit
+24's streamlined-confirm behavior was.
+
+**Verified**: full regression suite (490+ checks across 24 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked again
+in this run's batch sweep, unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -90,18 +90,21 @@ async function main() {
 }
 
 async function speedTest() {
-  const { useShowcaseStore, currentShowcaseMultiplier } = await import('@/store/showcaseStore');
+  const { useShowcaseStore, currentShowcaseMultiplier, SHOWCASE_SPEED_MIN, SHOWCASE_SPEED_MAX, SHOWCASE_SPEED_DEFAULT } = await import(
+    '@/store/showcaseStore'
+  );
   useShowcaseStore.getState().setActive(true);
 
-  useShowcaseStore.getState().setSpeed('fast');
+  useShowcaseStore.getState().setSpeedMultiplier(SHOWCASE_SPEED_MIN);
   const fastMult = currentShowcaseMultiplier();
-  useShowcaseStore.getState().setSpeed('slow');
+  useShowcaseStore.getState().setSpeedMultiplier(SHOWCASE_SPEED_MAX);
   const slowMult = currentShowcaseMultiplier();
-  useShowcaseStore.getState().setSpeed('normal');
+  useShowcaseStore.getState().setSpeedMultiplier(SHOWCASE_SPEED_DEFAULT);
   const normalMult = currentShowcaseMultiplier();
 
-  check('Fast speed multiplier is less than Normal (shortens ceremony timing)', fastMult < normalMult);
-  check('Slow speed multiplier is greater than Normal (lengthens ceremony timing)', slowMult > normalMult);
+  check('Fast (min slider value) multiplier is less than the default', fastMult < normalMult);
+  check('Slow (max slider value) multiplier is greater than the default', slowMult > normalMult);
+  check('the default speed is itself slower than 1x (Commit 29.1 - reported as too fast even at the old default)', SHOWCASE_SPEED_DEFAULT > 1);
 
   useShowcaseStore.getState().setActive(false);
   check('multiplier returns to 1x when Showcase mode is inactive (never affects normal play)', currentShowcaseMultiplier() === 1);

@@ -14,12 +14,15 @@ import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
+import { useTutorialStore } from '@/store/tutorialStore';
+import { TUTORIAL_STEPS, type RequiredAction } from '@/tutorial/tutorialSteps';
+import { tutorialActionMatches } from '@/tutorial/tutorialGate';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
 import AudioSettingsControl from '@/audio/AudioSettingsControl';
 import { useCeremonyBusy } from '@/store/animationStore';
-import { useShowcaseStore, currentShowcaseMultiplier } from '@/store/showcaseStore';
+import { useShowcaseStore, currentShowcaseMultiplier, SHOWCASE_SPEED_MIN, SHOWCASE_SPEED_MAX } from '@/store/showcaseStore';
 import VoidInspectModal from './VoidInspectModal';
 import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
@@ -68,6 +71,36 @@ type Mode =
 export default function GameBoard() {
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
+  const [tutorialToast, setTutorialToast] = useState<string | null>(null);
+  const tutorialStep = useTutorialStore((t) => t.step);
+  useEffect(() => {
+    if (!tutorialToast) return;
+    const t = setTimeout(() => setTutorialToast(null), 2000);
+    return () => clearTimeout(t);
+  }, [tutorialToast]);
+
+  /** Commit 29.1: the actual fix for the tutorial giving "free reign" - every
+   *  click that would perform a real game action checks this first when
+   *  state.tutorialMode is true. Returns true (and shows a brief toast) if the
+   *  attempted action doesn't match what the current tutorial step requires,
+   *  in which case the caller must bail out *before* calling the underlying
+   *  store action - blocking is only meaningful if it happens before the
+   *  mutation, not after. Outside tutorial mode this is always false and
+   *  costs nothing. */
+  function blockedByTutorial(action: RequiredAction): boolean {
+    if (!state.tutorialMode) return false;
+    const step = TUTORIAL_STEPS[tutorialStep];
+    if (!step) return false;
+    if (step.requiredAction.type === 'ack' || step.requiredAction.type === 'waitForOpponent' || step.requiredAction.type === 'win') {
+      setTutorialToast('Follow the tutorial step first.');
+      return true;
+    }
+    if (!tutorialActionMatches(action, step.requiredAction)) {
+      setTutorialToast('Follow the tutorial step first.');
+      return true;
+    }
+    return false;
+  }
   const [logOpen, setLogOpen] = useState(false);
   const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
   const [voidInspecting, setVoidInspecting] = useState<PlayerId | null>(null);
@@ -326,6 +359,19 @@ export default function GameBoard() {
     const card = activePlayer.hand.find((c) => c.instanceId === cardId);
     if (!card || state.phase !== 'Main') return;
     if (isActionLocked()) return;
+    if (state.tutorialMode && mode.kind === 'idle') {
+      const actionType =
+        card.type === 'Apex'
+          ? 'playApex'
+          : card.type === 'AbilitySupport' || card.type === 'BatterySupport'
+          ? 'playEngine'
+          : card.type === 'Equip'
+          ? 'playEquip'
+          : card.type === 'Special'
+          ? 'playSpecial'
+          : null;
+      if (actionType && blockedByTutorial({ type: actionType, defId: card.defId } as RequiredAction)) return;
+    }
     if (mode.kind === 'equipSwapSelectCard') {
       if (card.type !== 'Equip') return;
       state.equipSwap(mode.apexId, cardId);
@@ -441,6 +487,7 @@ export default function GameBoard() {
     if (state.phase === 'Combat') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (apex && !apex.hasAttacked) {
+        if (blockedByTutorial({ type: 'selectAttacker' })) return;
         setMode({ kind: 'attackerChosen', attackerId: apexId });
       }
     }
@@ -468,6 +515,7 @@ export default function GameBoard() {
       return;
     }
     if (mode.kind === 'attackAwaitingTarget') {
+      if (blockedByTutorial({ type: 'selectEnemyTarget' })) return;
       const eligible = getOverdriveEligibility(state, mode.attackerId);
       if (eligible) {
         setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId: mode.attackId, targetId: apexId, supportName: eligible.supportName });
@@ -482,6 +530,7 @@ export default function GameBoard() {
   function chooseAttack(attackId: string) {
     if (mode.kind !== 'attackerChosen') return;
     if (isActionLocked()) return;
+    if (blockedByTutorial({ type: 'chooseAttack', attackId })) return;
     const hasEnemyApex = oppPlayer.apexSlots.some(Boolean);
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });
@@ -503,6 +552,7 @@ export default function GameBoard() {
   const attackerDef = attackerApex ? (getCardDef(attackerApex.defId) as ApexDef) : null;
 
   const oppApexHighlight = (id: string): 'valid-target' | null => {
+    if (state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'enemyApex') return 'valid-target';
     if (mode.kind === 'attackAwaitingTarget') return 'valid-target';
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'enemyApex' || mode.requiresTarget === 'enemyApexWithChoke')) {
       const target = oppPlayer.apexSlots.find((a) => a?.instanceId === id);
@@ -517,6 +567,7 @@ export default function GameBoard() {
   }
 
   const ownApexHighlight = (id: string): 'valid-target' | null => {
+    if (state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'ownApex') return 'valid-target';
     if (mode.kind === 'equipSwapSelectApex') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
       return apex?.equip && apex.equip.equippedTurn !== state.turnNumber ? 'valid-target' : null;
@@ -562,6 +613,11 @@ export default function GameBoard() {
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       {state.tutorialMode && <TutorialPanel />}
+      {tutorialToast && (
+        <div className="fixed top-[8%] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg border-2 border-yellow-400/60 bg-[#05050ae8] text-yellow-200 text-sm font-bold shadow-[0_0_20px_rgba(250,204,21,0.3)] pointer-events-none">
+          {tutorialToast}
+        </div>
+      )}
       <AudioController />
 
       {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
@@ -716,7 +772,11 @@ export default function GameBoard() {
             label="Combat Phase"
             active={state.phase === 'Combat'}
             enabled={state.phase === 'Main' && !aiIsActing}
-            onClick={() => state.advancePhase('Combat')}
+            highlighted={state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'combatPhaseButton'}
+            onClick={() => {
+              if (blockedByTutorial({ type: 'advancePhase', phase: 'Combat' })) return;
+              state.advancePhase('Combat');
+            }}
           />
           <button
             type="button"
@@ -929,7 +989,19 @@ export default function GameBoard() {
   );
 }
 
-function PhaseButton({ label, active, enabled, onClick }: { label: string; active: boolean; enabled: boolean; onClick: () => void }) {
+function PhaseButton({
+  label,
+  active,
+  enabled,
+  onClick,
+  highlighted,
+}: {
+  label: string;
+  active: boolean;
+  enabled: boolean;
+  onClick: () => void;
+  highlighted?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -948,7 +1020,7 @@ function PhaseButton({ label, active, enabled, onClick }: { label: string; activ
           : enabled
           ? 'border-cyan-400/50 hover:bg-cyan-400/10 text-cyan-200'
           : 'border-white/10 text-white/20 cursor-not-allowed'
-      }`}
+      } ${highlighted ? 'pulse-border ring-2 ring-emerald-400' : ''}`}
     >
       {label}
     </button>
@@ -1012,7 +1084,7 @@ function BattleLogDrawer({ log, onClose }: { log: GameState['log']; onClose: () 
  *  timings immediately, and clears it on unmount (leaving the match screen) so a
  *  stale multiplier can never leak into a later normal match. */
 function ShowcaseControls() {
-  const { speed, paused, setSpeed, togglePaused, setActive } = useShowcaseStore();
+  const { speedMultiplier, paused, setSpeedMultiplier, togglePaused, setActive } = useShowcaseStore();
   useEffect(() => {
     setActive(true);
     return () => setActive(false);
@@ -1029,17 +1101,20 @@ function ShowcaseControls() {
       >
         {paused ? 'Resume' : 'Pause'}
       </button>
-      <div className="flex gap-1">
-        {(['slow', 'normal', 'fast'] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setSpeed(s)}
-            className={`px-2 py-0.5 rounded border capitalize ${speed === s ? 'border-fuchsia-400 bg-fuchsia-400/15 text-fuchsia-200' : 'border-white/15 text-white/50 hover:bg-white/10'}`}
-          >
-            {s}
-          </button>
-        ))}
+      <div className="flex items-center gap-1.5">
+        <span className="text-white/40 text-[10px]">Fast</span>
+        <input
+          type="range"
+          min={SHOWCASE_SPEED_MIN}
+          max={SHOWCASE_SPEED_MAX}
+          step={0.1}
+          value={speedMultiplier}
+          onChange={(e) => setSpeedMultiplier(Number(e.target.value))}
+          className="w-28 accent-fuchsia-400"
+          title={`${speedMultiplier.toFixed(1)}x`}
+        />
+        <span className="text-white/40 text-[10px]">Slow</span>
+        <span className="text-fuchsia-300 font-mono text-[10px] w-8 text-right">{speedMultiplier.toFixed(1)}x</span>
       </div>
     </div>
   );
