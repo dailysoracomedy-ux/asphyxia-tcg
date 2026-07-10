@@ -160,6 +160,15 @@ html, body {
   animation: momentum-pulse 500ms ease-out;
 }
 
+@keyframes place-glow {
+  0% { box-shadow: 0 0 0 0 var(--place-glow-color, rgba(255,255,255,0.8)); }
+  30% { box-shadow: 0 0 16px 4px var(--place-glow-color, rgba(255,255,255,0.8)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vfx-place-glow {
+  animation: place-glow 1000ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .active-board-glow,
   .vfx-attack-pulse,
@@ -169,6 +178,7 @@ html, body {
   .vfx-react-highlight,
   .vfx-negate-glitch,
   .vfx-momentum-pulse,
+  .vfx-place-glow,
   .pulse-border {
     animation: none !important;
   }
