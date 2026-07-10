@@ -185,6 +185,18 @@ html, body {
    (like the ConfirmBar/prompt area) that need to stay clickable above the
    tutorial dim overlay without the visual spotlight treatment being appropriate
    for an entire row rather than one specific card/button. */
+/* Commit 29.6: keeps a card visible/bright above the dim overlay without the
+   spotlight glow - applied to every card already in play (both players' Apex
+   and Engine slots) during tutorial mode, since darkening board state a player
+   needs to actually see and understand was real, reported friction ("ALL of the
+   cards IN PLAY should be bright... for both Factions"). Deliberately no ring/
+   glow here - that's reserved for .tutorial-spotlight, the one specific target
+   the player should click right now. */
+.tutorial-stay-bright {
+  position: relative;
+  z-index: 34;
+}
+
 .tutorial-above-overlay {
   position: relative;
   z-index: 35;
