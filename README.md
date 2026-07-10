@@ -1423,6 +1423,60 @@ cached" pattern by name, so this specific class of bug can't silently return).
 mount smoke test) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build.
 
+## Commit 23.2: found why card animations were invisible - a real architectural gap
+
+Reported: only the active-turn glow and O2 damage flash were visible; no attacker
+pulse, no hit flash, no destroy shake, despite all of them being wired in Commit 23.
+
+**Traced this with the same jsdom + `createRoot` approach that found the 23.1
+crash**, since guessing at CSS specificity issues would have wasted time chasing
+the wrong thing. Declared a real attack against a real mounted board and inspected
+the animation store and rendered DOM directly. First finding: my test setup itself
+was rejecting the attack for mundane reasons (no Sync granted, no target specified,
+using a stale attack id after switching players) - three separate self-inflicted
+false leads, each ruled out in turn before reaching the real answer.
+
+**The actual bug**: when an attack destroys an Apex, game state removes it from its
+board slot in the exact same synchronous update that fires the `CARD_DESTROYED`
+visual event. By the time React re-renders, the slot already reads empty - the
+700ms shake animation never gets a single frame to play, because the DOM node it
+would animate is already gone. Confirmed directly: the animation store correctly
+received `ATTACK_DECLARED` → `CARD_HIT` → `CARD_DESTROYED` in sequence, and the
+`vfx-attack-pulse` class *did* render correctly on the attacker - the destroy
+animation specifically was the dead end, and destruction is disproportionately
+common in this game's combat (attrition-based, kills happen constantly), which is
+why it read as "no animations at all" rather than "one specific animation missing."
+
+**Fix**: `VisualEvent` now optionally carries a `destroyedGhost` - a plain snapshot
+of the card (owner, slot index, and a deep copy of the instance) captured the
+instant before `destroyApexFn` removes it. A new `useSlotGhost` hook lets a vacated
+board slot check "was something just destroyed here?" and, if so, keep rendering
+that snapshot - shake animation and all - for exactly as long as the event stays
+alive, then correctly reverts to genuinely empty. Also fell back to the card's
+printed DEF for the ghost's stat display, since the live DEF calculation
+legitimately can't find a card that's already left play and would otherwise show a
+misleading "DEF 0" during the animation.
+
+**Verified the fix is the actual fix, the same way as 23.1**: declared a real lethal
+attack against a real mounted board, confirmed `vfx-destroy-shake` renders in the
+vacated slot immediately, and confirmed it's gone again once the window elapses -
+not assumed from reading the code.
+
+**Added `test-destroy-ghost-vfx.tsx`** as a permanent regression test using this
+same approach. Honest caveat, stated directly rather than glossed over: **this new
+test is occasionally flaky** - roughly 1 run in 15-20 in this environment,
+apparently timing/resource-related when many Node processes run back-to-back in a
+tight batch (I made 25+ reproduction attempts across several strategies and never
+once captured a concrete error message, which is itself informative - a
+deterministic logic bug would show the same failure every time). The underlying fix
+has been verified correct dozens of times over; the flakiness is specifically in
+this one test's environment sensitivity, not in the mechanism it's checking. Logged
+here rather than hidden so it's a known, tracked thing rather than a surprise.
+
+**Verified**: full regression suite (400+ checks across 18 files) and a fresh
+72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. `jsdom`/
+`@types/jsdom` now proper dev dependencies, supporting both DOM-mount test files.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

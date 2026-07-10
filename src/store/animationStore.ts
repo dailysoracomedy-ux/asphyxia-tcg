@@ -34,6 +34,15 @@ export interface VisualEvent {
   label?: string;
   faction?: string;
   createdAt: number;
+  /** CARD_DESTROYED only: a plain snapshot of the card as it looked the instant
+   *  before it left the board, plus which owner/slot it came from. Game state
+   *  removes a destroyed Apex from its slot in the same synchronous update that
+   *  fires this event - without this snapshot, the slot would already read empty
+   *  by the time React renders, and the destroy animation would never be visible
+   *  at all (confirmed - this was the actual bug behind "I don't see any card
+   *  animations"). The board renders this ghost in the vacated slot for exactly as
+   *  long as this event stays alive, then the slot reverts to genuinely empty. */
+  destroyedGhost?: { instance: import('@/types/game').CardInstance; ownerId: string; slotIndex: number };
 }
 
 interface AnimationStoreState {
@@ -69,4 +78,17 @@ export function useApexVisualEvents(apexInstanceId: string): VisualEvent[] {
 /** Convenience read hook - all currently-active events for a specific player's O2/Momentum area. */
 export function usePlayerVisualEvents(playerId: string): VisualEvent[] {
   return useAnimationStore(useShallow((s) => s.events.filter((e) => e.playerId === playerId && !e.apexInstanceId)));
+}
+
+/** Convenience read hook - the destroy-ghost (if any) currently occupying a
+ *  specific board slot, so a vacated Apex slot can keep showing the destroyed
+ *  card mid-animation instead of instantly reverting to "empty." */
+export function useSlotGhost(ownerId: string, slotIndex: number) {
+  return useAnimationStore(
+    useShallow((s) =>
+      s.events.find(
+        (e) => e.type === 'CARD_DESTROYED' && e.destroyedGhost?.ownerId === ownerId && e.destroyedGhost?.slotIndex === slotIndex
+      )
+    )
+  );
 }

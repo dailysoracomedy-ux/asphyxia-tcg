@@ -380,9 +380,22 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
   const helpers = createHelpers(draft);
   const attackerHit = findApexAnywhere(draft, trigger.attackerInstanceId);
   const apexDef = attackerHit ? (getCardDef(attackerHit.apex.defId) as ApexDef) : null;
-  const destroyedDef = getCardDef(findApexAnywhere(draft, trigger.targetInstanceId!)!.apex.defId) as ApexDef;
+  const targetHit = findApexAnywhere(draft, trigger.targetInstanceId!)!;
+  const destroyedDef = getCardDef(targetHit.apex.defId) as ApexDef;
+  const destroyedSlotIndex = draft.players[targetHit.ownerId].apexSlots.findIndex((a) => a?.instanceId === trigger.targetInstanceId);
 
-  emitVfx({ type: 'CARD_DESTROYED', apexInstanceId: trigger.targetInstanceId, faction: destroyedDef.faction }, 700);
+  emitVfx(
+    {
+      type: 'CARD_DESTROYED',
+      apexInstanceId: trigger.targetInstanceId,
+      faction: destroyedDef.faction,
+      destroyedGhost:
+        destroyedSlotIndex !== -1
+          ? { instance: JSON.parse(JSON.stringify(targetHit.apex)), ownerId: targetHit.ownerId, slotIndex: destroyedSlotIndex }
+          : undefined,
+    },
+    700
+  );
   destroyApexFn(draft, trigger.targetInstanceId!);
   if (apexDef?.onDestroyEnemyApex) {
     apexDef.onDestroyEnemyApex({

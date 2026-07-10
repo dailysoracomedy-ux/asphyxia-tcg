@@ -2,13 +2,13 @@
 
 import type { CardInstance, Faction, GameState, PlayerId } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport } from '@/game/rules';
+import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChainLabelForSupport, findApexAnywhere } from '@/game/rules';
 import Card from './Card';
 import EquipFlap from './EquipFlap';
 import DeckVoidStack from './DeckVoidStack';
 import { factionTheme } from '@/lib/theme';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
-import { useApexVisualEvents, usePlayerVisualEvents } from '@/store/animationStore';
+import { useApexVisualEvents, usePlayerVisualEvents, useSlotGhost } from '@/store/animationStore';
 
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
@@ -118,8 +118,9 @@ export default function PlayerBoard({
         </div>
         <div className="flex gap-1.5 row-start-1 col-start-2 justify-self-center">
           {player.apexSlots.map((apex, i) => (
-            <ApexSlot
+            <ApexSlotOrGhost
               key={i}
+              slotIndex={i}
               apex={apex}
               state={state}
               playerId={playerId}
@@ -167,6 +168,50 @@ function Stat({ label, value, colorClass, danger }: { label: string; value: numb
   );
 }
 
+/** Checks for an active destroy-ghost when a slot is empty, so a just-destroyed
+ *  Apex keeps rendering (with its destroy-shake animation) for the brief window
+ *  it's alive in the animation store, instead of the slot jumping straight to
+ *  "empty" in the same instant the card leaves play. A ghost is never interactive -
+ *  no click, no selection, no inspect - it's a fading remnant, not a real piece. */
+function ApexSlotOrGhost({
+  slotIndex,
+  apex,
+  state,
+  playerId,
+  onClick,
+  highlight,
+  disabled,
+  selected,
+  onInspect,
+}: {
+  slotIndex: number;
+  apex: CardInstance | null;
+  state: GameState;
+  playerId: PlayerId;
+  onClick?: (id: string) => void;
+  highlight: 'valid-target' | 'attacked' | 'locked' | null;
+  disabled?: boolean;
+  selected?: boolean;
+  onInspect?: (instance: CardInstance) => void;
+}) {
+  const ghost = useSlotGhost(playerId, slotIndex);
+  if (!apex && ghost?.destroyedGhost) {
+    return <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} />;
+  }
+  return (
+    <ApexSlot
+      apex={apex}
+      state={state}
+      playerId={playerId}
+      onClick={onClick}
+      highlight={highlight}
+      disabled={disabled}
+      selected={selected}
+      onInspect={onInspect}
+    />
+  );
+}
+
 function ApexSlot({
   apex,
   state,
@@ -199,6 +244,7 @@ function ApexSlot({
   }
   const effDef = getEffectiveDef(state, apex.instanceId);
   const apexCardDef = getCardDef(apex.defId);
+  const shownDef = effDef === 0 && apexCardDef.type === 'Apex' && !findApexAnywhere(state, apex.instanceId) ? apexCardDef.baseDef : effDef;
   const attackPreviews: Record<string, NonNullable<ReturnType<typeof getPreviewAttackDamage>>> = {};
   if (apexCardDef.type === 'Apex') {
     for (const atk of apexCardDef.attacks) {
@@ -215,7 +261,7 @@ function ApexSlot({
       instance={apex}
       size="apexBoard"
       compact
-      effectiveDef={effDef}
+      effectiveDef={shownDef}
       attackPreviews={attackPreviews}
       onClick={onClick ? () => onClick(apex.instanceId) : undefined}
       onInspect={onInspect ? () => onInspect(apex) : undefined}
