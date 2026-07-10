@@ -12,6 +12,7 @@ import CombatControls from './CombatControls';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
+import ActionBanner from './ActionBanner';
 import VoidInspectModal from './VoidInspectModal';
 import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
@@ -82,6 +83,25 @@ export default function GameBoard() {
         return () => clearTimeout(t);
       }
     }
+  }, [state]);
+
+  // Auto-end-turn (Commit 24.1): once the active human player's last Apex that
+  // could attack has attacked (or they have no Apex left at all), there's nothing
+  // further for them to legally do in Combat - End Turn automatically instead of
+  // making them click it. Scoped to the human specifically (never fires during the
+  // AI's own turn - the AI's ai.ts heuristics decide its own turn-ending timing,
+  // which can reasonably differ from "attacked with everything"). A short delay
+  // lets the last attack's animations actually finish being seen first, matching
+  // the same "instant logic, paced presentation" principle the pacing lock uses.
+  useEffect(() => {
+    if (state.status !== 'playing' || state.phase !== 'Combat') return;
+    if (state.pendingResponseQueue.length > 0) return;
+    if (state.vsAI && state.activePlayerId === 'player2') return; // never auto-ends the AI's turn
+    const active = state.players[state.activePlayerId];
+    const anyApexCanStillAttack = active.apexSlots.some((a) => a && !a.hasAttacked);
+    if (anyApexCanStillAttack) return;
+    const t = setTimeout(() => useGameStore.getState().endTurn(), 900);
+    return () => clearTimeout(t);
   }, [state]);
 
   // AI driver: only active in Vs AI mode, and only ever acts for player2. Re-runs on
@@ -167,6 +187,22 @@ export default function GameBoard() {
     };
   }
 
+  // Brief pacing lock after a significant action (attack declared, card played) -
+  // game logic itself stays fully instant (see gameStore.ts), this only gates how
+  // soon the UI accepts the *next* significant action, so the animation that just
+  // fired has a moment to actually be seen rather than getting instantly buried by
+  // whatever comes next. Deliberately a plain ref, not React state - a lock that
+  // itself triggered re-renders would fight with the very animations it's trying
+  // to protect.
+  const actionLockedUntilRef = useRef(0);
+  const ACTION_LOCK_MS = 500;
+  function isActionLocked(): boolean {
+    return Date.now() < actionLockedUntilRef.current;
+  }
+  function lockActions() {
+    actionLockedUntilRef.current = Date.now() + ACTION_LOCK_MS;
+  }
+
   if (state.status === 'selectingOpeningApex') {
     return <OpeningApexScreen />;
   }
@@ -199,9 +235,11 @@ export default function GameBoard() {
   function selectHandCard(cardId: string) {
     const card = activePlayer.hand.find((c) => c.instanceId === cardId);
     if (!card || state.phase !== 'Main') return;
+    if (isActionLocked()) return;
     if (mode.kind === 'equipSwapSelectCard') {
       if (card.type !== 'Equip') return;
       state.equipSwap(mode.apexId, cardId);
+      lockActions();
       resetMode();
       return;
     }
@@ -217,21 +255,47 @@ export default function GameBoard() {
       return;
     }
     switch (card.type) {
-      case 'Apex':
-        setMode({ kind: 'apexReady', cardId });
+      case 'Apex': {
+        const emptySlots = activePlayer.apexSlots.filter((s) => s === null).length;
+        if (emptySlots === 1) {
+          state.playApexCard(cardId);
+          lockActions();
+        } else {
+          setMode({ kind: 'apexReady', cardId });
+        }
         break;
+      }
       case 'AbilitySupport':
         setMode({ kind: 'supportChooseChain', cardId });
         break;
-      case 'BatterySupport':
-        setMode({ kind: 'supportReady', cardId });
+      case 'BatterySupport': {
+        const emptySlots = activePlayer.supportSlots.filter((s) => s === null).length;
+        if (emptySlots === 1) {
+          state.playSupportCard(cardId);
+          lockActions();
+        } else {
+          setMode({ kind: 'supportReady', cardId });
+        }
         break;
-      case 'Equip':
-        setMode({ kind: 'equipReady', cardId });
+      }
+      case 'Equip': {
+        const eligibleApexes = activePlayer.apexSlots.filter((a): a is CardInstance => !!a && !a.equip);
+        if (eligibleApexes.length === 1) {
+          state.playEquipCard(cardId, eligibleApexes[0].instanceId);
+          lockActions();
+        } else {
+          setMode({ kind: 'equipReady', cardId });
+        }
         break;
+      }
       case 'Special': {
         const def = getCardDef(card.defId) as SpecialDef;
-        setMode({ kind: 'specialReady', cardId, requiresTarget: def.requiresTarget });
+        if (!def.requiresTarget) {
+          state.playSpecialCard(cardId);
+          lockActions();
+        } else {
+          setMode({ kind: 'specialReady', cardId, requiresTarget: def.requiresTarget });
+        }
         break;
       }
       default:
@@ -252,6 +316,7 @@ export default function GameBoard() {
   );
 
   function ownApexClick(apexId: string) {
+    if (isActionLocked()) return;
     if (mode.kind === 'equipSwapSelectApex') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (!apex?.equip || apex.equip.equippedTurn === state.turnNumber) return;
@@ -318,6 +383,7 @@ export default function GameBoard() {
         setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId: mode.attackId, targetId: apexId, supportName: eligible.supportName });
       } else {
         state.declareAttack(mode.attackerId, mode.attackId, apexId);
+        lockActions();
         resetMode();
       }
     }
@@ -325,6 +391,7 @@ export default function GameBoard() {
 
   function chooseAttack(attackId: string) {
     if (mode.kind !== 'attackerChosen') return;
+    if (isActionLocked()) return;
     const hasEnemyApex = oppPlayer.apexSlots.some(Boolean);
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });
@@ -334,6 +401,7 @@ export default function GameBoard() {
         setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId, supportName: eligible.supportName });
       } else {
         state.declareAttack(mode.attackerId, attackId);
+        lockActions();
         resetMode();
       }
     }
@@ -402,6 +470,7 @@ export default function GameBoard() {
       style={{ gridTemplateRows: 'auto auto auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
+      <ActionBanner state={state} />
 
       {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
       <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-3 text-[11px] text-white/50">
@@ -680,6 +749,7 @@ export default function GameBoard() {
                 type="button"
                 onClick={() => {
                   state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
+                  lockActions();
                   resetMode();
                 }}
                 className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
@@ -690,6 +760,7 @@ export default function GameBoard() {
                 type="button"
                 onClick={() => {
                   state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
+                  lockActions();
                   resetMode();
                 }}
                 className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"

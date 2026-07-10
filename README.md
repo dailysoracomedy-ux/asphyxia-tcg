@@ -1525,6 +1525,91 @@ new test files this commit added) and a fresh 72-game simulation both ran clean,
 plus clean `tsc`/`eslint`/build. The one flaky test remains exactly as documented in
 23.2 - unchanged, not newly introduced.
 
+## Commit 24: action banner, streamlined confirm, pacing
+
+Three related but distinct asks: the game feeling too fast/flat despite Commit 23's
+animations, too much clicking for routine plays, and real confusion over what a
+complex card actually did (the reported example: Backup Consciousness resolving
+without it being clear the attack was negated and DEF was now 100).
+
+**Action banner** (`ActionBanner.tsx`): a prominent card-art-plus-outcome banner,
+shown for ~2.6s, for Apex/Engine plays, Equip attach, React plays, and Negates.
+Deliberately does **not** invent a hand-written summary of what each card does -
+it snapshots the last few real Battle Log lines the instant the triggering event
+fires, since combat and card resolution are fully synchronous (an action's own
+messages, and everything its effect logs as a result, are already sitting in
+`state.log` by the time this reads it). That's what makes "Player 2 plays Backup
+Consciousness / Attack negated / DEF changes to 100" come out right without needing
+a parallel per-card description system that could drift from what the log already
+says happened. Reuses the existing `CARD_PLACED`/`REACT_PLAYED`/`CARD_NEGATED`
+events from Commit 23 rather than adding a fourth parallel emission at every call
+site - one event now has two consumers, the small in-place glow and this banner.
+
+**Streamlined confirm**: Apex, Battery Engine, untargeted Special, and Equip all
+now play immediately on the hand-card click when there's exactly one legal
+destination - no more `Selected: X - play into an empty slot? [Confirm]` for a
+choice that was never actually ambiguous. The confirm/target-selection flow is
+still there for every case with a real decision to make (multiple empty slots,
+Ability Support's chain-or-not choice, anything requiring an actual target pick) -
+this isn't removing confirmation, it's removing confirmation of things that were
+never in question. Known gap, stated directly: this is UI click-handler behavior in
+`GameBoard.tsx`, and my test suite's jsdom infrastructure doesn't currently drive
+simulated clicks, so this specific piece is verified by `tsc`/build/manual
+reasoning about the exact conditions rather than an automated test - worth an actual
+look in the browser before trusting it fully, more so than most of what's shipped
+in past commits.
+
+**Pacing**: a lightweight, ref-based lock (not React state, so it doesn't fight
+with the animations it's protecting) briefly gates the next significant action
+(attack declare, card play) for 500ms after the previous one, giving an animation a
+moment to actually be seen instead of getting buried by whatever comes next. Game
+logic itself is untouched and still fully instant - this only gates how soon the UI
+*accepts* the next click, matching the same "instant logic, gated presentation"
+principle Commit 23 established. Paired with modestly longer combat animation
+durations (attack pulse and hit flash 400ms→550ms, destroy shake 650ms→800ms) so
+the lock window and the animations it's protecting land on a similar beat.
+
+**Verified**: full regression suite (420+ checks across 19 files) and a fresh
+72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. The one flaky
+test (`test-destroy-ghost-vfx.tsx`, documented in 23.2) flaked again in this run's
+batch sweep, consistent with the prior finding, not a new issue - its timing
+margins were widened slightly to track this commit's longer destroy-shake duration.
+
+## Commit 24.1: pass-screen skipped in Vs AI mode, auto-end-turn
+
+**The "pass the screen" ceremony no longer shows up in Vs AI mode, including for
+the human's own decisions.** Real bug, not just a Vs-AI polish item: `needsPrivacy()`
+only ever looked at the response *stage* (reactionChoice/negateWindow need privacy,
+everything else doesn't) - it never asked whether a second human actually existed
+to hide anything from. In Vs AI mode there's exactly one human ever touching the
+device, so even the human's *own* React/Negate decision was routing through the
+full "Pass the screen to player1... Ready" → modal → "pass back to active
+player... Ready" ceremony, pointless every time since there's nobody to pass to.
+Fixed by making `needsPrivacy()` take `vsAI` into account - privacy is skipped
+entirely in Vs AI mode regardless of stage, going straight to the response modal
+for the human's decisions (the AI's own decisions were already fully hidden as of
+Commit 23.3). Hotseat mode (`vsAI: false`, two real humans sharing a device) is
+completely unaffected - that's exactly the situation this ceremony exists for.
+Verified with a real DOM mount of the actual component (not just a logic check)
+confirming a human's own reactionChoice in Vs AI mode skips straight to the modal.
+
+**Auto-end-turn**: once the active human's last Apex that could attack has
+attacked (or they have none left), the turn now ends automatically instead of
+requiring a manual "End Turn" click - there's nothing further to legally do.
+Deliberately scoped to the human only; the AI's own turn-ending timing stays fully
+owned by its existing `ai.ts` heuristics; whichever human is active in Hotseat mode
+gets this too, since it's about "an active human ran out of things to do," not
+about which player number they happen to be. A short delay lets the last attack's
+own animations actually finish playing before the turn visibly ends. Verified with
+a real DOM-mounted test that declares the attack and confirms the turn genuinely
+advances after the delay, not just that a function got called.
+
+**Verified**: full regression suite (425+ checks across 20 files, including the
+new auto-end-turn test and extended AI-popup test) and a fresh 72-game simulation
+both ran clean, plus clean `tsc`/`eslint`/build. The one previously-documented
+flaky test (23.2) flaked again in this run's batch sweep, unchanged and consistent
+with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

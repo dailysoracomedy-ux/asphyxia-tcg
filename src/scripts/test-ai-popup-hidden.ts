@@ -101,7 +101,32 @@ async function domCheck() {
 
   const componentPassed = container.innerHTML.trim().length === 0;
   console.log(`  ${componentPassed ? 'PASS' : 'FAIL'}: the real HotseatResponseGate component renders nothing for an AI civilWarChoice`);
+
+  // Commit 24.1: a HUMAN's own response in Vs AI mode should skip the pass-screen
+  // ceremony entirely (there's no second human to hide anything from) and go
+  // straight to the response modal.
+  const humanReactionState = {
+    vsAI: true,
+    activePlayerId: 'player2',
+    pendingResponseQueue: [
+      {
+        id: 'y',
+        stage: 'reactionChoice',
+        respondingPlayerId: 'player1',
+        trigger: { kind: 'opponentAttackDealsO2Damage', amount: 200, isOverflow: false },
+      },
+    ],
+    players: { player1: { hand: [], momentum: 0 } },
+  } as unknown as import('../types/game').GameState;
+  root.render(React.createElement(HotseatResponseGate, { state: humanReactionState }));
+  await new Promise((r) => setTimeout(r, 30));
+  const html = container.innerHTML;
+  const skippedPassScreen = !html.includes('Pass the screen');
+  const showedModal = html.includes('Response Window');
+  console.log(`  ${skippedPassScreen ? 'PASS' : 'FAIL'}: a human's own reactionChoice in Vs AI mode skips the pass-screen`);
+  console.log(`  ${showedModal ? 'PASS' : 'FAIL'}: a human's own reactionChoice in Vs AI mode shows the response modal directly`);
+
   root.unmount();
-  process.exit(failed > 0 || !componentPassed ? 1 : 0);
+  process.exit(failed > 0 || !componentPassed || !skippedPassScreen || !showedModal ? 1 : 0);
 }
 domCheck();

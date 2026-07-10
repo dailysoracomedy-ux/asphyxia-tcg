@@ -6,8 +6,15 @@ import ResponseModal from './ResponseModal';
 import PassScreen from './PassScreen';
 
 /** Which stages involve one player looking at cards the other player shouldn't see,
- *  and therefore need a hotseat "pass the screen" privacy step around them. */
-function needsPrivacy(item: PendingResponseItem): boolean {
+ *  and therefore need a hotseat "pass the screen" privacy step around them.
+ *  Privacy only matters when there's a second human who could be looking at the
+ *  screen - in Vs AI mode there's exactly one human ever touching the device, so
+ *  the entire pass-screen ceremony is pointless even for the human's own
+ *  decisions (Commit 24.1 - this was reported as still showing up, and it was: the
+ *  original check only ever looked at the response *stage*, never at whether a
+ *  second human actually existed to hide anything from). */
+function needsPrivacy(item: PendingResponseItem, vsAI: boolean): boolean {
+  if (vsAI) return false;
   return item.stage === 'reactionChoice' || item.stage === 'negateWindow';
 }
 
@@ -41,7 +48,7 @@ export default function HotseatResponseGate({ state }: { state: GameState }) {
   // qualifying item shows up") rather than in a useEffect, to avoid an extra render pass.
   // Only starts a fresh privacy cycle when we're not already mid-flow, which is what lets the
   // "pass back to active player" step stick around even after the queue drains to empty.
-  if (mode === 'idle' && item && needsPrivacy(item) && item.id !== lastHandledId) {
+  if (mode === 'idle' && item && needsPrivacy(item, state.vsAI) && item.id !== lastHandledId) {
     setLastHandledId(item.id);
     setSnapshot({ responder: respondingPlayerOf(item), activePlayer: state.activePlayerId });
     setMode('passingToResponder');
@@ -49,7 +56,7 @@ export default function HotseatResponseGate({ state }: { state: GameState }) {
 
   if (mode === 'idle') {
     if (!item) return null;
-    if (!needsPrivacy(item)) {
+    if (!needsPrivacy(item, state.vsAI)) {
       // Human Error / Alley Wraith choices belong to the currently-visible active player
       // (no hidden hand info involved), so no pass-screen is needed - show directly.
       return <ResponseModal state={state} />;

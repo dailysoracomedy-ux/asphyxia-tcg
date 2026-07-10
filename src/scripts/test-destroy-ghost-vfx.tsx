@@ -130,7 +130,7 @@ async function main() {
   const htmlRightAfter = container.innerHTML;
   check('destroy-shake class renders in the vacated slot immediately after destruction', htmlRightAfter.includes('vfx-destroy-shake'));
 
-  await new Promise((r) => setTimeout(r, 900));
+  await new Promise((r) => setTimeout(r, 1000));
   const htmlAfterGhostExpires = container.innerHTML;
   check('the ghost animation class is gone once its duration elapses', !htmlAfterGhostExpires.includes('vfx-destroy-shake'));
 

@@ -35,6 +35,11 @@ export interface VisualEvent {
   label?: string;
   faction?: string;
   createdAt: number;
+  /** The card's definition id, so a consumer (the action banner) can look up its
+   *  art/name without needing a live CardInstance - useful for React/Negate events
+   *  in particular, where the card has already left the board/hand by the time
+   *  this fires. */
+  cardDefId?: string;
   /** CARD_DESTROYED only: a plain snapshot of the card as it looked the instant
    *  before it left the board, plus which owner/slot it came from. Game state
    *  removes a destroyed Apex from its slot in the same synchronous update that

@@ -394,7 +394,7 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
           ? { instance: JSON.parse(JSON.stringify(targetHit.apex)), ownerId: targetHit.ownerId, slotIndex: destroyedSlotIndex }
           : undefined,
     },
-    700
+    800
   );
   destroyApexFn(draft, trigger.targetInstanceId!);
   if (apexDef?.onDestroyEnemyApex) {
@@ -942,7 +942,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.apexSlots[targetSlot] = card;
       player.turnFlags.cardsPlayedThisTurn += 1;
       const def = getCardDef(card.defId) as ApexDef;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       if (def.onEnterPlay) {
         def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: card.instanceId });
       }
@@ -998,7 +998,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.cardsPlayedThisTurn += 1;
       player.turnFlags.supportsPlayedThisTurn += 1;
       const def = getCardDef(card.defId);
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       const chainSuffix = card.type === 'AbilitySupport' ? (card.chainedApexId ? ' (chained)' : ' (unchained)') : '';
       logMsg(draft, `${playerId} plays ${def.name} into Support Slot ${targetSlot + 1}${chainSuffix}.`, 'play');
       maybeTriggerRecursiveFailureSecondCard(draft, playerId);
@@ -1051,7 +1051,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
       apex.equip = card;
       apex.equip.equippedTurn = draft.turnNumber;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: getCardDef(apex.defId).faction }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name}.`, 'play');
     }),
 
@@ -1118,7 +1118,7 @@ export const useGameStore = create<GameStore>((set) => ({
       logMsg(draft, `${getCardDef(oldEquip.defId).name} returns to hand (Equip Swap).`, 'play');
       apex.equip = card;
       apex.equip.equippedTurn = draft.turnNumber;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: getCardDef(apex.defId).faction }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name} (Equip Swap).`, 'play');
     }),
 
@@ -1348,7 +1348,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
       player.availableSync -= attackDef.syncCost;
       apex.hasAttacked = true;
-      emitVfx({ type: 'ATTACK_DECLARED', apexInstanceId: attackerInstanceId, faction: apexDef.faction }, 450);
+      emitVfx({ type: 'ATTACK_DECLARED', apexInstanceId: attackerInstanceId, faction: apexDef.faction }, 600);
       logMsg(
         draft,
         `${apexDef.name} declares ${attackDef.name} (${attackDef.baseDamage} base damage, ${attackDef.syncCost} Sync).`,
@@ -1480,7 +1480,7 @@ export const useGameStore = create<GameStore>((set) => ({
           player.voidZone.push(cardInstance);
           loseMomentumFn(draft, item.respondingPlayerId, reactionDef.cost);
           player.turnFlags.instantsPlayedThisTurn += 1;
-          emitVfx({ type: 'REACT_PLAYED', playerId: item.respondingPlayerId, faction: reactionDef.faction, label: reactionDef.name });
+          emitVfx({ type: 'REACT_PLAYED', playerId: item.respondingPlayerId, faction: reactionDef.faction, label: reactionDef.name, cardDefId: cardInstance.defId });
           logMsg(draft, `${item.respondingPlayerId} played ${reactionDef.name}.`, 'response');
 
           // A Negate may itself respond to this Reaction being played (ON_REACTION_PLAYED).
@@ -1546,7 +1546,7 @@ export const useGameStore = create<GameStore>((set) => ({
             player.voidZone.push(negateInstance);
             loseMomentumFn(draft, item.negatingPlayerId, negateDef.cost);
             player.turnFlags.instantsPlayedThisTurn += 1;
-            emitVfx({ type: 'CARD_NEGATED', playerId: item.cardOwnerId, faction: item.cardFaction, label: getCardDef(item.cardDefId).name });
+            emitVfx({ type: 'CARD_NEGATED', playerId: item.cardOwnerId, faction: item.cardFaction, label: getCardDef(item.cardDefId).name, cardDefId: item.cardDefId });
             logMsg(draft, `${item.negatingPlayerId} played ${negateDef.name}.`, 'response');
             logMsg(draft, `${negateDef.name} cancels ${getCardDef(item.cardDefId).name}.`, 'response');
             negateDef.resolve({
@@ -1582,7 +1582,7 @@ export const useGameStore = create<GameStore>((set) => ({
           if (hit) {
             hit.apex.equip = item.pendingCardInstance;
             hit.apex.equip.equippedTurn = draft.turnNumber;
-            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(hit.apex.defId).faction }, 1000);
+            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name}.`, 'play');
           }
         } else if (item.continuation.kind === 'resolveEquipSwap' && item.pendingCardInstance) {
@@ -1597,7 +1597,7 @@ export const useGameStore = create<GameStore>((set) => ({
             }
             hit.apex.equip = item.pendingCardInstance;
             hit.apex.equip.equippedTurn = draft.turnNumber;
-            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(hit.apex.defId).faction }, 1000);
+            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name} (Equip Swap).`, 'play');
           }
         } else if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
