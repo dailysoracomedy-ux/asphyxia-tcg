@@ -85,33 +85,51 @@ html, body {
 }
 
 @keyframes attack-pulse {
-  0% { transform: scale(1); filter: brightness(1); }
-  35% { transform: scale(1.06); filter: brightness(1.35); }
-  100% { transform: scale(1); filter: brightness(1); }
+  0% { transform: scale(1); filter: brightness(1); box-shadow: 0 0 0 0 transparent; }
+  35% { transform: scale(1.06); filter: brightness(1.35); box-shadow: 0 0 18px 3px var(--faction-primary, rgba(255,255,255,0.5)); }
+  100% { transform: scale(1); filter: brightness(1); box-shadow: 0 0 0 0 transparent; }
 }
 .vfx-attack-pulse {
   animation: attack-pulse 550ms ease-out;
 }
 
 @keyframes hit-flash {
-  0% { filter: brightness(1) saturate(1); }
-  25% { filter: brightness(2.2) saturate(1.6); }
-  100% { filter: brightness(1) saturate(1); }
+  0% { filter: brightness(1) saturate(1); box-shadow: 0 0 0 0 transparent; }
+  25% { filter: brightness(2.2) saturate(1.6); box-shadow: 0 0 22px 5px var(--faction-secondary, rgba(255,255,255,0.6)); }
+  100% { filter: brightness(1) saturate(1); box-shadow: 0 0 0 0 transparent; }
 }
 .vfx-hit-flash {
   animation: hit-flash 550ms ease-out;
 }
 
 @keyframes destroy-shake {
-  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; filter: brightness(1) contrast(1); }
-  20% { transform: translate(-3px, 2px) rotate(-2deg); filter: brightness(1.8) contrast(1.6); }
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; filter: brightness(1) contrast(1); box-shadow: 0 0 0 0 transparent; }
+  20% { transform: translate(-3px, 2px) rotate(-2deg); filter: brightness(1.8) contrast(1.6); box-shadow: 0 0 24px 6px var(--faction-impact, rgba(255,80,80,0.7)); }
   40% { transform: translate(3px, -2px) rotate(2deg); }
   60% { transform: translate(-2px, 1px) rotate(-1deg); opacity: 0.7; }
   80% { transform: translate(2px, -1px) rotate(1deg); opacity: 0.4; }
-  100% { transform: translate(0, 0) rotate(0deg); opacity: 0; filter: brightness(1) contrast(1); }
+  100% { transform: translate(0, 0) rotate(0deg); opacity: 0; filter: brightness(1) contrast(1); box-shadow: 0 0 0 0 transparent; }
 }
 .vfx-destroy-shake {
   animation: destroy-shake 800ms ease-in-out forwards;
+}
+
+@keyframes engine-pulse {
+  0% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+  40% { box-shadow: 0 0 16px 4px var(--engine-pulse-color, rgba(255,255,255,0.6)); filter: brightness(1.25); }
+  100% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+}
+.vfx-engine-pulse {
+  animation: engine-pulse 700ms ease-out;
+}
+
+@keyframes rift-pulse {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  35% { box-shadow: 0 0 26px 6px var(--rift-pulse-color, rgba(200,160,255,0.6)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vfx-rift-pulse {
+  animation: rift-pulse 800ms ease-out;
 }
 
 @keyframes overflow-flash {
@@ -160,6 +178,16 @@ html, body {
   animation: momentum-pulse 500ms ease-out;
 }
 
+@keyframes momentum-spend {
+  0% { filter: brightness(1); opacity: 1; }
+  30% { filter: brightness(0.5) saturate(0.6); opacity: 0.6; }
+  55% { filter: brightness(1.1); opacity: 1; }
+  100% { filter: brightness(1); opacity: 1; }
+}
+.vfx-momentum-spend {
+  animation: momentum-spend 500ms ease-out;
+}
+
 @keyframes place-glow {
   0% { box-shadow: 0 0 0 0 var(--place-glow-color, rgba(255,255,255,0.8)); }
   30% { box-shadow: 0 0 16px 4px var(--place-glow-color, rgba(255,255,255,0.8)); }
@@ -167,6 +195,14 @@ html, body {
 }
 .vfx-place-glow {
   animation: place-glow 1000ms ease-out;
+}
+
+@keyframes equip-slide-in {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.vfx-equip-slide-in {
+  animation: equip-slide-in 450ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes banner-in {
@@ -188,9 +224,17 @@ html, body {
   .vfx-react-highlight,
   .vfx-negate-glitch,
   .vfx-momentum-pulse,
+  .vfx-momentum-spend,
   .vfx-place-glow,
+  .vfx-engine-pulse,
+  .vfx-rift-pulse,
   .pulse-border {
     animation: none !important;
+  }
+  .vfx-equip-slide-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
   .vfx-banner-in {
     animation: none !important;
