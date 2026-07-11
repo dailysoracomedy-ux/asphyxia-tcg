@@ -12,7 +12,10 @@ export function tutorialActionMatches(attempted: RequiredAction, required: Requi
   if (attempted.type === 'playEquip' && required.type === 'playEquip') return attempted.defId === required.defId;
   if (attempted.type === 'playSpecial' && required.type === 'playSpecial') return attempted.defId === required.defId;
   if (attempted.type === 'playReact' && required.type === 'playReact') return attempted.defId === required.defId;
-  if (attempted.type === 'chooseAttack' && required.type === 'chooseAttack') return required.attackId === 'any' || attempted.attackId === required.attackId;
+  if (attempted.type === 'chooseAttack' && required.type === 'chooseAttack') {
+    if (typeof required.minSyncCost === 'number') return (attempted.syncCost ?? 0) >= required.minSyncCost;
+    return required.attackId === 'any' || attempted.attackId === required.attackId;
+  }
   if (attempted.type === 'advancePhase' && required.type === 'advancePhase') return attempted.phase === required.phase;
   return true; // types matched and there's nothing further to compare (selectAttacker, selectEnemyTarget, etc.)
 }

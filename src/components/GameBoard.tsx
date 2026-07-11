@@ -558,7 +558,9 @@ export default function GameBoard() {
   function chooseAttack(attackId: string) {
     if (mode.kind !== 'attackerChosen') return;
     if (isActionLocked()) return;
-    if (blockedByTutorial({ type: 'chooseAttack', attackId })) return;
+    const attackerHit = findApexAnywhere(state, mode.attackerId);
+    const attackerAttackDef = attackerHit ? (getCardDef(attackerHit.apex.defId) as ApexDef).attacks.find((a) => a.id === attackId) : undefined;
+    if (blockedByTutorial({ type: 'chooseAttack', attackId, syncCost: attackerAttackDef?.syncCost })) return;
     const hasEnemyApex = oppPlayer.apexSlots.some(Boolean);
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });

@@ -380,6 +380,59 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
  *  ever starts - guarantees the precondition without touching Momentum's actual
  *  rules, the Rift choice's own effect, or anything about normal (non-tutorial)
  *  play. */
+/** Commit 29.9 - guarantees the React step's prerequisites: Glitch Step in
+ *  hand and at least 1 Momentum to pay for it. The player's Apex actually
+ *  surviving the opponent's attack that triggers this step is a separate
+ *  guarantee (`tutorialProtectSurvivor`, Commit 29.12, applied much earlier in
+ *  the sequence) - Momentum/hand-contents and DEF/survival are different kinds
+ *  of state, so they're kept as two focused functions rather than one that
+ *  tries to guarantee everything at once. */
+/** Commit 29.12 - the actual fix for a real, reported cascading failure.
+ *  Without this, the opponent's real (unscripted) attack could destroy the
+ *  player's recovered Apex at any point after Apex Recovery - even with Glitch
+ *  Step's -200 reduction at the React step, since that's only one attack's
+ *  worth of protection and the opponent gets other turns/attacks in between.
+ *  When that happened, emergency Apex recovery would swap in a *different*
+ *  Apex from hand (Static Jack, not Riot Runner), and every subsequent
+ *  scripted step - which names Riot Runner's specific attack (Mob Charge) by
+ *  id - became permanently unsatisfiable, since Static Jack doesn't have that
+ *  attack at all. Fixed using a real, existing game mechanic rather than a
+ *  fabricated result: `survivorDefOverride` (the same field "Backup
+ *  Consciousness" uses to let a card cheat death) is set high enough that no
+ *  attack in either faction's kit can exceed it, guaranteeing survival through
+ *  the same DEF-comparison math every other attack in the game already uses -
+ *  not a special tutorial-only rule. Called starting from Play an Equip
+ *  (guaranteed to run after Apex Recovery has actually placed the real Apex)
+ *  through the rest of the sequence, not just at the React step - the whole
+ *  remaining script depends on this one Apex staying in play, not just the one
+ *  moment that was actually reported. */
+/** The highest real base attack damage anywhere in the game is 800
+ *  (verified directly against the actual card data, not assumed), and the
+ *  strongest known damage-boosting Equip effect adds +200 in its best case
+ *  (Monomolecular Blade, vs a target with a Choke Counter) - 1000 in the
+ *  worst realistic combination. Set well above that, with real margin for any
+ *  other stacking modifier not accounted for here, rather than the exact
+ *  minimum that happens to clear today's numbers. */
+export const TUTORIAL_SURVIVOR_DEF = 1500;
+
+export function tutorialProtectSurvivor() {
+  useGameStore.setState((st) => {
+    if (!st.tutorialMode) return st;
+    const player = st.players.player1;
+    const survivor = player.apexSlots.find(Boolean);
+    if (!survivor || survivor.survivorDefOverride === TUTORIAL_SURVIVOR_DEF) return st;
+    return {
+      players: {
+        ...st.players,
+        player1: {
+          ...player,
+          apexSlots: player.apexSlots.map((a) => (a && a.instanceId === survivor.instanceId ? { ...a, survivorDefOverride: TUTORIAL_SURVIVOR_DEF } : a)) as typeof player.apexSlots,
+        },
+      },
+    };
+  });
+}
+
 export function tutorialEnsureReactReady() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;
@@ -400,21 +453,25 @@ export function tutorialEnsureReactReady() {
   });
 }
 
-/** Commit 29.10 - the actual fix for "I can't attack to finish the game." The
+/** Commit 29.10 / 29.12 - the actual fix for "I can't attack to finish the
+ *  game," made robust to whichever Apex actually survives to this point. The
  *  tutorial never actually had a finishing sequence at all - after the React
  *  step, it just waited for `status === 'gameover'` with nothing guiding the
- *  player there and no guarantee the numbers ever lined up (the opponent's
- *  exact O2 and which Apex they happened to draw were never scripted this far
- *  in). Fixed the same way every other guarantee in this file works: real
- *  combat math, not a fabricated result. Riot Runner's Mob Charge (1 Sync, 400
- *  base) with Plasma Edge's permanent +100 is 500 damage - against Pale
- *  Executioner specifically (300 DEF, the same real card already used earlier
- *  in the script), that's a guaranteed 200 overflow = 2 O2, using only what's
- *  already certainly available at this point (Plasma Edge is permanently
- *  attached; Overclock's bonus was already spent on the previous attack, so
- *  this deliberately doesn't depend on it). Setting the opponent to 2 O2 and
- *  placing that exact Apex guarantees a real, single lethal blow regardless of
- *  which Apex the opponent's AI happened to end up with by this point. */
+ *  player there and no guarantee the numbers ever lined up. Fixed the same way
+ *  every other guarantee in this file works: real combat math, not a
+ *  fabricated result - but the exact math has to hold regardless of which real
+ *  Apex the player ends up with (29.12: if the originally-scripted Apex was
+ *  destroyed and replaced via emergency recovery, whatever Equip was attached
+ *  to the destroyed instance is gone too, so the finishing attack can no
+ *  longer assume Plasma Edge's +100 is available). Every faction's weakest
+ *  real 1-Sync attack is at least 400 base damage (verified directly against
+ *  the actual card data) - against Pale Executioner's real 300 DEF, that's a
+ *  guaranteed minimum 100 overflow even with zero Equip bonus, which is
+ *  exactly enough to finish an opponent already at 1 O2. Setting the opponent
+ *  to 1 O2 (not 2) is deliberately the more conservative, worst-case-safe
+ *  number - the finishing step itself (see tutorialSteps.ts,
+ *  'finishing-blow-choose') requires any attack costing at least 1 Sync,
+ *  rather than one specific named attack, for the same reason. */
 export function tutorialEnsureFinishingBlow() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;
@@ -424,7 +481,7 @@ export function tutorialEnsureFinishingBlow() {
         ...st.players,
         player2: {
           ...opponent,
-          o2: 2,
+          o2: 1,
           apexSlots: [createInstance('dw-pale-executioner', 'Apex'), null],
         },
       },

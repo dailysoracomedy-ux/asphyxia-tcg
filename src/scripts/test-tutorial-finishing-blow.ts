@@ -19,8 +19,10 @@
  * 3. A completely missing finishing sequence - the tutorial had no steps
  *    guiding the player to actually win, and no guarantee the numbers would
  *    ever line up for a lethal blow. Fixed with a real, guaranteed-lethal
- *    combat sequence using actual game math (Mob Charge + Plasma Edge vs a
- *    real 300-DEF Apex), not a scripted/fabricated outcome.
+ *    combat sequence using actual game math (a 400+ base 1-Sync attack vs a
+ *    real 300-DEF Apex, at 1 O2), not a scripted/fabricated outcome. Made
+ *    robust to whichever Apex actually survives (Commit 29.12), rather than
+ *    hard-coded to one specific card's specific attack.
  */
 import { useGameStore, tutorialEnsureFinishingBlow } from '../store/gameStore';
 import { useShowcaseStore } from '../store/showcaseStore';
@@ -40,17 +42,23 @@ check('apex-recovery still has a real autoAdvanceWhen condition tied to the Apex
 
 // --- Fix 3: the finishing sequence exists and uses real, verified math ---
 const finishStep = TUTORIAL_STEPS.find((s) => s.id === 'finishing-blow-choose')!;
-check('the finishing blow requires a specific, verified-strong attack (Mob Charge), not "any"', finishStep.requiredAction.type === 'chooseAttack' && (finishStep.requiredAction as { attackId: string }).attackId === 'mob-charge');
+check(
+  'the finishing blow requires any attack costing at least 1 Sync, not one specific hard-coded attack (Commit 29.12 - robust to whichever Apex survives)',
+  finishStep.requiredAction.type === 'chooseAttack' && (finishStep.requiredAction as { minSyncCost?: number }).minSyncCost === 1
+);
 
 useGameStore.getState().startNewGame('Neon Underground', 'Dark White', false, false, true);
 tutorialEnsureFinishingBlow();
 let s = useGameStore.getState();
-check('the finishing-blow guarantee sets the opponent to a low, real O2 value', s.players.player2.o2 === 2);
+check('the finishing-blow guarantee sets the opponent to a low, real O2 value', s.players.player2.o2 === 1);
 check('the finishing-blow guarantee places a real, named Apex (Pale Executioner, 300 DEF) as the target', s.players.player2.apexSlots[0]?.defId === 'dw-pale-executioner');
 
-// Now actually verify the attack real players would make (Mob Charge, no other
-// bonuses assumed) is genuinely lethal against this exact setup - proving the
-// guarantee's own math claim, not just trusting the comment.
+// Now verify the true worst case, not the best case: a DIFFERENT Apex than
+// originally scripted (Static Jack, as if emergency recovery swapped it in
+// after Riot Runner was destroyed), with NO Equip bonus at all (since an Equip
+// attached to a destroyed Apex instance is lost with it) - proving the
+// guarantee's math genuinely holds even when nothing goes as originally
+// planned, not just in the ideal case.
 useGameStore.getState().startNewGame('Neon Underground', 'Dark White', false, false, true);
 s = useGameStore.getState();
 if (s.phase === 'Start' && s.startPhasePending) s.advancePhase('Start');
@@ -61,11 +69,11 @@ s.playApexCard(s.players.player1.hand.find((c) => c.defId === 'nu-street-beast')
 s = useGameStore.getState();
 s.playSupportCard(s.players.player1.hand.find((c) => c.defId === 'nu-dead-battery')!.instanceId);
 s = useGameStore.getState();
-// Simulate reaching the finishing-blow moment: Riot Runner with Plasma Edge
-// equipped (matching the real script's earlier steps), Dead Battery for Sync.
+// Simulate the worst case: Static Jack (not the originally-scripted Riot
+// Runner), no Equip at all, just Dead Battery for Sync.
 useGameStore.setState((st) => {
-  const riotRunner = { instanceId: 'test-riot-runner', defId: 'nu-riot-runner', type: 'Apex' as const, equip: { instanceId: 'test-plasma-edge', defId: 'nu-plasma-edge', type: 'Equip' as const } };
-  return { players: { ...st.players, player1: { ...st.players.player1, apexSlots: [riotRunner, null] } } };
+  const staticJack = { instanceId: 'test-static-jack', defId: 'nu-static-jack', type: 'Apex' as const };
+  return { players: { ...st.players, player1: { ...st.players.player1, apexSlots: [staticJack, null] } } };
 });
 tutorialEnsureFinishingBlow();
 s = useGameStore.getState();
@@ -73,7 +81,7 @@ s.advancePhase('Combat');
 s = useGameStore.getState();
 const attacker = s.players.player1.apexSlots.find(Boolean)!;
 const target = s.players.player2.apexSlots.find(Boolean)!;
-s.declareAttack(attacker.instanceId, 'mob-charge', target.instanceId);
+s.declareAttack(attacker.instanceId, 'circuit-breaker', target.instanceId);
 s = useGameStore.getState();
 check('the scripted finishing blow genuinely ends the match - status is gameover', s.status === 'gameover');
 check('player1 (the human) is the actual winner, not the opponent', s.winnerId === 'player1');

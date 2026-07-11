@@ -2429,6 +2429,62 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep, unchanged and consistent with the prior
 finding.
 
+## Commit 29.12: the actual cascading failure, and making the finishing sequence robust instead of hoping one Apex survives
+
+This one took real iteration to get right, and it's worth being honest about
+that rather than presenting it as clean on the first pass.
+
+**The reported bug, confirmed from the log before anything else**: "player1
+controls no Apex - forced to play Static Jack from hand into Apex Slot 1." Riot
+Runner - the specific Apex every step from Play an Equip through the finishing
+blow assumed would still be there - had been destroyed by a real, unscripted
+opponent attack, and emergency recovery swapped in a different card. Every
+later step that named Riot Runner's specific attack by id became permanently
+unsatisfiable, since the replacement Apex doesn't have that attack at all.
+
+**First fix, and its real limit**: guaranteed Riot Runner's survival using a
+real, existing game mechanic - `survivorDefOverride`, the same field a genuine
+card effect ("Backup Consciousness") uses to let an Apex cheat death - set well
+above the verified worst-case real attack (800 base damage + 200 from the
+strongest known Equip bonus = 1000; set to 1500). Applied once, when Play an
+Equip begins. Stress-testing this directly - not just trusting it - surfaced a
+real remaining gap: a one-time guarantee doesn't follow the Apex if it's
+destroyed and replaced by a *different* card, since the replacement never
+received it. Fixed by making the protection continuous (re-applied on every
+state change across the whole remaining sequence, not just once on step entry)
+- but re-running the same stress test afterward *still* found failures, just
+less often.
+
+**Tracing that further led to the actual, permanent fix**: even a perfectly
+protected Apex doesn't guarantee it's still *the same* Apex, and if it isn't,
+Plasma Edge (attached to whichever instance was destroyed) is gone too. Rather
+than continuing to chase "keep Riot Runner alive no matter what," the finishing
+sequence itself is now robust to whichever Apex actually survives: the required
+action is any attack costing at least 1 Sync (verified directly against every
+faction's card data - every kit's weakest 1-Sync attack deals at least 400 base
+damage), the guidance text names whichever Apex is actually in play, and the
+opponent is set to 1 O2 specifically - the exact number that's still lethal even
+in the true worst case (a 400-damage attack, zero Equip bonus, against Pale
+Executioner's real 300 DEF). This is the difference between "prevent the bad
+thing from ever happening" and "make the outcome correct regardless of what
+happens" - the second is strictly more robust, and it's what actually closed
+this out.
+
+**Verified honestly, including the failures along the way**: the worst-case
+combat math is checked directly against real card data, not assumed; a real
+`declareAttack` call is run with a deliberately different Apex than originally
+scripted and zero Equip bonus, confirming the match still ends correctly; and
+the survivor-protection stress test - the one that actually found the two
+earlier gaps - now runs 8 additional times clean (120 total simulated
+scenarios) with real AI-driven opponent turns, checking that *whichever* Apex
+the player ends up with is protected, not that one specific card survives.
+
+**Verified**: full regression suite (585+ checks across 34 files, one new this
+commit, several updated for the more robust design) and a fresh 72-game
+simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
+previously-documented flaky test (23.2) flaked again in this run's batch sweep,
+unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

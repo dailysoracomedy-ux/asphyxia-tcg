@@ -1,5 +1,5 @@
 import type { GameState } from '@/types/game';
-import { tutorialEnsureReactReady, tutorialEnsureFinishingBlow } from '@/store/gameStore';
+import { tutorialEnsureReactReady, tutorialEnsureFinishingBlow, tutorialProtectSurvivor } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 
 /**
@@ -22,7 +22,7 @@ export type RequiredAction =
   | { type: 'playEngine'; defId: string }
   | { type: 'advancePhase'; phase: 'Combat' }
   | { type: 'selectAttacker' } // click your own Apex during Combat
-  | { type: 'chooseAttack'; attackId: string }
+  | { type: 'chooseAttack'; attackId: string; minSyncCost?: never; syncCost?: number } | { type: 'chooseAttack'; minSyncCost: number; attackId?: never; syncCost?: number }
   | { type: 'selectEnemyTarget' } // click the enemy Apex to complete a targeted attack
   | { type: 'selectDirectO2' } // complete a direct-O2 attack (no enemy Apex to target)
   | { type: 'playEquip'; defId: string }
@@ -179,6 +179,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     requiredAction: { type: 'playEquip', defId: 'nu-plasma-edge' },
     highlight: { kind: 'handCard', defId: 'nu-plasma-edge' },
     autoAdvanceWhen: (s) => s.players.player1.apexSlots.some((a) => a?.equip?.defId === 'nu-plasma-edge'),
+    onEnter: () => tutorialProtectSurvivor(),
   },
   {
     id: 'play-special',
@@ -255,16 +256,30 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'finishing-blow',
     title: 'Deliver the finishing blow',
-    text: 'Click Riot Runner to attack.',
+    text: (s) => {
+      const attacker = s.players.player1.apexSlots.find(Boolean);
+      const name = attacker ? (getCardDef(attacker.defId) as { name: string }).name : 'your Apex';
+      return `Click ${name} to attack.`;
+    },
     requiredAction: { type: 'selectAttacker' },
     highlight: { kind: 'ownApex' },
   },
   {
     id: 'finishing-blow-choose',
-    title: 'Choose Mob Charge',
-    text: 'Choose Mob Charge - with Plasma Edge, this hits hard enough to finish the job.',
-    requiredAction: { type: 'chooseAttack', attackId: 'mob-charge' },
-    highlight: { kind: 'attackChoice', attackId: 'mob-charge' },
+    title: 'Choose a strong attack',
+    text: 'Choose an attack that costs at least 1 Sync - that\u2019s enough to finish the job here.',
+    // Commit 29.12 - robust to whichever Apex actually made it this far, not
+    // hard-coded to one specific card's specific attack. A real, reported
+    // cascading failure: if the originally-scripted Apex (Riot Runner) was
+    // destroyed and replaced by emergency recovery with a different one
+    // (Static Jack), this step's old hard-coded attack id (Mob Charge, unique
+    // to Riot Runner) became permanently unsatisfiable - the new Apex simply
+    // doesn't have that attack. Every faction's weakest real 1-Sync attack is
+    // verified to deal enough damage against the guaranteed-low-DEF, guaranteed-
+    // low-O2 opponent set up by tutorialEnsureFinishingBlow, regardless of
+    // which Apex or which specific 1-Sync attack the player picks.
+    requiredAction: { type: 'chooseAttack', minSyncCost: 1 },
+    highlight: { kind: 'ownApex' },
   },
   {
     id: 'finishing-blow-target',
