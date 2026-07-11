@@ -318,6 +318,19 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
   const player = draft.players[playerId];
   if (player.apexSlots.some(Boolean)) return; // still controls at least one Apex - nothing to do
   if (draft.tutorialMode && draft.tutorialAwaitingFirstApex && playerId === 'player1') return;
+  // Commit 29.15 - the actual root cause of a real, reported bug ("the
+  // opponent isn't attacking to play a React card"). Emergency Apex recovery
+  // is a normal, automatic rule that fires for *any* player entering Main
+  // Phase with zero Apexes - including the fully scripted opponent, who
+  // legitimately reaches zero Apexes once their first one is destroyed. It was
+  // auto-playing an Apex for player2 before the scripted sequence's own
+  // playApex action ever got a chance to run, silently short-circuiting the
+  // rest of that turn's script (Reserve Grid never played, the attack action
+  // left with nothing further driving it forward). The scripted opponent's
+  // Apex placement is always handled directly by
+  // tutorialRunScriptedOpponentTurn's own playApex action - normal recovery
+  // has nothing legitimate to do for player2 in tutorial mode at all.
+  if (draft.tutorialMode && playerId === 'player2') return;
 
   // Step 1: an Apex in hand must be force-played.
   const handApexIdx = player.hand.findIndex((c) => c.type === 'Apex');

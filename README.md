@@ -2599,6 +2599,55 @@ fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. The on
 previously-documented flaky test (23.2) flaked again in this run's batch sweep,
 unchanged and consistent with the prior finding.
 
+## Commit 29.15: the actual reason the opponent stopped attacking, and a real Rift-choice explanation
+
+**"On step 17 the opponent isn't attacking to play a React card."** Traced this
+rather than re-checking the scripted sequence itself (which was already
+verified working end-to-end in 29.14). The real cause: Emergency Apex Recovery
+is a normal, automatic rule - it fires for *any* player who enters Main Phase
+with zero Apexes, and the fully scripted opponent legitimately reaches zero
+Apexes once their first one is destroyed, same as the player does. It was
+auto-playing an Apex for the opponent before the scripted sequence's own
+`playApex` action ever got a chance to run - silently consuming the card the
+script expected to find in hand, and leaving nothing behind to play the Engine
+or declare the attack that opens the response window. Confirmed directly with a
+diagnostic before writing the fix, not assumed: forcing the exact zero-Apex
+state and calling the same phase-advance a real turn would use showed the
+opponent's Apex getting auto-placed with no scripted action involved at all.
+Fixed by suppressing Emergency Recovery entirely for the opponent during
+tutorial mode - their Apex placement is now unconditionally owned by the
+scripted sequence, with nothing else allowed to act on their behalf.
+
+**The Rift choice popup now actually explains itself.** Previously described the
+mechanic in generic terms ("a damage bonus"). It now explains this is the Civil
+War Rift's own catch-up rule (not something the tutorial invented), why it's
+showing up specifically now (behind on O2), and what each option is actually
+useful for - Momentum for later Specials and Reacts, or +100 damage for hitting
+harder right away - so the choice means something instead of being an
+unexplained pair of buttons.
+
+**A real methodology lesson from tracing this, worth stating plainly**: two
+different diagnostic scripts along the way produced misleading results because
+they called store actions directly instead of going through the same gated path
+a real click does (bypassing the tutorial's own step-advancement logic for
+attacker/attack-choice selection, and once forgetting to click Continue on the
+intro step at all). Neither was a product bug - both were caught, understood,
+and corrected before being trusted, rather than mistaking a testing artifact for
+a real one.
+
+**Verified**: a direct test forces player2 to zero Apexes and confirms Emergency
+Recovery genuinely does nothing during tutorial mode, that player2's hand goes
+completely untouched, and that normal (non-tutorial) Vs AI is entirely
+unaffected - recovery still works there exactly as before. The existing
+end-to-end scripted-opponent test (29.14) still passes fully with this fix in
+place.
+
+**Verified**: full regression suite (600+ checks across 36 files, two new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep, unchanged and consistent with the prior
+finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

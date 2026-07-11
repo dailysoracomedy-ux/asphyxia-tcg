@@ -196,9 +196,13 @@ export default function TutorialPanel() {
         <>
           <div className="text-base font-bold text-fuchsia-300 mb-1.5">A Rift Choice appeared!</div>
           <div className="text-[12px] text-white/80 leading-relaxed mb-3">
-            The Rift Space just opened a popup asking you to choose between +1 Momentum or a damage bonus for your next
-            attack. This can happen any time you fall behind on O2 - make your pick in that popup to continue. Your
-            tutorial step will pick back up right where it left off once you&rsquo;ve chosen.
+            This is the Civil War Rift&rsquo;s own rule, not something the tutorial is doing - whenever a player falls
+            behind on O2, that player gets a small catch-up bonus at the start of their turn. You&rsquo;re seeing it now
+            because you&rsquo;re currently behind. Pick <span className="text-fuchsia-200 font-bold">Gain 1 Momentum</span> if
+            you want more fuel for Specials and Reacts later, or{' '}
+            <span className="text-fuchsia-200 font-bold">+100 damage</span> if you&rsquo;d rather hit harder on your very
+            next attack. Either is fine - make your pick in the popup, and your tutorial step will pick back up right
+            where it left off.
           </div>
         </>
       ) : (
