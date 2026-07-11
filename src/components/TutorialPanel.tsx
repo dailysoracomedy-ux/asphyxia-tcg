@@ -26,13 +26,21 @@ const WATCH_STEP_TIMEOUT_MS = 9000;
  * blockedByTutorial() gate on the input side and this panel's own
  * autoAdvanceWhen watch on the state side.
  *
- * Commit 29.3: two more fixes from real reports. First, "watch the opponent"
- * steps now surface the live, real Battle Log line as it happens underneath the
- * step's own explanation - directly linking the guidance text to the actual
- * action occurring, rather than one static paragraph the player has to
- * correlate with the board themselves. Second, those same steps get a
- * timeout-based "Continue" fallback (WatchStepFallback below) so a flawed
- * detection condition can never fully strand someone the way it did here.
+ * Commit 29.7: a real, serious gap found by tracing a report through to its
+ * actual cause. The Civil War/Human Error Rift choices open a response window
+ * for the player that blocks *all* further phase advancement until resolved -
+ * completely normal, correct behavior, the same as it's always been. But the
+ * tutorial had no awareness of this at all: when O2 fell behind (which happens
+ * naturally from the scripted overflow damage a few steps earlier) and Civil
+ * War triggered, the panel just kept showing whatever step it was already on -
+ * "attack with your buffed Apex" - while a completely different, unexplained
+ * popup silently blocked everything, with nothing telling the player what it
+ * was or that they needed to interact with it at all. This isn't tied to one
+ * specific step number, since exactly when (or whether) O2 falls behind enough
+ * to trigger it depends on the exact combat that already happened - so this
+ * watches for it reactively and overrides the panel's content the instant it's
+ * relevant, rather than being hard-coded to appear at one fixed point in the
+ * sequence.
  */
 export default function TutorialPanel() {
   const state = useGameStore();
@@ -56,6 +64,14 @@ export default function TutorialPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, step]);
 
+  // A pending Rift choice belonging to the player overrides everything else -
+  // it's genuinely blocking the game regardless of what step the tutorial
+  // thinks it's on, so the guidance has to reflect what's actually happening
+  // right now, not what was scripted to happen next.
+  const pendingRiftChoice = state.pendingResponseQueue.find(
+    (item) => (item.stage === 'civilWarChoice' || item.stage === 'humanErrorChoice') && item.playerId === 'player1'
+  );
+
   if (!current) return null;
   const isPassiveStep = current.requiredAction.type === 'ack';
   const resolvedText = typeof current.text === 'function' ? current.text(state) : current.text;
@@ -78,16 +94,30 @@ export default function TutorialPanel() {
           Exit
         </button>
       </div>
-      <div className="text-base font-bold text-emerald-200 mb-1.5">{current.title}</div>
-      <div className="text-[12px] text-white/80 leading-relaxed mb-3">{resolvedText}</div>
 
-      {isWatchStep && (
+      {pendingRiftChoice ? (
+        <>
+          <div className="text-base font-bold text-fuchsia-300 mb-1.5">A Rift Choice appeared!</div>
+          <div className="text-[12px] text-white/80 leading-relaxed mb-3">
+            The Rift Space just opened a popup asking you to choose between +1 Momentum or a damage bonus for your next
+            attack. This can happen any time you fall behind on O2 - make your pick in that popup to continue. Your
+            tutorial step will pick back up right where it left off once you\u2019ve chosen.
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-base font-bold text-emerald-200 mb-1.5">{current.title}</div>
+          <div className="text-[12px] text-white/80 leading-relaxed mb-3">{resolvedText}</div>
+        </>
+      )}
+
+      {!pendingRiftChoice && isWatchStep && (
         <div className="mb-3 px-2 py-1.5 rounded border border-white/10 bg-black/30 text-[11px] text-cyan-200 min-h-[28px] flex items-center">
           {liveLine ?? 'Waiting for the opponent...'}
         </div>
       )}
 
-      {!isPassiveStep && !isWatchStep && (
+      {!pendingRiftChoice && !isPassiveStep && !isWatchStep && (
         <div className="text-[10px] text-yellow-300/80 italic mb-2">
           &#9679; Follow the instruction above - other actions are locked during this step.
         </div>
@@ -110,7 +140,7 @@ export default function TutorialPanel() {
         >
           Restart
         </button>
-        {isPassiveStep && (
+        {isPassiveStep && !pendingRiftChoice && (
           <button
             type="button"
             onClick={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))}
@@ -121,7 +151,7 @@ export default function TutorialPanel() {
         )}
         {/* Keyed by step, so remounting on every step change gives this its own
             fresh timer with no effect-based reset needed for the parent. */}
-        {isWatchStep && <WatchStepFallback key={step} state={state} onContinue={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))} />}
+        {isWatchStep && !pendingRiftChoice && <WatchStepFallback key={step} state={state} onContinue={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))} />}
       </div>
     </div>
   );

@@ -859,17 +859,22 @@ export const useGameStore = create<GameStore>((set) => ({
         const player = freshPlayer(pid, faction);
         let deck = shuffle(buildStarterDeck(faction));
 
-        // Tutorial scripting (Commit 29 / 29.1): reorder each player's deck (never
-        // composition/copy counts, only draw *order*) so the specific cards the
-        // scripted tutorial references are guaranteed to show up when needed,
-        // rather than leaving a first-time player's actual teaching moment to
-        // chance. Player1 gets the cards the script names by name (Street-Beast,
-        // Dead Battery, Plasma Edge, Overclock in the opening hand; Glitch Step
-        // and Static Jack guaranteed among the first draws after). Player2 (the
-        // scripted/AI opponent) gets Overseer Prime first specifically because
-        // its 400 DEF is comfortably below Neon Pounce's 500 damage - the
-        // opening-Apex destruction in the script happens through real combat
-        // math against a chosen opponent, never a fabricated stat.
+        // Tutorial scripting (Commit 29 / 29.1 / 29.7): reorder each player's
+        // deck (never composition/copy counts, only draw *order*) so the
+        // specific cards the scripted tutorial references are guaranteed to show
+        // up when needed, rather than leaving a first-time player's actual
+        // teaching moment to chance. Player1 gets the cards the script names by
+        // name (Street-Beast, Dead Battery, Plasma Edge, Overclock in the
+        // opening hand; Glitch Step, Riot Runner, and Static Jack guaranteed
+        // among the first draws after, in that order specifically). Riot Runner
+        // has to come before Static Jack - a real bug found by tracing a report
+        // through to its root cause: without it in this list at all, Static Jack
+        // (already prioritized for Step 15) could get auto-played by emergency
+        // Apex recovery at Step 9 instead of the scripted Riot Runner, leaving
+        // Step 9's own text wrong and Step 15 with no Static Jack left to play.
+        // Player2 (the scripted/AI opponent) gets Pale Executioner (or the
+        // first Apex found) placed directly, not "played" via any action - see
+        // the direct placement below, right after this loop.
         if (tutorialMode && pid === 'player1') {
           const byDefId = (defId: string) => deck.find((c) => c.defId === defId);
           const priority = [
@@ -878,6 +883,7 @@ export const useGameStore = create<GameStore>((set) => ({
             byDefId('nu-plasma-edge'),
             byDefId('nu-overclock'),
             byDefId('nu-glitch-step'),
+            byDefId('nu-riot-runner'),
             byDefId('nu-static-jack'),
           ].filter((c): c is CardInstance => !!c);
           const rest = deck.filter((c) => !priority.includes(c));
@@ -908,6 +914,24 @@ export const useGameStore = create<GameStore>((set) => ({
 
       draft.riftSpace = determineRiftSpace(p1Faction, p2Faction);
       if (tutorialMode) {
+        // Directly place the opponent's scripted opening Apex onto the board
+        // (Commit 29.7) - a real, reported regression from 29.4. Skipping the
+        // normal opening-Apex-selection screen correctly fixed the player's own
+        // side (Step 1 is now a real, gated Main-Phase play), but that screen
+        // used to ALSO be how the opponent's opening Apex got placed - and since
+        // the entire Steps 1-8 sequence happens on the player's very first turn,
+        // before the opponent ever gets a turn of their own to play anything,
+        // nothing was left to put an Apex on their side at all. Confirmed
+        // directly (not assumed): player2's apexSlots were both empty at match
+        // start before this fix. Placed straight from hand, not "played" through
+        // any action - there's no legal moment for the opponent to have done
+        // this themselves yet.
+        const opponent = draft.players.player2;
+        const openerIdx = opponent.hand.findIndex((c) => c.defId === 'dw-pale-executioner' || c.type === 'Apex');
+        if (openerIdx !== -1) {
+          const [opener] = opponent.hand.splice(openerIdx, 1);
+          opponent.apexSlots[0] = opener;
+        }
         // Skip normal opening-Apex selection entirely (Commit 29.4) - the
         // previous approach left the normal selection screen fully clickable
         // underneath/alongside the tutorial's own intro step, a real reported

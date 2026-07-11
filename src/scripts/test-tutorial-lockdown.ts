@@ -64,7 +64,10 @@ async function main() {
   useGameStore.getState().startNewGame('Synth Ascendancy', 'Synth Ascendancy', false, false, true);
   const s1 = useGameStore.getState();
   check('tutorial games start directly in "playing" status (never "selectingOpeningApex")', s1.status === 'playing');
-  check('both players start with zero Apexes on board - Step 1 is a real, guided first play, not pre-filled', !s1.players.player1.apexSlots.some(Boolean) && !s1.players.player2.apexSlots.some(Boolean));
+  check(
+    'both players start with an Apex already resolved for their side - player1 empty (Step 1 is a real, guided first play), player2 already placed (Commit 29.7 - the scripted opponent needs a real target from the start)',
+    !s1.players.player1.apexSlots.some(Boolean) && s1.players.player2.apexSlots.some(Boolean)
+  );
   check('player1 is active and it is turn 1, matching the scripted script', s1.activePlayerId === 'player1' && s1.turnNumber === 1);
 
   // --- Fix 2: the tutorial's turn-1 attack actually succeeds ---
@@ -82,7 +85,8 @@ async function main() {
   s.advancePhase('Combat');
   s = useGameStore.getState();
   const attacker = s.players.player1.apexSlots.find(Boolean)!;
-  s.declareAttack(attacker.instanceId, 'neon-pounce');
+  const enemyTarget = s.players.player2.apexSlots.find(Boolean)!;
+  s.declareAttack(attacker.instanceId, 'neon-pounce', enemyTarget.instanceId);
   s = useGameStore.getState();
   check(
     "the tutorial's Step 6 attack actually resolves on turn 1 (previously silently blocked by a real game rule)",

@@ -140,11 +140,9 @@ async function main() {
     hand1.includes('nu-glitch-step') || nextFewDraws.includes('nu-glitch-step')
   );
   check('Static Jack is guaranteed among player1\'s next draws (not left to chance)', nextFewDraws.includes('nu-static-jack'));
-  const hand2 = s.players.player2.hand.map((c) => c.defId);
-  const deck2 = s.players.player2.deck.map((c) => c.defId);
   check(
-    'player2 (scripted opponent) will open with a low-DEF Apex whose destruction is real math, not a fabricated result',
-    hand2.includes('dw-pale-executioner') || deck2[0] === 'dw-pale-executioner'
+    'player2 (scripted opponent) actually has a real Apex placed on the board at match start (Commit 29.7) - destruction happens through real combat math, not a fabricated result',
+    s.players.player2.apexSlots[0]?.defId === 'dw-pale-executioner'
   );
 
   // --- Real DOM mount: confirm the locked panel actually renders and Next is

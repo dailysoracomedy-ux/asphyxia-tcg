@@ -2170,6 +2170,68 @@ ran clean, plus clean `tsc`/`eslint`/build. The one previously-documented flaky
 test (23.2) flaked again in this run's batch sweep, unchanged and consistent
 with the prior finding.
 
+## Commit 29.7: no enemy Apex, stuck at "Step 13" (really stuck earlier), and a third bug found along the way
+
+Two things reported, and tracing the second one turned up a third that hadn't
+been reported at all yet.
+
+**"There is no Enemy Apex in play. There should be, right?"** - correct, and a
+real regression from 29.4. Skipping the normal opening-Apex-selection screen
+fixed the player's own side (Step 1 became a real, gated Main-Phase play), but
+that screen used to *also* be how the opponent got their opening Apex placed -
+and since the entire Steps 1-8 sequence happens on the player's very first turn,
+before the opponent ever gets a turn of their own, nothing was left to put an
+Apex on their side at all. Confirmed directly before fixing anything: a
+diagnostic showed both players' Apex slots empty at match start. Fixed by placing
+the opponent's scripted opener (Pale Executioner, low enough DEF for Neon
+Pounce's real damage to destroy it) directly onto the board as part of tutorial
+setup - not "played" through any action, since there's no legal moment for the
+opponent to have done that themselves yet.
+
+**"I can't attack with Buffed Apex... can't progress past step 13"** - traced
+this all the way through rather than guessing at Step 13 itself, and the real
+block was several steps earlier. The scripted overflow damage a few steps prior
+naturally drops the player's O2 low enough to trigger the Civil War Rift's
+choice prompt (+1 Momentum or +100 damage) - completely correct, unchanged game
+behavior, the same as it's always worked. But the tutorial panel had zero
+awareness of this: it kept showing whatever step it was already on while an
+unrelated, unexplained popup silently blocked all further phase advancement,
+including the emergency Apex recovery Step 9 depends on. The player was never
+actually stuck at Step 13 - they were stuck several steps earlier at an
+interruption the tutorial never explained existed. Fixed by having the panel
+detect a pending Rift choice belonging to the player and override its own
+content the instant it's relevant, regardless of which step was showing -
+this isn't tied to one fixed point in the sequence, since exactly when (or
+whether) O2 falls behind enough to trigger it depends on the specific combat
+that already happened.
+
+**A third bug, found by directly verifying the second fix, not separately
+reported**: confirming that resolving the Rift choice actually unblocked Apex
+recovery surfaced that the recovered Apex was Static Jack, not the scripted Riot
+Runner - because Riot Runner was never in the deck-priority list at all, only
+Static Jack was. That meant Step 9's own text ("Riot Runner is now your
+fighter") would be describing a card that wasn't actually there, and Step 15
+(which explicitly needs Static Jack) would have nothing left to play. Fixed by
+adding Riot Runner to the priority list ahead of Static Jack, so recovery finds
+the right card first and the later step still has what it needs.
+
+**Verified all three concretely**: the opponent's real placed Apex is confirmed
+destroyed by real Step 6/7 combat math (not asserted, actually destroyed in the
+test); phase advancement is confirmed genuinely blocked while a Rift choice is
+pending and confirmed to actually clear once resolved; the recovered Apex is
+confirmed to be Riot Runner specifically, with Static Jack confirmed still
+sitting in hand afterward. Two older tests (`test-tutorial-gating.ts`,
+`test-tutorial-lockdown.ts`) had assertions describing the *old, buggy*
+opponent-apex-less state as if it were correct - updated both to reflect what's
+now actually correct, rather than leaving them quietly checking for a bug that
+no longer exists.
+
+**Verified**: full regression suite (540+ checks across 29 files, one new this
+commit, two updated) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep, unchanged and consistent with the prior
+finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
