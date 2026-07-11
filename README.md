@@ -2328,6 +2328,66 @@ ceremony-pacing`, confirmed by rerunning it in isolation (clean 3/3) to be a
 batch-context timing flake rather than a real regression, consistent with the
 established pattern for this category of test.
 
+## Commit 29.10: the actual root cause behind three problems, a missing finishing sequence, and a race condition found while fixing it
+
+**The root cause, found by reading your screenshot literally.** The top bar said
+"Turn 2 - Main - Waiting for the AI," but the tutorial panel was still showing
+Step 8's explanation from Turn 1. That single detail explained everything:
+explanation (`ack`) steps only ever paused the tutorial *panel's own display* -
+they never paused the actual game. The AI driver kept running in the background
+the entire time the player was still reading and hadn't clicked Continue, so by
+the time they did, the opponent could already be several actions into their next
+turn. This is what was actually behind "I can't attack to finish the game" - the
+scripted sequence's assumptions about opponent state were being invalidated by
+background AI action before the player ever got a chance to act on them. Fixed
+by reusing the exact pause mechanism already built for AI vs AI Showcase
+(`showcasePaused` in GameBoard.tsx) - the tutorial now genuinely pauses the
+opponent's AI for every explanation step, not just the visible countdown.
+
+**A real bug found while building that exact fix, not shipped blind.** The
+first version of the pause logic worked in the actual game but failed a
+dedicated test - traced it to a genuine race condition between two separate
+effects that both write to the same store: GameBoard.tsx's existing
+tutorial-pacing effect (`setActive(true)`) was silently resetting `paused` back
+to `false` as an undocumented side effect, which could stomp on the tutorial's
+deliberate pause depending on which effect happened to fire last. Removed that
+side effect from `setActive` entirely rather than working around it, and moved
+the one legitimate use of "fresh start, not paused" (AI vs AI Showcase's own
+controls, opened by a human) to set that explicitly itself. Caught by a test
+that failed for a real reason, not adjusted to pass - fixed the actual store
+logic instead.
+
+**"During Apex Recovery it still says Continue and should not."** Confirmed:
+Apex Recovery was built as an `ack` (pure explanation) step despite already
+having a real, working `autoAdvanceWhen` condition - the condition just never
+got a chance to fire because `ack` steps are deliberately excluded from
+auto-advancing. Reclassified it to genuinely auto-advance, and rewrote its text
+to be dynamic - it now names the specific Apex that was actually recovered
+("Riot Runner was automatically recovered from your deck!") instead of
+describing the rule abstractly in a way that reads as future tense for
+something that, by the time the player reads it, has usually already happened.
+
+**"I want a single combo to wipe out the opponent."** The tutorial never
+actually had a finishing sequence at all - after the React step, it just waited
+for `status === 'gameover'` with nothing guiding the player there and no
+guarantee the numbers ever lined up (the opponent's exact O2 and which Apex the
+AI happened to end up with were never scripted this far into the match). Added a
+real sequence: a brief React-success explanation, one more gated Combat Phase
+entry, and a scripted lethal attack - Mob Charge (1 Sync, 400 base) with Plasma
+Edge's permanent +100 against Pale Executioner specifically (300 real DEF, the
+same card already used earlier in the script), which is a guaranteed 200
+overflow = 2 O2. Deliberately doesn't depend on Overclock, since that bonus was
+already spent on the previous attack. Verified with a genuine combat resolution,
+not just checking that the setup values look right: the actual `declareAttack`
+call runs, and the test confirms `status` really is `'gameover'` with `player1`
+as the real `winnerId`.
+
+**Verified**: full regression suite (565+ checks across 32 files, one new this
+commit, several updated for the intentional design changes) and a fresh 72-game
+simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
+previously-documented flaky test (23.2) flaked again in this run's batch sweep,
+unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

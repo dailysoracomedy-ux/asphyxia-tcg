@@ -33,6 +33,13 @@ interface ShowcaseStoreState {
   paused: boolean;
   setSpeedMultiplier: (m: number) => void;
   togglePaused: () => void;
+  /** Commit 29.10 - direct, idempotent pause control, alongside the existing
+   *  toggle. The tutorial's own explanation-step pausing (TutorialPanel.tsx)
+   *  needs to set an exact desired value on every step change, not flip
+   *  whatever the current value happens to be - toggling here would drift out
+   *  of sync the moment two effects fire in an order other than strictly
+   *  alternating. */
+  setPaused: (paused: boolean) => void;
   setActive: (active: boolean) => void;
 }
 
@@ -42,7 +49,17 @@ export const useShowcaseStore = create<ShowcaseStoreState>((set) => ({
   paused: false,
   setSpeedMultiplier: (m) => set({ speedMultiplier: Math.max(SHOWCASE_SPEED_MIN, Math.min(SHOWCASE_SPEED_MAX, m)) }),
   togglePaused: () => set((s) => ({ paused: !s.paused })),
-  setActive: (active) => set({ active, paused: false }),
+  setPaused: (paused) => set({ paused }),
+  // Commit 29.10: no longer resets `paused` as a side effect here - that was
+  // the actual cause of a real, confirmed race condition. The tutorial's own
+  // pause-on-explanation-step logic (TutorialPanel.tsx) also calls setActive
+  // indirectly via this same store, and having setActive silently force
+  // paused back to false meant it could overwrite a deliberate pause depending
+  // on which effect happened to run last - invisible, and exactly the kind of
+  // bug that's easy to reintroduce by "helpfully" resetting extra state here
+  // again later. Callers that specifically want a fresh, unpaused start (like
+  // ShowcaseControls' own mount effect) set that explicitly themselves now.
+  setActive: (active) => set({ active }),
 }));
 
 /** Current multiplier - 1 whenever Showcase mode isn't active, so every duration

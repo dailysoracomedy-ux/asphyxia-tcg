@@ -1117,9 +1117,10 @@ function BattleLogDrawer({ log, onClose }: { log: GameState['log']; onClose: () 
  *  timings immediately, and clears it on unmount (leaving the match screen) so a
  *  stale multiplier can never leak into a later normal match. */
 function ShowcaseControls() {
-  const { speedMultiplier, paused, setSpeedMultiplier, togglePaused, setActive } = useShowcaseStore();
+  const { speedMultiplier, paused, setSpeedMultiplier, togglePaused, setActive, setPaused } = useShowcaseStore();
   useEffect(() => {
     setActive(true);
+    setPaused(false);
     return () => setActive(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

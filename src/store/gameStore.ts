@@ -400,6 +400,38 @@ export function tutorialEnsureReactReady() {
   });
 }
 
+/** Commit 29.10 - the actual fix for "I can't attack to finish the game." The
+ *  tutorial never actually had a finishing sequence at all - after the React
+ *  step, it just waited for `status === 'gameover'` with nothing guiding the
+ *  player there and no guarantee the numbers ever lined up (the opponent's
+ *  exact O2 and which Apex they happened to draw were never scripted this far
+ *  in). Fixed the same way every other guarantee in this file works: real
+ *  combat math, not a fabricated result. Riot Runner's Mob Charge (1 Sync, 400
+ *  base) with Plasma Edge's permanent +100 is 500 damage - against Pale
+ *  Executioner specifically (300 DEF, the same real card already used earlier
+ *  in the script), that's a guaranteed 200 overflow = 2 O2, using only what's
+ *  already certainly available at this point (Plasma Edge is permanently
+ *  attached; Overclock's bonus was already spent on the previous attack, so
+ *  this deliberately doesn't depend on it). Setting the opponent to 2 O2 and
+ *  placing that exact Apex guarantees a real, single lethal blow regardless of
+ *  which Apex the opponent's AI happened to end up with by this point. */
+export function tutorialEnsureFinishingBlow() {
+  useGameStore.setState((st) => {
+    if (!st.tutorialMode) return st;
+    const opponent = st.players.player2;
+    return {
+      players: {
+        ...st.players,
+        player2: {
+          ...opponent,
+          o2: 2,
+          apexSlots: [createInstance('dw-pale-executioner', 'Apex'), null],
+        },
+      },
+    };
+  });
+}
+
 // ==========================================================================
 // Attack resolution pipeline
 // ==========================================================================

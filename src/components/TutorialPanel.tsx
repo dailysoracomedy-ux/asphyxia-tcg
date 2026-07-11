@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 import type { GameState } from '@/types/game';
+import { useShowcaseStore } from '@/store/showcaseStore';
 
 /** How long a "waitForOpponent" step will wait for its own autoAdvanceWhen
  *  condition before offering a manual way past it (Commit 29.3) - a direct
@@ -78,6 +79,26 @@ export default function TutorialPanel() {
   const current = TUTORIAL_STEPS[step];
   const isWatchStep = current?.requiredAction.type === 'waitForOpponent';
   const isPassiveStep = current?.requiredAction.type === 'ack';
+
+  // Commit 29.10 - the actual root cause behind several reported problems at
+  // once: pure explanation steps never paused the underlying game at all, only
+  // the tutorial panel's own display. The AI driver (GameBoard.tsx) kept
+  // running in the background the whole time the player was reading an
+  // explanation and hadn't clicked Continue yet - so by the time they did, the
+  // opponent could already be several actions into their next turn, completely
+  // invalidating whatever the tutorial script was counting on (including the
+  // finishing blow's math). Reuses the exact pause mechanism already built for
+  // AI vs AI Showcase (GameBoard.tsx's `showcasePaused` gate) - the tutorial's
+  // own pacing effect already keeps Showcase mode "active" throughout a
+  // tutorial match, so this only ever needs to flip `paused` on/off.
+  useEffect(() => {
+    // Setting active here too (not just paused) makes this effect
+    // self-sufficient - it can't be raced by GameBoard.tsx's separate
+    // tutorial-pacing effect (which also calls setActive, and setActive resets
+    // paused as a side effect - a real, confirmed race between the two
+    // otherwise, depending on which one happened to fire last).
+    useShowcaseStore.setState({ active: true, paused: isPassiveStep });
+  }, [isPassiveStep]);
 
   // Commit 29.9 - state-safety guarantees (the actual fix for the reported
   // Glitch Step timing bug) fire here, once, the instant the step becomes
@@ -155,7 +176,7 @@ export default function TutorialPanel() {
 
       {!pendingRiftChoice && isWatchStep && (
         <div className="mb-3 px-2 py-1.5 rounded border border-white/10 bg-black/30 text-[11px] text-cyan-200 min-h-[28px] flex items-center">
-          {liveLine ?? 'Waiting for the opponent...'}
+          {liveLine ?? (current.id === 'apex-recovery' ? 'Recovering...' : 'Waiting for the opponent...')}
         </div>
       )}
 

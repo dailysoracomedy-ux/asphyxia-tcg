@@ -1,5 +1,6 @@
 import type { GameState } from '@/types/game';
-import { tutorialEnsureReactReady } from '@/store/gameStore';
+import { tutorialEnsureReactReady, tutorialEnsureFinishingBlow } from '@/store/gameStore';
+import { getCardDef } from '@/data/cards';
 
 /**
  * Commit 29.1 - a genuinely locked, gated Learn To Play script, replacing 29's
@@ -148,8 +149,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'apex-recovery',
     title: 'Apex recovery',
-    text: 'Your Apex was destroyed - but you\u2019re never stuck with nothing to fight with. At the start of your turn with no Apex in play, ASPHYXIA recovers one for you automatically, first from hand, then from your deck.',
-    requiredAction: { type: 'ack' },
+    text: (s) => {
+      const recovered = s.players.player1.apexSlots.find(Boolean);
+      const name = recovered ? (getCardDef(recovered.defId) as { name: string }).name : 'a new Apex';
+      return recovered
+        ? `${name} was automatically recovered from your deck! ASPHYXIA never leaves you with nothing to fight with - if you control no Apex at the start of your turn, one gets played for you, from hand first, then your deck.`
+        : 'Your Apex was destroyed. ASPHYXIA never leaves you with nothing to fight with - at the start of your turn, if you control no Apex, one gets recovered automatically, from hand first, then your deck.';
+    },
+    // Recovery is just as automatic as an opponent's action - there's nothing
+    // for the player to click, so this reuses waitForOpponent's auto-advance +
+    // live-status behavior rather than being an ack step with an unnecessary
+    // Continue button (a real, reported bug: "during Apex Recovery it still
+    // says Continue and should not").
+    requiredAction: { type: 'waitForOpponent' },
     autoAdvanceWhen: (s) => s.players.player1.apexSlots.some(Boolean),
   },
   {
@@ -218,9 +230,45 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     onEnter: () => tutorialEnsureReactReady(),
   },
   {
+    id: 'react-success',
+    title: 'Nice save',
+    text: 'Glitch Step reduced the attack before it landed. Reacts let you survive, interrupt, or punish your opponent during key moments.',
+    requiredAction: { type: 'ack' },
+  },
+  {
+    id: 'enter-combat-final',
+    title: 'Finish them',
+    text: 'Your opponent is nearly out of O2. Enter Combat one more time to finish the match.',
+    requiredAction: { type: 'advancePhase', phase: 'Combat' },
+    highlight: { kind: 'combatPhaseButton' },
+    autoAdvanceWhen: (s) => s.phase === 'Combat',
+    onEnter: () => tutorialEnsureFinishingBlow(),
+  },
+  {
+    id: 'finishing-blow',
+    title: 'Deliver the finishing blow',
+    text: 'Click Riot Runner to attack.',
+    requiredAction: { type: 'selectAttacker' },
+    highlight: { kind: 'ownApex' },
+  },
+  {
+    id: 'finishing-blow-choose',
+    title: 'Choose Mob Charge',
+    text: 'Choose Mob Charge - with Plasma Edge, this hits hard enough to finish the job.',
+    requiredAction: { type: 'chooseAttack', attackId: 'mob-charge' },
+    highlight: { kind: 'attackChoice', attackId: 'mob-charge' },
+  },
+  {
+    id: 'finishing-blow-target',
+    title: 'Finish the match',
+    text: 'Target the enemy Apex. This attack pushes enough overflow into O2 to end the match.',
+    requiredAction: { type: 'selectEnemyTarget' },
+    highlight: { kind: 'enemyApex' },
+  },
+  {
     id: 'win',
     title: 'Finish the match',
-    text: 'Your opponent is low on O2. Keep attacking to finish the job and win the match.',
+    text: 'Resolving the finishing blow...',
     requiredAction: { type: 'win' },
     autoAdvanceWhen: (s) => s.status === 'gameover',
   },
