@@ -2232,6 +2232,44 @@ commit, two updated) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep, unchanged and consistent with the prior
 finding.
 
+## Commit 29.8: the actual Step 13 bug, and every step now waits for a real click
+
+**The screenshot made this one unambiguous.** Main Phase, Combat Phase button
+visibly disabled, Riot Runner spotlighted with Step 13 asking for an attack that
+was structurally impossible to make. The sequence went straight from "play a
+Special" to expecting an attacker selection, with no step in between actually
+gating "re-enter Combat Phase" - Step 13's own text said "Enter Combat and
+attack," but its `requiredAction` was `selectAttacker` alone, so clicking Combat
+Phase didn't match anything the tutorial's gate would allow and got silently
+blocked. The player was never actually failing to attack - they couldn't reach
+Combat Phase to attack from in the first place. Fixed by adding the missing step
+back (`enter-combat-again`) rather than just editing the text to stop claiming it
+handled something it never gated.
+
+**"The tutorial sped through... should ALWAYS wait for the user to click
+Continue."** Exactly right, and a real design gap, not just a timing complaint.
+Every step previously auto-advanced on a 1.4-second timer the instant its
+condition was satisfied - useful for the "correct card played" case, but it
+meant the player never had a real say over pace, including reading the "what
+just happened" explanations before the game moved on without them. That timer
+is gone entirely now. `conditionMet` is a plain value computed fresh every
+render (never stored, never advances anything on its own) that only ever
+controls whether a Continue button is showing; the step index changes if and
+only if that button gets clicked. Verified this isn't just a behavioral
+coincidence: a structural check confirms the old `setTimeout(...setStep...)`
+pattern doesn't exist anywhere in the panel's source anymore, and a real
+mounted test waits well past where that timer used to fire and confirms the
+step index genuinely never moved on its own.
+
+**Verified**: the missing step's `requiredAction` is confirmed to actually match
+a real Combat Phase click now (not just present, but functionally correct), and
+the buffed-attack step's own text no longer claims to handle something it
+doesn't gate. Full regression suite (550+ checks across 30 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep, unchanged and consistent with the prior
+finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -161,9 +161,17 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     autoAdvanceWhen: (s) => s.players.player1.turnFlags.specialsPlayedThisTurn > 0,
   },
   {
+    id: 'enter-combat-again',
+    title: 'Back to Combat',
+    text: 'Overclock is armed. Enter Combat Phase again to deliver the buffed attack.',
+    requiredAction: { type: 'advancePhase', phase: 'Combat' },
+    highlight: { kind: 'combatPhaseButton' },
+    autoAdvanceWhen: (s) => s.phase === 'Combat',
+  },
+  {
     id: 'buffed-attack',
     title: 'Attack with your buffed Apex',
-    text: 'Enter Combat and attack the enemy Apex. This attack includes your Plasma Edge and Overclock bonuses - it should hit much harder than before.',
+    text: 'Attack the enemy Apex. This attack includes your Plasma Edge and Overclock bonuses - it should hit much harder than before.',
     requiredAction: { type: 'selectAttacker' },
     highlight: { kind: 'ownApex' },
   },

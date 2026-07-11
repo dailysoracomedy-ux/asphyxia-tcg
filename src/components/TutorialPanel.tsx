@@ -26,21 +26,28 @@ const WATCH_STEP_TIMEOUT_MS = 9000;
  * blockedByTutorial() gate on the input side and this panel's own
  * autoAdvanceWhen watch on the state side.
  *
- * Commit 29.7: a real, serious gap found by tracing a report through to its
- * actual cause. The Civil War/Human Error Rift choices open a response window
- * for the player that blocks *all* further phase advancement until resolved -
- * completely normal, correct behavior, the same as it's always been. But the
- * tutorial had no awareness of this at all: when O2 fell behind (which happens
- * naturally from the scripted overflow damage a few steps earlier) and Civil
- * War triggered, the panel just kept showing whatever step it was already on -
- * "attack with your buffed Apex" - while a completely different, unexplained
- * popup silently blocked everything, with nothing telling the player what it
- * was or that they needed to interact with it at all. This isn't tied to one
- * specific step number, since exactly when (or whether) O2 falls behind enough
- * to trigger it depends on the exact combat that already happened - so this
- * watches for it reactively and overrides the panel's content the instant it's
- * relevant, rather than being hard-coded to appear at one fixed point in the
- * sequence.
+ * Commit 29.7: the Civil War/Human Error Rift choices open a response window for
+ * the player that blocks all further phase advancement until resolved -
+ * completely normal, correct behavior. But the tutorial had no awareness of it,
+ * silently showing stale step text while an unexplained popup blocked
+ * everything. Watches for it reactively and overrides the panel's content the
+ * instant it's relevant, since exactly when (or whether) it triggers depends on
+ * combat that already happened, not a fixed point in the sequence.
+ *
+ * Commit 29.8: two more real, reported issues. First, "the tutorial sped
+ * through" - every step used to auto-advance on a 1.4s timer the instant its
+ * condition was satisfied, with no way to actually control the pace or finish
+ * reading before the board moved on. Every step transition now requires an
+ * explicit Continue click, full stop - the timer is gone entirely, replaced by
+ * `conditionMet` below, which just decides *whether* a Continue button is
+ * showing, never advances anything on its own. Second, a real missing step: the
+ * sequence went straight from playing a Special to expecting an attacker
+ * selection, skipping right over having to actually re-enter Combat Phase first
+ * - the Combat Phase button was being blocked by the tutorial's own gate,
+ * because the step active at that point didn't authorize clicking it at all.
+ * Fixed by adding the missing step back (see tutorialSteps.ts, 'enter-combat-
+ * again') rather than just describing "enter Combat" in text without actually
+ * gating for it.
  */
 export default function TutorialPanel() {
   const state = useGameStore();
@@ -54,15 +61,11 @@ export default function TutorialPanel() {
 
   const current = TUTORIAL_STEPS[step];
   const isWatchStep = current?.requiredAction.type === 'waitForOpponent';
-
-  useEffect(() => {
-    if (!current?.autoAdvanceWhen) return;
-    if (current.autoAdvanceWhen(state) && step < TUTORIAL_STEPS.length - 1) {
-      const t = setTimeout(() => setStep(step + 1), 1400);
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, step]);
+  const isPassiveStep = current?.requiredAction.type === 'ack';
+  // Purely a derived value, computed fresh every render - never a stored/effect-
+  // driven flag, and specifically never anything that advances the step on its
+  // own. This only ever controls whether the Continue button is showing.
+  const conditionMet = !!current?.autoAdvanceWhen && current.autoAdvanceWhen(state);
 
   // A pending Rift choice belonging to the player overrides everything else -
   // it's genuinely blocking the game regardless of what step the tutorial
@@ -73,12 +76,12 @@ export default function TutorialPanel() {
   );
 
   if (!current) return null;
-  const isPassiveStep = current.requiredAction.type === 'ack';
   const resolvedText = typeof current.text === 'function' ? current.text(state) : current.text;
   // Live sub-status for "watch" steps - just the most recent real log line,
   // computed directly during render (not stored/reactive state) so there's no
   // effect-based reset needed when the step changes.
   const liveLine = isWatchStep ? state.log[state.log.length - 1]?.message ?? null : null;
+  const canContinue = !pendingRiftChoice && (isPassiveStep || conditionMet);
 
   return (
     <div className="fixed top-1/2 left-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
@@ -101,7 +104,7 @@ export default function TutorialPanel() {
           <div className="text-[12px] text-white/80 leading-relaxed mb-3">
             The Rift Space just opened a popup asking you to choose between +1 Momentum or a damage bonus for your next
             attack. This can happen any time you fall behind on O2 - make your pick in that popup to continue. Your
-            tutorial step will pick back up right where it left off once you\u2019ve chosen.
+            tutorial step will pick back up right where it left off once you&rsquo;ve chosen.
           </div>
         </>
       ) : (
@@ -117,7 +120,10 @@ export default function TutorialPanel() {
         </div>
       )}
 
-      {!pendingRiftChoice && !isPassiveStep && !isWatchStep && (
+      {!pendingRiftChoice && conditionMet && !isPassiveStep && (
+        <div className="text-[11px] text-emerald-300/90 font-bold mb-2">&#10003; Done - click Continue below.</div>
+      )}
+      {!pendingRiftChoice && !conditionMet && !isPassiveStep && (
         <div className="text-[10px] text-yellow-300/80 italic mb-2">
           &#9679; Follow the instruction above - other actions are locked during this step.
         </div>
@@ -140,18 +146,22 @@ export default function TutorialPanel() {
         >
           Restart
         </button>
-        {isPassiveStep && !pendingRiftChoice && (
+        {canContinue && (
           <button
             type="button"
             onClick={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))}
-            className="px-3 py-1.5 rounded border border-emerald-400/60 text-[11px] font-bold text-emerald-300 hover:bg-emerald-400/10"
+            className="px-3 py-1.5 rounded border border-emerald-400/60 text-[11px] font-bold text-emerald-300 hover:bg-emerald-400/10 animate-pulse"
           >
             Continue
           </button>
         )}
-        {/* Keyed by step, so remounting on every step change gives this its own
+        {/* Only while genuinely still waiting on the opponent - once conditionMet
+            flips true, the regular Continue button above takes over instead.
+            Keyed by step, so remounting on every step change gives this its own
             fresh timer with no effect-based reset needed for the parent. */}
-        {isWatchStep && !pendingRiftChoice && <WatchStepFallback key={step} state={state} onContinue={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))} />}
+        {isWatchStep && !pendingRiftChoice && !conditionMet && (
+          <WatchStepFallback key={step} state={state} onContinue={() => setStep(Math.min(TUTORIAL_STEPS.length - 1, step + 1))} />
+        )}
       </div>
     </div>
   );
