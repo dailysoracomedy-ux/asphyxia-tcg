@@ -2485,6 +2485,57 @@ simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
 previously-documented flaky test (23.2) flaked again in this run's batch sweep,
 unchanged and consistent with the prior finding.
 
+## Commit 29.13: the Momentum text was actually wrong, Steps 9-10 now wait for you, and DEF 1500 is gone
+
+Three real, reported issues, none of them guessed at.
+
+**"I don't get 1 Momentum, my opponent does."** Checked the actual combat math
+before assuming anything, and the tutorial's own text turned out to be flatly
+wrong: Street-Beast's Neon Pounce (500 damage) against the scripted opener,
+Pale Executioner (300 DEF), is 200 overflow - a real hit to the opponent's O2,
+never the "clean break" the Apex Break Reward step's text claims. Verified
+directly: that exact attack produced zero Momentum for either player and 2 O2
+damage to the opponent, contradicting the step's own text on screen. Fixed by
+swapping the scripted opener to Enforcer-V4 (500 DEF, verified against the real
+card data) - its DEF exactly matches Neon Pounce's damage, so this specific
+attack is now a genuine 0-overflow clean break, and the Momentum-reward text is
+actually true rather than describing an outcome the original matchup could
+never produce.
+
+**Steps 9 and 10 moving too fast to read.** Both are "watch" steps - overflow
+damage and Apex recovery - that auto-advance a fixed short delay after their
+event is detected, the same mechanism used for quick action steps like playing
+a card. Reported directly that these two specifically needed more time, since
+they're real teaching moments, not quick mechanical actions. Both now require
+an explicit Continue click once their event is detected, while still
+auto-detecting the event itself (not reverting to the earlier bug where Apex
+Recovery never advanced at all).
+
+**"Why did Riot Runner's DEF increase to 1500? That's ridiculous."** Fair, and
+a genuine display problem, not a math one - the number itself is doing exactly
+what it's supposed to (29.12's real survival guarantee), it just had no business
+being shown to the player. `getEffectiveDef` now takes an optional flag to
+report the card's real, normal DEF instead of the protected value; `PlayerBoard`
+and the card-inspect modal pass this specifically during tutorial mode. The
+actual combat resolution used to determine whether an attack destroys the Apex
+is completely untouched - verified both ways directly: the same protected
+instance genuinely still resolves combat at DEF 1500, while what's *displayed*
+on the card is genuinely 400.
+
+**Verified**: the real clean break is checked through actual `declareAttack`
+resolution (not just the setup), confirming zero O2 movement and a Battle Log
+entry naming Apex Break Reward specifically; both display and combat-resolution
+DEF values are checked directly against the same protected Apex instance, not
+assumed to diverge correctly; and a real mounted panel confirms the Continue
+button on Step 9 genuinely appears once its condition is met and genuinely
+never auto-advances on its own, even after a long wait.
+
+**Verified**: full regression suite (595+ checks across 35 files, one new this
+commit, three updated for the corrected opener card) and a fresh 72-game
+simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
+previously-documented flaky test (23.2) flaked again in this run's batch sweep,
+unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

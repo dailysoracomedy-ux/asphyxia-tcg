@@ -159,11 +159,11 @@ export default function TutorialPanel() {
   const conditionMet = !!current?.autoAdvanceWhen && current.autoAdvanceWhen(state);
 
   useEffect(() => {
-    if (isPassiveStep || !conditionMet || step >= TUTORIAL_STEPS.length - 1) return;
+    if (isPassiveStep || current?.requiresContinueAfterWatch || !conditionMet || step >= TUTORIAL_STEPS.length - 1) return;
     const t = setTimeout(() => setStep(step + 1), SHORT_ADVANCE_DELAY_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conditionMet, isPassiveStep, step]);
+  }, [conditionMet, isPassiveStep, step, current]);
 
   // A pending Rift choice belonging to the player overrides everything else -
   // it's genuinely blocking the game regardless of what step the tutorial
@@ -182,7 +182,7 @@ export default function TutorialPanel() {
   // Continue only ever shows for the true explanation-only steps now - action
   // steps advance on their own via the short-delay effect above, matching "no
   // Continue button on gameplay-action steps."
-  const canContinue = !pendingRiftChoice && isPassiveStep;
+  const canContinue = !pendingRiftChoice && (isPassiveStep || (!!current.requiresContinueAfterWatch && conditionMet));
 
   return (
     <div className="fixed top-1/2 left-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">

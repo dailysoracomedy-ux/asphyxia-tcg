@@ -998,9 +998,11 @@ export const useGameStore = create<GameStore>((set) => ({
         // (already prioritized for Step 15) could get auto-played by emergency
         // Apex recovery at Step 9 instead of the scripted Riot Runner, leaving
         // Step 9's own text wrong and Step 15 with no Static Jack left to play.
-        // Player2 (the scripted/AI opponent) gets Pale Executioner (or the
-        // first Apex found) placed directly, not "played" via any action - see
-        // the direct placement below, right after this loop.
+        // Player2 (the scripted/AI opponent) gets Enforcer-V4 (or the first
+        // Apex found) placed directly, not "played" via any action - see the
+        // direct placement below, right after this loop. 500 DEF specifically
+        // (Commit 29.13), matching Neon Pounce's 500 damage exactly for a real
+        // clean break - see the fuller explanation right at that placement.
         if (tutorialMode && pid === 'player1') {
           const byDefId = (defId: string) => deck.find((c) => c.defId === defId);
           const priority = [
@@ -1016,7 +1018,18 @@ export const useGameStore = create<GameStore>((set) => ({
           deck = [...priority, ...rest];
         }
         if (tutorialMode && pid === 'player2') {
-          const opener = deck.find((c) => c.defId === 'dw-pale-executioner') ?? deck.find((c) => c.type === 'Apex');
+          // Commit 29.13 - Enforcer-V4 (500 DEF), not Pale Executioner (300
+          // DEF). A real, reported bug: the tutorial's "Apex Break Reward" step
+          // claims the player's first attack (Street-Beast's Neon Pounce, 500
+          // damage) destroys the enemy Apex with zero O2 damage and a Momentum
+          // reward - but 500 damage against a 300-DEF target is 200 overflow,
+          // a real hit to the opponent's O2, never a clean break. Verified
+          // directly before picking a fix: Enforcer-V4's DEF (500) exactly
+          // matches Neon Pounce's damage, so this specific attack is a genuine
+          // 0-overflow clean break, and the Momentum-reward text is now
+          // actually true rather than describing an outcome that could never
+          // happen with this scripted matchup.
+          const opener = deck.find((c) => c.defId === 'dw-enforcer-v4') ?? deck.find((c) => c.type === 'Apex');
           if (opener) deck = [opener, ...deck.filter((c) => c !== opener)];
         }
 
@@ -1053,7 +1066,7 @@ export const useGameStore = create<GameStore>((set) => ({
         // any action - there's no legal moment for the opponent to have done
         // this themselves yet.
         const opponent = draft.players.player2;
-        const openerIdx = opponent.hand.findIndex((c) => c.defId === 'dw-pale-executioner' || c.type === 'Apex');
+        const openerIdx = opponent.hand.findIndex((c) => c.defId === 'dw-enforcer-v4' || c.type === 'Apex');
         if (openerIdx !== -1) {
           const [opener] = opponent.hand.splice(openerIdx, 1);
           opponent.apexSlots[0] = opener;

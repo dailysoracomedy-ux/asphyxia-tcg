@@ -141,8 +141,8 @@ async function main() {
   );
   check('Static Jack is guaranteed among player1\'s next draws (not left to chance)', nextFewDraws.includes('nu-static-jack'));
   check(
-    'player2 (scripted opponent) actually has a real Apex placed on the board at match start (Commit 29.7) - destruction happens through real combat math, not a fabricated result',
-    s.players.player2.apexSlots[0]?.defId === 'dw-pale-executioner'
+    'player2 (scripted opponent) has Enforcer-V4 placed at match start - matches Neon Pounce exactly for a real clean break (Commit 29.13)',
+    s.players.player2.apexSlots[0]?.defId === 'dw-enforcer-v4'
   );
 
   // --- Real DOM mount: confirm the locked panel actually renders and Next is

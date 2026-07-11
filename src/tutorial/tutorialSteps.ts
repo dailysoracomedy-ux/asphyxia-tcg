@@ -72,6 +72,15 @@ export interface TutorialStep {
    *  because of an earlier free choice the player made, like which Rift bonus
    *  to take - fix it here rather than let the step become unplayable. */
   onEnter?: () => void;
+  /** Commit 29.13 - for waitForOpponent (watch) steps specifically: once the
+   *  watched event is detected, show a Continue button and wait for an
+   *  explicit click instead of auto-advancing after the short fixed delay.
+   *  Reported directly: overflow damage and Apex recovery are important
+   *  teaching moments, not quick mechanical actions, and were displaying and
+   *  moving on before there was real time to read them. Action steps (play a
+   *  card, choose an attack) still auto-advance without this - the distinction
+   *  is "something to read" vs "something to click," not watch-vs-action. */
+  requiresContinueAfterWatch?: boolean;
 }
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
@@ -153,6 +162,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     requiredAction: { type: 'waitForOpponent' },
     highlight: { kind: 'o2Display' },
     autoAdvanceWhen: (s) => !s.players.player1.apexSlots.some(Boolean),
+    requiresContinueAfterWatch: true,
   },
   {
     id: 'apex-recovery',
@@ -164,13 +174,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         ? `${name} was automatically recovered from your deck! ASPHYXIA never leaves you with nothing to fight with - if you control no Apex at the start of your turn, one gets played for you, from hand first, then your deck.`
         : 'Your Apex was destroyed. ASPHYXIA never leaves you with nothing to fight with - at the start of your turn, if you control no Apex, one gets recovered automatically, from hand first, then your deck.';
     },
-    // Recovery is just as automatic as an opponent's action - there's nothing
-    // for the player to click, so this reuses waitForOpponent's auto-advance +
-    // live-status behavior rather than being an ack step with an unnecessary
-    // Continue button (a real, reported bug: "during Apex Recovery it still
-    // says Continue and should not").
+    // Recovery is just as automatic as an opponent's action - the player never
+    // clicks anything to make it happen, so this reuses waitForOpponent's
+    // auto-detection rather than being an ack step that never even noticed
+    // recovery happened (the original reported bug: "during Apex Recovery it
+    // still says Continue and should not," when Continue was the ONLY thing
+    // shown, forever, since ack steps never auto-advance at all). Commit 29.13
+    // adds requiresContinueAfterWatch on top of that fix specifically:
+    // detection still happens automatically, but a real Continue click is
+    // required afterward rather than auto-advancing after a fixed short delay
+    // - reported directly as moving on before there was time to actually read
+    // what Apex came back.
     requiredAction: { type: 'waitForOpponent' },
     autoAdvanceWhen: (s) => s.players.player1.apexSlots.some(Boolean),
+    requiresContinueAfterWatch: true,
   },
   {
     id: 'play-equip',

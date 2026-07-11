@@ -81,7 +81,7 @@ check(
 );
 check(
   'that auto-advance is explicitly gated to skip passive (explanation-only) steps, matching "Continue only for explanation-only moments"',
-  /if \(isPassiveStep \|\| !conditionMet/.test(panelSource)
+  /if \(isPassiveStep/.test(panelSource) && /!conditionMet/.test(panelSource)
 );
 check('the panel source still computes conditionMet as a plain derived value, not stored/effect-driven state', panelSource.includes('const conditionMet ='));
 

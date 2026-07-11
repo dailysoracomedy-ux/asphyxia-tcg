@@ -70,14 +70,14 @@ export function findAnyCardInstance(
 }
 
 /** Effective DEF = baseDef + equip bonus + active temp buffs + apex passive DEF bonus - glitch counter penalty */
-export function getEffectiveDef(state: GameState, apexInstanceId: string): number {
+export function getEffectiveDef(state: GameState, apexInstanceId: string, ignoreSurvivorOverride = false): number {
   const hit = findApexAnywhere(state, apexInstanceId);
   if (!hit) return 0;
   const { apex, ownerId } = hit;
   const def = getCardDef(apex.defId);
   if (def.type !== 'Apex') return 0;
 
-  if (typeof apex.survivorDefOverride === 'number') {
+  if (!ignoreSurvivorOverride && typeof apex.survivorDefOverride === 'number') {
     return Math.max(0, apex.survivorDefOverride);
   }
 

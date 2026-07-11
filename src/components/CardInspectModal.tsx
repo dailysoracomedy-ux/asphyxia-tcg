@@ -42,7 +42,7 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
   const isApex = def.type === 'Apex';
   const isSupport = def.type === 'AbilitySupport' || def.type === 'BatterySupport';
 
-  const effDef = isApex && ownerId ? getEffectiveDef(state, instance.instanceId) : null;
+  const effDef = isApex && ownerId ? getEffectiveDef(state, instance.instanceId, state.tutorialMode) : null;
   const chainedSupport = isApex && ownerId ? getChainedSupportFor(state, ownerId, instance.instanceId) : null;
   const chainLabel = isSupport && ownerId ? getChainLabelForSupport(state, ownerId, instance.instanceId) : null;
   const equippedTo = def.type === 'Equip' ? findEquippedOwner(state, instance.instanceId) : null;

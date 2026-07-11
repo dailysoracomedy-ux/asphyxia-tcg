@@ -245,7 +245,16 @@ function ApexSlot({
       </div>
     );
   }
-  const effDef = getEffectiveDef(state, apex.instanceId);
+  // Commit 29.13: display the Apex's real, normal DEF during tutorial mode,
+  // even while it's internally protected by survivorDefOverride (a real,
+  // existing game mechanic used to guarantee the tutorial's scripted sequence
+  // survives an unscripted opponent attack - see tutorialProtectSurvivor in
+  // gameStore.ts). Reported directly, correctly: showing "DEF 1500" on a card
+  // that's normally 400 looks absurd and completely unrealistic to a player
+  // who has no way to know it's a temporary safety mechanism. The actual
+  // combat math used to resolve attacks elsewhere is completely untouched -
+  // this only ever affects what number the player sees on the card itself.
+  const effDef = getEffectiveDef(state, apex.instanceId, state.tutorialMode);
   const apexCardDef = getCardDef(apex.defId);
   const shownDef = effDef === 0 && apexCardDef.type === 'Apex' && !findApexAnywhere(state, apex.instanceId) ? apexCardDef.baseDef : effDef;
   const attackPreviews: Record<string, NonNullable<ReturnType<typeof getPreviewAttackDamage>>> = {};

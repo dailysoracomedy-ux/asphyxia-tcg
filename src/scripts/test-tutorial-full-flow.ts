@@ -39,7 +39,7 @@ let s = useGameStore.getState();
 
 // --- Fix 1: opponent has a real Apex on board from the start ---
 check('the opponent (player2) has a real Apex placed on board at tutorial start', s.players.player2.apexSlots.some(Boolean));
-check('the opponent Apex is the intended low-DEF opener (real combat math destroys it, not a fabricated result)', s.players.player2.apexSlots[0]?.defId === 'dw-pale-executioner');
+check('the opponent Apex is Enforcer-V4, matching Neon Pounce exactly for a real clean break (Commit 29.13, real combat math, not a fabricated result)', s.players.player2.apexSlots[0]?.defId === 'dw-enforcer-v4');
 
 // Play through turn 1 exactly as the script does.
 if (s.phase === 'Start' && s.startPhasePending) s.advancePhase('Start');
