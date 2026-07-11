@@ -2648,6 +2648,47 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep, unchanged and consistent with the prior
 finding.
 
+## Commit 29.16: the actual reason the second scripted turn never ran at all
+
+**"A new Apex didn't surface and the new Apex didn't attack."** Screenshot
+showed Turn 4, Draw Phase, the tutorial panel already on the React step, but
+the opponent's board completely empty. This is a different, deeper bug than
+29.15's - that one was about something else interfering with an already-
+running sequence; this one is about the sequence never starting in the first
+place.
+
+**Root cause**: `react-window`'s `onEnter` fires the instant its step becomes
+active - which happens the moment the *player's own* buffed attack resolves and
+`hasAttacked` becomes true, still during the player's own turn, well before
+that turn actually ends. The scripted sequencer's very first check was
+`activePlayerId !== 'player2'` - correctly true at that exact instant, since
+it's still the player's turn - and on failing that check, it simply gave up
+permanently. No retry, no reschedule. By the time the player's turn actually
+ended a moment later and control genuinely passed to the opponent, nothing was
+left to pick the sequence back up - the opponent's turn just sat there with
+Draw Phase's own automatic logic being the only thing still running.
+
+**Fixed by separating what should actually stop the sequence from what should
+just make it wait.** Tutorial mode turning off or the game ending are genuine
+reasons to give up. "It isn't the opponent's turn yet" is not - it's an
+extremely normal, expected moment that resolves itself a fraction of a second
+later, and the sequencer now quietly retries every 700ms until it does, rather
+than mistaking "not yet" for "never."
+
+**Verified precisely**: forced the exact reported scenario directly - Riot
+Runner already having attacked, still genuinely the player's own turn - and
+confirmed the sequencer does nothing while that's true (not incorrectly acting
+early), then confirmed it genuinely resumes and completes once control actually
+passes to the opponent a moment later, ending with a real, player-facing
+response window open. The existing full end-to-end scripted-opponent test
+(29.14) still passes completely with this fix in place.
+
+**Verified**: full regression suite (605+ checks across 37 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep, unchanged and consistent with the prior
+finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

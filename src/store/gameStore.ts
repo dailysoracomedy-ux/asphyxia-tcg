@@ -465,7 +465,22 @@ export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[
 
   function runNext() {
     const st = useGameStore.getState();
-    if (!st.tutorialMode || st.status !== 'playing' || st.activePlayerId !== 'player2') return;
+    // Terminal conditions - genuinely stop retrying. Tutorial mode being off or
+    // the game no longer playing means this sequence has no business running
+    // at all anymore.
+    if (!st.tutorialMode || st.status !== 'playing') return;
+    // NOT a terminal condition - keep retrying. onEnter fires the instant its
+    // step becomes active, which can genuinely happen while it's still the
+    // player's own turn (their attack resolving sets hasAttacked immediately,
+    // well before their turn actually ends via auto-end-turn). A real,
+    // confirmed bug: the very first runNext() call used to bail out
+    // permanently here with no retry, silently doing nothing for the entire
+    // rest of the opponent's turn - the sequence needs to wait for control to
+    // actually reach the opponent, not give up because it hasn't yet.
+    if (st.activePlayerId !== 'player2') {
+      setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+      return;
+    }
 
     // Handle the Start Phase (draw) automatically before running any scripted
     // action - every opponent turn needs this regardless of what the script
