@@ -2388,6 +2388,47 @@ simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
 previously-documented flaky test (23.2) flaked again in this run's batch sweep,
 unchanged and consistent with the prior finding.
 
+## Commit 29.11: the actual finishing-blow softlock, and a general safety net for the whole class of bug
+
+**Same symptom, different root cause than last time.** The screenshot showed
+Turn 5, Main Phase, with the panel already stuck on "Click Riot Runner to
+attack" - a step that only makes sense in Combat Phase, with no way back into
+Combat. Traced it rather than re-applying the previous fix blind: every "enter
+Combat" step's auto-advance condition checked only `phase === 'Combat'`, never
+*whose* turn it actually was. The opponent enters their own Combat Phase every
+single turn too - so the condition could become true during the opponent's own
+combat, wrongly auto-advancing the tutorial step ahead of schedule, before the
+player's real turn had even started. Once the opponent's turn genuinely ended
+and the game fell back to Main Phase for the player's actual turn, the tutorial
+was already pointed at a combat-only step with nothing left to authorize
+re-entering Combat. Fixed at all three "enter Combat" gates in the script, not
+just the one in the screenshot - the same gap existed in all of them.
+
+**A general safety net, not just the specific patch.** On top of the corrected
+condition, added a standing check: any time the active step needs Combat Phase
+specifically (select an attacker, choose an attack, target the enemy) but the
+game has genuinely fallen back to Main Phase for any reason, the tutorial
+automatically steps back to the nearest preceding "enter Combat" gate - giving
+the player a real, clickable way forward again rather than a dead end. This
+never advances anything on its own, only ever retreats to an already-completed,
+re-clickable step, so it can't be used to skip ahead. Matches the same
+"failure mode should never be a hard stop" principle already used for the
+watch-step timeout fallback (29.3) - protects against this whole category of
+bug even if some other scripted step turns out to have a similar gap later.
+
+**Verified precisely**: each of the three "enter Combat" conditions is checked
+directly against both a same-turn and opponent-turn Combat Phase state,
+confirming the exact distinction that was missing. The safety net is verified
+by forcing the literal reported scenario (a combat-only step active while the
+game is genuinely in Main Phase) and confirming the panel both steps back to
+the right gate and shows a real, clickable Combat Phase button afterward.
+
+**Verified**: full regression suite (575+ checks across 33 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep, unchanged and consistent with the prior
+finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

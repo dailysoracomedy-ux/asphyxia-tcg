@@ -80,6 +80,32 @@ export default function TutorialPanel() {
   const isWatchStep = current?.requiredAction.type === 'waitForOpponent';
   const isPassiveStep = current?.requiredAction.type === 'ack';
 
+  // Commit 29.11 - a real, reported softlock. Combat-only steps (select an
+  // attacker, choose an attack, target the enemy) assume the game is still in
+  // Combat Phase from the moment the preceding "enter Combat" step let them
+  // through - but the game can legitimately fall back to Main Phase afterward
+  // (auto-end-turn firing once the only Apex has already attacked, the
+  // opponent's own turn concluding, a full turn cycle completing) before the
+  // player gets to actually click the highlighted Apex. When that happens, the
+  // step was permanently unsatisfiable: nothing else authorizes clicking
+  // Combat Phase again, and the required action can't be performed outside
+  // Combat. This watches for exactly that mismatch and automatically steps
+  // back to the nearest preceding "enter Combat" gate, so the player always has
+  // a real, clickable way forward - it never advances anything on its own,
+  // only ever steps backward to an already-completed, re-clickable gate.
+  useEffect(() => {
+    if (!current) return;
+    const needsCombat = current.requiredAction.type === 'selectAttacker' || current.requiredAction.type === 'chooseAttack' || current.requiredAction.type === 'selectEnemyTarget';
+    if (!needsCombat || state.phase === 'Combat') return;
+    for (let i = step - 1; i >= 0; i--) {
+      if (TUTORIAL_STEPS[i].requiredAction.type === 'advancePhase') {
+        setStep(i);
+        return;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, state.phase, step]);
+
   // Commit 29.10 - the actual root cause behind several reported problems at
   // once: pure explanation steps never paused the underlying game at all, only
   // the tutorial panel's own display. The AI driver (GameBoard.tsx) kept

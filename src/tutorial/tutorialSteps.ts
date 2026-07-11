@@ -104,7 +104,15 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: 'Dead Battery gives you +1 Sync during Combat. You\u2019re ready to attack - enter Combat Phase.',
     requiredAction: { type: 'advancePhase', phase: 'Combat' },
     highlight: { kind: 'combatPhaseButton' },
-    autoAdvanceWhen: (s) => s.phase === 'Combat',
+    // Commit 29.11 - every "enter Combat" step's autoAdvanceWhen must also check
+    // whose turn it actually is, not just the raw phase. The opponent enters
+    // their own Combat Phase every turn too - without this check, a step could
+    // wrongly auto-advance during the *opponent's* combat, leaving the tutorial
+    // stuck on the next (combat-only) step once the opponent's turn ends and
+    // the game genuinely falls back to Main Phase for the player's real turn.
+    // Confirmed as the real cause of a reported softlock at the finishing-blow
+    // step, not assumed.
+    autoAdvanceWhen: (s) => s.phase === 'Combat' && s.activePlayerId === 'player1',
   },
   {
     id: 'select-attacker',
@@ -186,7 +194,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: 'Overclock is armed. Enter Combat Phase again to deliver the buffed attack.',
     requiredAction: { type: 'advancePhase', phase: 'Combat' },
     highlight: { kind: 'combatPhaseButton' },
-    autoAdvanceWhen: (s) => s.phase === 'Combat',
+    autoAdvanceWhen: (s) => s.phase === 'Combat' && s.activePlayerId === 'player1',
   },
   {
     id: 'buffed-attack',
@@ -241,7 +249,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: 'Your opponent is nearly out of O2. Enter Combat one more time to finish the match.',
     requiredAction: { type: 'advancePhase', phase: 'Combat' },
     highlight: { kind: 'combatPhaseButton' },
-    autoAdvanceWhen: (s) => s.phase === 'Combat',
+    autoAdvanceWhen: (s) => s.phase === 'Combat' && s.activePlayerId === 'player1',
     onEnter: () => tutorialEnsureFinishingBlow(),
   },
   {
