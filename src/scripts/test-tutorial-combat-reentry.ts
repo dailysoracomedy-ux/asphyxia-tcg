@@ -67,16 +67,21 @@ const playApexStep = TUTORIAL_STEPS.find((step) => step.id === 'play-apex')!;
 check("play-apex's own condition genuinely becomes true once Street-Beast is played (test setup sanity check)", playApexStep.autoAdvanceWhen!(s) === true);
 
 // Wait past where the old 1.4s timer would have fired, then confirm no
-// mechanism anywhere advances a step on its own - this is a structural
-// property of the rewritten panel (no setTimeout-based step advance exists in
-// it at all anymore), verified here by confirming the panel's source doesn't
-// contain the old auto-advance timer pattern.
+// mechanism advances action steps without a click - this is a structural
+// property of the panel (Commit 29.9 deliberately reintroduced a short,
+// action-step-specific auto-advance timer, on top of 29.8's removal of the old
+// one-size-fits-all 1.4s timer), verified here by confirming the panel's source
+// uses the new short delay constant, gated specifically to non-passive steps.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const panelSource = fs.readFileSync(join(__dirname, '../components/TutorialPanel.tsx'), 'utf-8');
 check(
-  'the panel source no longer contains any timer that advances the step on its own (structural check, not just behavioral)',
-  !/setTimeout\(\(\) => setStep\(step \+ 1\)/.test(panelSource)
+  'the panel source uses the short, action-step-specific auto-advance delay (Commit 29.9), not the old flat 1.4s timer',
+  panelSource.includes('SHORT_ADVANCE_DELAY_MS') && !/setTimeout\(\(\) => setStep\(step \+ 1\), 1400\)/.test(panelSource)
+);
+check(
+  'that auto-advance is explicitly gated to skip passive (explanation-only) steps, matching "Continue only for explanation-only moments"',
+  /if \(isPassiveStep \|\| !conditionMet/.test(panelSource)
 );
 check('the panel source still computes conditionMet as a plain derived value, not stored/effect-driven state', panelSource.includes('const conditionMet ='));
 
@@ -127,14 +132,17 @@ async function behavioralCheck() {
   useTutorialStore.getState().setStep(1); // play-apex - already satisfied above
   await new Promise((r) => setTimeout(r, 100));
   const stepRightAfter = useTutorialStore.getState().step;
-  check('Continue button appears once the condition is genuinely met', container.innerHTML.includes('>Continue<'));
+  check(
+    'no Continue button appears on this action step even once its condition is genuinely met (Commit 29.9)',
+    !container.innerHTML.includes('>Continue<')
+  );
 
-  // Wait well past where the old 1.4s auto-advance timer would have fired.
+  // Wait well past the new short auto-advance delay.
   await new Promise((r) => setTimeout(r, 2000));
   const stepAfterWaiting = useTutorialStore.getState().step;
   check(
-    'the step index genuinely never changed on its own during that wait - real behavioral confirmation, not just reading the source',
-    stepAfterWaiting === stepRightAfter
+    'the action step genuinely advanced on its own during that wait, with no click - real behavioral confirmation, not just reading the source',
+    stepAfterWaiting === stepRightAfter + 1
   );
 
   root.unmount();

@@ -2270,6 +2270,64 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep, unchanged and consistent with the prior
 finding.
 
+## Commit 29.9: the actual Glitch Step fix, and action steps that don't demand a click
+
+**The critical bug, traced before touching anything.** Reported: the opponent
+attacked, hit the Apex, and only afterward did the tutorial ask for Glitch Step
+- by which point it was no longer legal. Confirmed the mechanism itself (the
+response window, the AI correctly staying out of the player's own decisions)
+works fine when conditions are right, by simulating the exact sequence directly.
+The real cause: Glitch Step needs 1 Momentum to even be eligible, and Momentum by
+that point in the tutorial depends on a genuinely free choice the player makes
+several steps earlier, at the Civil War/Human Error Rift prompt (+1 Momentum or
++100 damage) - which this tutorial deliberately doesn't force either way. Picking
+damage leaves Momentum at 0. With Glitch Step ineligible, no response window ever
+opens at all, and the attack just resolves - exactly what was reported. Fixed
+with a new `onEnter` hook on the step itself (`tutorialEnsureReactReady()` in
+gameStore.ts) that guarantees Momentum ≥ 1 and Glitch Step in hand the instant
+the React step becomes active - before the opponent's next turn even starts, not
+patched after something's already gone wrong. Verified it's a genuine no-op when
+the player already has both (never grants free Momentum or duplicates the card),
+and a genuine no-op entirely outside tutorial mode.
+
+**Action steps no longer demand a click.** 29.8 removed the old flat 1.4-second
+auto-advance timer in response to "the tutorial sped through" - but that also
+meant every action step, even a fully validated one, now needed an extra click
+just to move on. This commit reconciles the two: action steps (play this card,
+choose this attack, declare this target) now advance on their own after a short,
+fixed, purely visual pause once their condition is met - no Continue button at
+all. Pure explanation-only steps still require an explicit click, since there's
+nothing for the game to detect completion of - matching "Continue only for
+explanation-only moments" precisely. Verified behaviorally, not just by reading
+the source: mounted the real panel, satisfied an action step's condition,
+confirmed no Continue button ever appeared, and confirmed the step advanced on
+its own after the short delay; separately confirmed a real explanation-only step
+still shows Continue and genuinely never advances on its own even after a long
+wait.
+
+**Scope, stated directly rather than silently narrowed.** The source document
+asked for a full rebuild - a fully scripted opponent (no normal AI involvement
+at all), a restructured ~21-step flow, and event-driven advancement replacing
+polling entirely. What's actually shipped here is the two fixes that address the
+concrete, reported problems: the Glitch Step timing bug (the doc's own
+"acceptance criteria" section centers entirely on this) and the Continue-button
+behavior. The opponent's turns continue to lean on the real, unmodified AI
+(the same tradeoff reaffirmed in 29.1, 29.4, and 29.7) rather than a from-scratch
+scripted state machine - a materially larger, riskier undertaking whose main
+justified purpose (making the React window reliable) is now handled directly by
+the `onEnter` guarantee instead. The step list itself is the same sequence built
+across 29.1-29.8, with the one structural gap already fixed (29.8's missing
+combat-re-entry step) - not restructured to the source document's exact ~21-step
+numbering.
+
+**Verified**: full regression suite (555+ checks across 31 files, one new this
+commit, one updated for the intentional design change) and a fresh 72-game
+simulation both ran clean, plus clean `tsc`/`eslint`/build. Two flakes turned up
+in this run's batch sweep - the long-documented one from 23.2, and `test-ai-
+ceremony-pacing`, confirmed by rerunning it in isolation (clean 3/3) to be a
+batch-context timing flake rather than a real regression, consistent with the
+established pattern for this category of test.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

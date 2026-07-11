@@ -16,6 +16,27 @@ import type { GameState } from '@/types/game';
 const WATCH_STEP_TIMEOUT_MS = 9000;
 
 /**
+ * Commit 29.9 rework - two more real, reported problems, and a design
+ * reconciliation between them. 29.8 removed all auto-advance timers entirely in
+ * response to "the tutorial sped through" - but that meant even simple action
+ * steps (play this exact card, already fully validated) now demanded an extra
+ * click just to move on, which is its own kind of friction the tutorial
+ * shouldn't have. The actual complaint in 29.8 was about the *old* mechanism -
+ * a flat 1.4s timer on every step regardless of type, racing ahead of whatever
+ * the player was still reading. The fix here is narrower and specific to what
+ * this commit calls for: action steps (play a card, choose an attack, declare a
+ * target - anything with a concrete, already-validated action) auto-advance on
+ * their own after a brief, purely visual pause (SHORT_ADVANCE_DELAY_MS) once
+ * their condition is met - no Continue button, nothing to click. Pure
+ * explanation-only steps (ack type - no action to perform, more to actually
+ * read) still require an explicit Continue, since there's no action for the
+ * game to detect completion of. The player's own pace only matters where
+ * there's something to read; where there's only something to click, the game
+ * gets out of the way.
+ */
+const SHORT_ADVANCE_DELAY_MS = 450;
+
+/**
  * Commit 29.1 rewrite: a locked, focused guidance panel, replacing 29's small
  * bottom-right floating panel with an optional Next button on every step (which,
  * reported correctly, gave "free reign... without even knowing the first thing to
@@ -34,20 +55,15 @@ const WATCH_STEP_TIMEOUT_MS = 9000;
  * instant it's relevant, since exactly when (or whether) it triggers depends on
  * combat that already happened, not a fixed point in the sequence.
  *
- * Commit 29.8: two more real, reported issues. First, "the tutorial sped
- * through" - every step used to auto-advance on a 1.4s timer the instant its
- * condition was satisfied, with no way to actually control the pace or finish
- * reading before the board moved on. Every step transition now requires an
- * explicit Continue click, full stop - the timer is gone entirely, replaced by
- * `conditionMet` below, which just decides *whether* a Continue button is
- * showing, never advances anything on its own. Second, a real missing step: the
- * sequence went straight from playing a Special to expecting an attacker
- * selection, skipping right over having to actually re-enter Combat Phase first
- * - the Combat Phase button was being blocked by the tutorial's own gate,
- * because the step active at that point didn't authorize clicking it at all.
- * Fixed by adding the missing step back (see tutorialSteps.ts, 'enter-combat-
- * again') rather than just describing "enter Combat" in text without actually
- * gating for it.
+ * Commit 29.8: a real missing step (see tutorialSteps.ts, 'enter-combat-again')
+ * and the removal of the old flat 1.4s auto-advance timer.
+ *
+ * Commit 29.9: see SHORT_ADVANCE_DELAY_MS above for the auto-advance design.
+ * Also fixes a real, confirmed bug in the React/Glitch Step step - traced
+ * directly (not assumed) to Momentum sometimes legitimately being 0 by that
+ * point, depending on which Rift bonus the player freely chose earlier, which
+ * meant Glitch Step was never eligible and the response window never opened at
+ * all. See tutorialEnsureReactReady() in gameStore.ts for the actual fix.
  */
 export default function TutorialPanel() {
   const state = useGameStore();
@@ -62,10 +78,30 @@ export default function TutorialPanel() {
   const current = TUTORIAL_STEPS[step];
   const isWatchStep = current?.requiredAction.type === 'waitForOpponent';
   const isPassiveStep = current?.requiredAction.type === 'ack';
+
+  // Commit 29.9 - state-safety guarantees (the actual fix for the reported
+  // Glitch Step timing bug) fire here, once, the instant the step becomes
+  // active - before the opponent's next turn (and its scripted-ish attack) ever
+  // starts, not after something's already gone wrong.
+  useEffect(() => {
+    current?.onEnter?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   // Purely a derived value, computed fresh every render - never a stored/effect-
   // driven flag, and specifically never anything that advances the step on its
-  // own. This only ever controls whether the Continue button is showing.
+  // own by itself. What DOES advance the step, for action steps specifically,
+  // is the short, fixed-delay effect right below - deliberately not the same
+  // mechanism 29.8 removed (that one fired regardless of step type, with a
+  // longer delay, and gave a Continue button no purpose once it fired anyway).
   const conditionMet = !!current?.autoAdvanceWhen && current.autoAdvanceWhen(state);
+
+  useEffect(() => {
+    if (isPassiveStep || !conditionMet || step >= TUTORIAL_STEPS.length - 1) return;
+    const t = setTimeout(() => setStep(step + 1), SHORT_ADVANCE_DELAY_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conditionMet, isPassiveStep, step]);
 
   // A pending Rift choice belonging to the player overrides everything else -
   // it's genuinely blocking the game regardless of what step the tutorial
@@ -81,7 +117,10 @@ export default function TutorialPanel() {
   // computed directly during render (not stored/reactive state) so there's no
   // effect-based reset needed when the step changes.
   const liveLine = isWatchStep ? state.log[state.log.length - 1]?.message ?? null : null;
-  const canContinue = !pendingRiftChoice && (isPassiveStep || conditionMet);
+  // Continue only ever shows for the true explanation-only steps now - action
+  // steps advance on their own via the short-delay effect above, matching "no
+  // Continue button on gameplay-action steps."
+  const canContinue = !pendingRiftChoice && isPassiveStep;
 
   return (
     <div className="fixed top-1/2 left-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
@@ -121,7 +160,7 @@ export default function TutorialPanel() {
       )}
 
       {!pendingRiftChoice && conditionMet && !isPassiveStep && (
-        <div className="text-[11px] text-emerald-300/90 font-bold mb-2">&#10003; Done - click Continue below.</div>
+        <div className="text-[11px] text-emerald-300/90 font-bold mb-2">&#10003; Nice - moving on...</div>
       )}
       {!pendingRiftChoice && !conditionMet && !isPassiveStep && (
         <div className="text-[10px] text-yellow-300/80 italic mb-2">
@@ -156,7 +195,7 @@ export default function TutorialPanel() {
           </button>
         )}
         {/* Only while genuinely still waiting on the opponent - once conditionMet
-            flips true, the regular Continue button above takes over instead.
+            flips true, the short-delay auto-advance effect takes over instead.
             Keyed by step, so remounting on every step change gives this its own
             fresh timer with no effect-based reset needed for the parent. */}
         {isWatchStep && !pendingRiftChoice && !conditionMet && (

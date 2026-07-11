@@ -20,7 +20,7 @@ import type {
 } from '@/types/game';
 import { freshTurnFlags } from '@/types/game';
 import { getCardDef } from '@/data/cards';
-import { buildStarterDeck, shuffle } from '@/data/decks';
+import { buildStarterDeck, shuffle, createInstance } from '@/data/decks';
 import { determineRiftSpace } from '@/game/rifts';
 import { useAnimationStore, CEREMONY_MS, type VisualEvent } from './animationStore';
 import {
@@ -361,6 +361,43 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
   draft.winnerId = otherPlayer(playerId);
   draft.gameOverReason = `${playerId} has no Apex remaining anywhere and loses.`;
   logMsg(draft, `${playerId} has no Apex in hand, Deck, or Void and loses.`, 'win');
+}
+
+/** Commit 29.9 - the actual fix for the reported Glitch Step / React timing bug.
+ *  Root cause, confirmed by direct testing before writing this fix: the React
+ *  step's scripted enemy attack only opens a response window at all if the
+ *  player has at least one *eligible* Reaction - Glitch Step needs 1 Momentum
+ *  (checkEligibleResponses/maybeOpenResponseWindow correctly require this, and
+ *  that check is completely unchanged here). Momentum by that point in the
+ *  tutorial isn't fully scripted - it depends on which free choice the player
+ *  made at the Civil War/Human Error Rift prompt a few steps earlier (+1
+ *  Momentum vs +100 damage), which this tutorial deliberately doesn't force one
+ *  way or the other. Picking the damage option leaves Momentum at 0, Glitch
+ *  Step becomes ineligible, no response window opens at all, and the attack
+ *  just resolves - exactly what was reported ("the AI attacked and hit my Apex
+ *  anyway... I could no longer play it"). Called from TutorialPanel's onEnter
+ *  the instant the React step becomes active, before the opponent's next turn
+ *  ever starts - guarantees the precondition without touching Momentum's actual
+ *  rules, the Rift choice's own effect, or anything about normal (non-tutorial)
+ *  play. */
+export function tutorialEnsureReactReady() {
+  useGameStore.setState((st) => {
+    if (!st.tutorialMode) return st;
+    const player = st.players.player1;
+    const hasGlitchStep = player.hand.some((c) => c.defId === 'nu-glitch-step');
+    const needsMomentum = player.momentum < 1;
+    if (!needsMomentum && hasGlitchStep) return st;
+    return {
+      players: {
+        ...st.players,
+        player1: {
+          ...player,
+          momentum: needsMomentum ? Math.max(player.momentum, 1) : player.momentum,
+          hand: hasGlitchStep ? player.hand : [...player.hand, createInstance('nu-glitch-step', 'Reaction')],
+        },
+      },
+    };
+  });
 }
 
 // ==========================================================================

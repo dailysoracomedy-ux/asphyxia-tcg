@@ -1,4 +1,5 @@
 import type { GameState } from '@/types/game';
+import { tutorialEnsureReactReady } from '@/store/gameStore';
 
 /**
  * Commit 29.1 - a genuinely locked, gated Learn To Play script, replacing 29's
@@ -63,6 +64,13 @@ export interface TutorialStep {
    *  aren't "blocked until the right click" so much as "wait for this to become
    *  true," since nothing the player clicks is the actual completion signal. */
   autoAdvanceWhen?: (state: GameState) => boolean;
+  /** Commit 29.9 - fires once, the instant the tutorial step index becomes this
+   *  step (before the player or opponent does anything at this step). Used for
+   *  state-safety guarantees the doc explicitly calls for: if a prerequisite
+   *  this step needs (a card in hand, enough Momentum) isn't already true -
+   *  because of an earlier free choice the player made, like which Rift bonus
+   *  to take - fix it here rather than let the step become unplayable. */
+  onEnter?: () => void;
 }
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
@@ -207,6 +215,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     requiredAction: { type: 'playReact', defId: 'nu-glitch-step' },
     highlight: { kind: 'handCard', defId: 'nu-glitch-step' },
     autoAdvanceWhen: (s) => s.pendingResponseQueue.length === 0 && s.log.some((l) => l.message.includes('Glitch Step')),
+    onEnter: () => tutorialEnsureReactReady(),
   },
   {
     id: 'win',
