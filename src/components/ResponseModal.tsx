@@ -79,11 +79,20 @@ function ReactionPrompt({
   // Commit 29.1: during a gated "play this exact React" tutorial step, only show
   // that one card - even if the player happens to have another eligible Reaction
   // in hand, showing it would undercut the whole point of a locked, focused step.
+  // Commit 29.14: extended further - during tutorial mode but OUTSIDE a
+  // playReact step entirely, no Reacts are shown at all (forced to Pass). A
+  // real, confirmed risk with the fully-scripted opponent: the very first
+  // scripted attack can legitimately open a response window (the player
+  // already has both Glitch Step and enough Momentum by that point, from the
+  // Apex Break Reward a few steps earlier), well before the intended React
+  // step. Without this, nothing would stop the player from playing Glitch Step
+  // here instead, consuming it and leaving the later, actually-scripted React
+  // step with no card left to teach with.
   const tutorialStep = useTutorialStore((s) => s.step);
-  const requiredReactDefId = state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.requiredAction.type === 'playReact'
-    ? (TUTORIAL_STEPS[tutorialStep].requiredAction as { type: 'playReact'; defId: string }).defId
-    : null;
-  if (requiredReactDefId) eligible = eligible.filter((c) => c.defId === requiredReactDefId);
+  const currentTutorialAction = state.tutorialMode ? TUTORIAL_STEPS[tutorialStep]?.requiredAction : undefined;
+  if (state.tutorialMode) {
+    eligible = currentTutorialAction?.type === 'playReact' ? eligible.filter((c) => c.defId === currentTutorialAction.defId) : [];
+  }
 
   return (
     <>

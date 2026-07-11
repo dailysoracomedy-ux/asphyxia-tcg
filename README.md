@@ -2536,6 +2536,69 @@ simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
 previously-documented flaky test (23.2) flaked again in this run's batch sweep,
 unchanged and consistent with the prior finding.
 
+## Commit 29.14: the real rebuild - zero AI in the tutorial, a fully scripted opponent
+
+This is the architectural change that should have happened before the last several
+patches, not another patch on top of the AI.
+
+**What changed at the root**: the AI driver (the same code that runs a real
+opponent in Vs AI and AI vs AI Showcase) is now completely disabled during
+tutorial mode - not biased, not guarded against, disabled. In its place,
+`tutorialRunScriptedOpponentTurn` runs the opponent's entire turn as a hardcoded
+sequence of the exact same store actions a human's own clicks would trigger
+(`playApexCard`, `playSupportCard`, `declareAttack`, `endTurn`) - real, legal
+gameplay resolved through the real engine, just with every choice decided in
+advance instead of by `aiPlayOneMainPhaseAction`. The opponent's first scripted
+turn plays Pale Executioner and Reserve Grid, then attacks Street-Beast with
+Surgical Strike - a verified, guaranteed 200 overflow. The second scripted turn
+plays the opponent's second copy of Pale Executioner and attacks with the same
+Surgical Strike against Riot Runner's real 400 DEF - survivable specifically
+because of Glitch Step's -200, lethal without it.
+
+**What this made possible to delete, not just simplify**: the entire category of
+guardrail code from 29.9 through 29.12 - the survivor-protection mechanism
+(`survivorDefOverride` set to a since-notorious 1500), the continuous re-
+application effect, the "whichever Apex survives" robustness logic for the
+finishing blow. All of it existed for one reason: the AI's attack choices were
+unpredictable, so the tutorial had to defend against outcomes it couldn't
+control. With the opponent's every action now a specific, pre-verified number
+chosen when the script was written, there's nothing left to defend against -
+removing the guardrails isn't a simplification for its own sake, it's the
+category of bug becoming structurally impossible rather than harder to trigger.
+
+**Two real bugs found and fixed while building this, not shipped blind.** First:
+the deck-priority ordering used three sequential "move to front" operations
+(Enforcer-V4, then Pale Executioner, then Reserve Grid) that interfered with
+each other - each prepend pushed the previous one further back, so the actual
+opening hand ended up with Pale Executioner ahead of Enforcer-V4, and the
+placement logic's "any Apex" fallback grabbed the wrong card. Confirmed directly
+via the Battle Log ("Pale Executioner is destroyed" instead of Enforcer-V4)
+before fixing it - rebuilt as a single unified priority list instead of patching
+the three-step version. Second: since the player earns real Momentum from the
+Apex Break Reward several steps before the intended React lesson, they can
+legitimately have both Momentum and Glitch Step in hand well before that step -
+meaning the very first scripted attack could open a real response window early,
+letting the player consume Glitch Step before the step meant to teach it. Fixed
+two ways: the response modal now shows zero eligible Reacts (not just the wrong
+ones) outside a step that's actually expecting one, and the sequencer itself
+auto-passes any response window that isn't the one it's specifically scripted to
+expect.
+
+**Verified concretely, not just by trusting the design**: a real, mounted
+playthrough runs the actual first scripted turn and confirms Pale Executioner
+and Reserve Grid were genuinely played (not something else), the overflow damage
+matches the verified math exactly, no response window was left dangling, Glitch
+Step was never consumed early, and control genuinely returned to the player
+afterward. The same test continues through Apex Recovery, the buffed attack, and
+the second scripted turn, confirming the intended React step - and only that
+one - leaves a real, player-facing response window open.
+
+**Verified**: full regression suite (595+ checks across 35 files, one new this
+commit, one removed since it tested a mechanism that no longer exists) and a
+fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. The one
+previously-documented flaky test (23.2) flaked again in this run's batch sweep,
+unchanged and consistent with the prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

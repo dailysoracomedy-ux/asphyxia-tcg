@@ -1,5 +1,5 @@
 import type { GameState } from '@/types/game';
-import { tutorialEnsureReactReady, tutorialEnsureFinishingBlow, tutorialProtectSurvivor } from '@/store/gameStore';
+import { tutorialEnsureReactReady, tutorialEnsureFinishingBlow, tutorialRunScriptedOpponentTurn } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 
 /**
@@ -163,6 +163,17 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     highlight: { kind: 'o2Display' },
     autoAdvanceWhen: (s) => !s.players.player1.apexSlots.some(Boolean),
     requiresContinueAfterWatch: true,
+    // Commit 29.14 - fully scripted, zero AI. Pale Executioner's Surgical
+    // Strike (1 Sync, 500 base damage) against Street-Beast's real 300 DEF is
+    // a guaranteed, verified 200 overflow = 2 O2 damage - a real teaching
+    // moment with a known outcome, not whatever the AI happened to pick.
+    onEnter: () =>
+      tutorialRunScriptedOpponentTurn([
+        { kind: 'playApex', defId: 'dw-pale-executioner' },
+        { kind: 'playSupport', defId: 'dw-reserve-grid' },
+        { kind: 'advanceToCombat' },
+        { kind: 'attack', attackerDefId: 'dw-pale-executioner', attackId: 'surgical-strike' },
+      ]),
   },
   {
     id: 'apex-recovery',
@@ -196,7 +207,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     requiredAction: { type: 'playEquip', defId: 'nu-plasma-edge' },
     highlight: { kind: 'handCard', defId: 'nu-plasma-edge' },
     autoAdvanceWhen: (s) => s.players.player1.apexSlots.some((a) => a?.equip?.defId === 'nu-plasma-edge'),
-    onEnter: () => tutorialProtectSurvivor(),
   },
   {
     id: 'play-special',
@@ -253,7 +263,24 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     requiredAction: { type: 'playReact', defId: 'nu-glitch-step' },
     highlight: { kind: 'handCard', defId: 'nu-glitch-step' },
     autoAdvanceWhen: (s) => s.pendingResponseQueue.length === 0 && s.log.some((l) => l.message.includes('Glitch Step')),
-    onEnter: () => tutorialEnsureReactReady(),
+    // Commit 29.14 - fully scripted, zero AI. The second Pale Executioner
+    // (guaranteed available - see the deck-priority comment in gameStore.ts)
+    // uses the same verified Surgical Strike (500 base) against Riot Runner's
+    // real 400 DEF - Glitch Step's -200 makes this a genuine 300 damage,
+    // survivable; without it, 500 exceeds 400 DEF and would destroy it. Reserve
+    // Grid from the first scripted turn is still in play, so no need to play
+    // another Engine here.
+    onEnter: () => {
+      tutorialEnsureReactReady();
+      tutorialRunScriptedOpponentTurn(
+        [
+          { kind: 'playApex', defId: 'dw-pale-executioner' },
+          { kind: 'advanceToCombat' },
+          { kind: 'attack', attackerDefId: 'dw-pale-executioner', attackId: 'surgical-strike' },
+        ],
+        { expectsPlayerResponse: true }
+      );
+    },
   },
   {
     id: 'react-success',

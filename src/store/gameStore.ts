@@ -380,59 +380,6 @@ export function maybeRunEmergencyApexDraw(draft: GameState, playerId: PlayerId) 
  *  ever starts - guarantees the precondition without touching Momentum's actual
  *  rules, the Rift choice's own effect, or anything about normal (non-tutorial)
  *  play. */
-/** Commit 29.9 - guarantees the React step's prerequisites: Glitch Step in
- *  hand and at least 1 Momentum to pay for it. The player's Apex actually
- *  surviving the opponent's attack that triggers this step is a separate
- *  guarantee (`tutorialProtectSurvivor`, Commit 29.12, applied much earlier in
- *  the sequence) - Momentum/hand-contents and DEF/survival are different kinds
- *  of state, so they're kept as two focused functions rather than one that
- *  tries to guarantee everything at once. */
-/** Commit 29.12 - the actual fix for a real, reported cascading failure.
- *  Without this, the opponent's real (unscripted) attack could destroy the
- *  player's recovered Apex at any point after Apex Recovery - even with Glitch
- *  Step's -200 reduction at the React step, since that's only one attack's
- *  worth of protection and the opponent gets other turns/attacks in between.
- *  When that happened, emergency Apex recovery would swap in a *different*
- *  Apex from hand (Static Jack, not Riot Runner), and every subsequent
- *  scripted step - which names Riot Runner's specific attack (Mob Charge) by
- *  id - became permanently unsatisfiable, since Static Jack doesn't have that
- *  attack at all. Fixed using a real, existing game mechanic rather than a
- *  fabricated result: `survivorDefOverride` (the same field "Backup
- *  Consciousness" uses to let a card cheat death) is set high enough that no
- *  attack in either faction's kit can exceed it, guaranteeing survival through
- *  the same DEF-comparison math every other attack in the game already uses -
- *  not a special tutorial-only rule. Called starting from Play an Equip
- *  (guaranteed to run after Apex Recovery has actually placed the real Apex)
- *  through the rest of the sequence, not just at the React step - the whole
- *  remaining script depends on this one Apex staying in play, not just the one
- *  moment that was actually reported. */
-/** The highest real base attack damage anywhere in the game is 800
- *  (verified directly against the actual card data, not assumed), and the
- *  strongest known damage-boosting Equip effect adds +200 in its best case
- *  (Monomolecular Blade, vs a target with a Choke Counter) - 1000 in the
- *  worst realistic combination. Set well above that, with real margin for any
- *  other stacking modifier not accounted for here, rather than the exact
- *  minimum that happens to clear today's numbers. */
-export const TUTORIAL_SURVIVOR_DEF = 1500;
-
-export function tutorialProtectSurvivor() {
-  useGameStore.setState((st) => {
-    if (!st.tutorialMode) return st;
-    const player = st.players.player1;
-    const survivor = player.apexSlots.find(Boolean);
-    if (!survivor || survivor.survivorDefOverride === TUTORIAL_SURVIVOR_DEF) return st;
-    return {
-      players: {
-        ...st.players,
-        player1: {
-          ...player,
-          apexSlots: player.apexSlots.map((a) => (a && a.instanceId === survivor.instanceId ? { ...a, survivorDefOverride: TUTORIAL_SURVIVOR_DEF } : a)) as typeof player.apexSlots,
-        },
-      },
-    };
-  });
-}
-
 export function tutorialEnsureReactReady() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;
@@ -472,6 +419,101 @@ export function tutorialEnsureReactReady() {
  *  number - the finishing step itself (see tutorialSteps.ts,
  *  'finishing-blow-choose') requires any attack costing at least 1 Sync,
  *  rather than one specific named attack, for the same reason. */
+
+/** Commit 29.14 - the core mechanism of the tutorial rebuild: a fully scripted
+ *  opponent, zero AI decision-making anywhere. Each action here calls the exact
+ *  same store actions a human player's own clicks would call
+ *  (playApexCard/playSupportCard/declareAttack/endTurn) - the opponent's turn
+ *  is real, legal gameplay resolved through the real engine, just with every
+ *  choice hardcoded in advance instead of decided by `aiPlayOneMainPhaseAction`
+ *  etc. This is why the whole category of guardrail code from 29.9-29.12
+ *  (protecting an Apex from an unpredictable attack, guaranteeing a lethal hit
+ *  against an unpredictable board state) no longer exists: every attack here
+ *  uses a damage value the caller already chose and verified, so there's
+ *  nothing left to protect against.
+ *
+ *  Runs as a self-contained setTimeout chain (not a React effect) so the pacing
+ *  is fully under this function's own control, matching the spacing the real
+ *  AI driver used to have. Bails out immediately if the game state stops
+ *  matching what's expected at any step (turn ended some other way, tutorial
+ *  mode turned off, game already over) rather than forcing through a stale
+ *  script against a changed board. */
+export type ScriptedOpponentAction =
+  | { kind: 'playApex'; defId: string }
+  | { kind: 'playSupport'; defId: string }
+  | { kind: 'advanceToCombat' }
+  | { kind: 'attack'; attackerDefId: string; attackId: string }
+  | { kind: 'endTurn' };
+
+const SCRIPTED_OPPONENT_STEP_DELAY_MS = 700;
+
+export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[], options: { expectsPlayerResponse?: boolean } = {}) {
+  let i = 0;
+
+  function runNext() {
+    const st = useGameStore.getState();
+    if (!st.tutorialMode || st.status !== 'playing' || st.activePlayerId !== 'player2') return;
+
+    // Handle the Start Phase (draw) automatically before running any scripted
+    // action - every opponent turn needs this regardless of what the script
+    // itself calls for, so callers only ever specify what's actually distinct
+    // about this particular turn.
+    if (st.phase === 'Start' && st.startPhasePending) {
+      st.advancePhase('Start');
+      setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+      return;
+    }
+    if (st.phase === 'Start' && !st.startPhasePending) {
+      st.advancePhase('Main');
+      setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+      return;
+    }
+
+    if (i >= actions.length) {
+      // A scripted attack may have opened a response window (the React step)
+      // that the player hasn't resolved yet - endTurn() safely no-ops while
+      // that's pending, but nothing else would ever retry it, so wait here
+      // instead of ending the turn out from under an open response window.
+      if (st.pendingResponseQueue.length > 0) {
+        if (!options.expectsPlayerResponse) {
+          // This scripted turn's attack wasn't meant to open a real response
+          // window at all - a real, confirmed risk: the player can
+          // legitimately have an eligible Reaction and enough Momentum well
+          // before the step that's actually meant to teach it (from Momentum
+          // earned several steps earlier). Auto-pass it here rather than
+          // showing the player an empty modal with nothing but a Pass button.
+          useGameStore.getState().resolveResponse({ type: 'pass' } as never);
+        }
+        setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+        return;
+      }
+      st.endTurn();
+      return;
+    }
+    const action = actions[i];
+    i++;
+
+    if (action.kind === 'playApex') {
+      const card = st.players.player2.hand.find((c) => c.defId === action.defId);
+      if (card) st.playApexCard(card.instanceId);
+    } else if (action.kind === 'playSupport') {
+      const card = st.players.player2.hand.find((c) => c.defId === action.defId);
+      if (card) st.playSupportCard(card.instanceId);
+    } else if (action.kind === 'advanceToCombat') {
+      st.advancePhase('Combat');
+    } else if (action.kind === 'attack') {
+      const attacker = st.players.player2.apexSlots.find((a) => a?.defId === action.attackerDefId);
+      const target = st.players.player1.apexSlots.find(Boolean);
+      if (attacker && target) st.declareAttack(attacker.instanceId, action.attackId, target.instanceId);
+    } else if (action.kind === 'endTurn') {
+      st.endTurn();
+      return;
+    }
+    setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+  }
+
+  setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+}
 export function tutorialEnsureFinishingBlow() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;
@@ -1029,8 +1071,22 @@ export const useGameStore = create<GameStore>((set) => ({
           // 0-overflow clean break, and the Momentum-reward text is now
           // actually true rather than describing an outcome that could never
           // happen with this scripted matchup.
-          const opener = deck.find((c) => c.defId === 'dw-enforcer-v4') ?? deck.find((c) => c.type === 'Apex');
-          if (opener) deck = [opener, ...deck.filter((c) => c !== opener)];
+          // Commit 29.14 - built as a single priority list, not three separate
+          // sequential "move to front" operations. That was the actual bug:
+          // each prepend pushed the previous one further back, so by the time
+          // all three ran, Pale Executioner ended up earlier in the opening
+          // hand than Enforcer-V4 - and the placement logic below matches "any
+          // Apex" as a fallback, so it grabbed Pale Executioner instead of the
+          // intended opener. Confirmed directly: the Battle Log showed "Pale
+          // Executioner is destroyed" on the very first scripted attack,
+          // instead of Enforcer-V4. Building the whole order in one pass
+          // avoids this whole class of bug rather than just fixing this one
+          // instance of it.
+          const enforcerV4 = deck.find((c) => c.defId === 'dw-enforcer-v4');
+          const paleExecutioners = deck.filter((c) => c.defId === 'dw-pale-executioner');
+          const reserveGrid = deck.find((c) => c.defId === 'dw-reserve-grid');
+          const priority = [enforcerV4, ...paleExecutioners, reserveGrid].filter((c): c is CardInstance => !!c);
+          deck = [...priority, ...deck.filter((c) => !priority.includes(c))];
         }
 
         let hand: CardInstance[] = [];
@@ -1066,7 +1122,8 @@ export const useGameStore = create<GameStore>((set) => ({
         // any action - there's no legal moment for the opponent to have done
         // this themselves yet.
         const opponent = draft.players.player2;
-        const openerIdx = opponent.hand.findIndex((c) => c.defId === 'dw-enforcer-v4' || c.type === 'Apex');
+        const strictIdx = opponent.hand.findIndex((c) => c.defId === 'dw-enforcer-v4');
+        const openerIdx = strictIdx !== -1 ? strictIdx : opponent.hand.findIndex((c) => c.type === 'Apex');
         if (openerIdx !== -1) {
           const [opener] = opponent.hand.splice(openerIdx, 1);
           opponent.apexSlots[0] = opener;

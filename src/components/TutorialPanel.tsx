@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useGameStore, tutorialProtectSurvivor } from '@/store/gameStore';
+import { useGameStore } from '@/store/gameStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 import type { GameState } from '@/types/game';
@@ -135,20 +135,13 @@ export default function TutorialPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // Commit 29.12 - continuous (not one-time) Apex-survival protection for the
-  // whole remaining sequence. A one-time guarantee on step-entry (play-equip's
-  // onEnter) covers the common case, but stress testing found a real gap: if
-  // the protected Apex is ever destroyed and replaced by a *different* one
-  // (emergency Apex recovery swapping in a different card from hand/deck), the
-  // new Apex instance never received the original guarantee at all. Re-running
-  // it on every state change for the whole span where Riot Runner needs to
-  // survive means whichever Apex is actually in play always ends up protected,
-  // not just the one that happened to be there the instant the step began.
-  useEffect(() => {
-    if (!current) return;
-    const protectedStepIds = ['play-equip', 'play-special', 'enter-combat-again', 'buffed-attack', 'buffed-attack-choose', 'buffed-attack-target', 'react-window'];
-    if (protectedStepIds.includes(current.id)) tutorialProtectSurvivor();
-  }, [state, current]);
+  // Commit 29.14 - the continuous Apex-survival protection effect that used to
+  // live here (29.12) is gone entirely, not just simplified. It existed only
+  // because the opponent's real AI could pick an attack the tutorial script
+  // hadn't accounted for. With a fully scripted opponent, every attack against
+  // the player's Apex uses a specific, pre-verified-safe damage value chosen
+  // when the script was written - there's no unpredictable outcome left to
+  // guard against.
 
   // Purely a derived value, computed fresh every render - never a stored/effect-
   // driven flag, and specifically never anything that advances the step on its

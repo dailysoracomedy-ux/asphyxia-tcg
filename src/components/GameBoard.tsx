@@ -210,6 +210,14 @@ export default function GameBoard() {
   }, [state.tutorialMode]);
   useEffect(() => {
     if (!state.vsAI && !state.aiVsAiMode) return;
+    // Commit 29.14 - the real AI driver never runs during tutorial mode at all,
+    // for anything: not opponent turns, not opponent response-window decisions.
+    // Every opponent action in the tutorial is now a directly-scripted store
+    // call (see tutorialSteps.ts's scriptedOpponentActions), not a decision the
+    // AI makes - the whole point of this rebuild was removing AI unpredictability
+    // from the tutorial's script entirely, not just biasing it toward good
+    // outcomes. Normal Vs AI and AI vs AI Showcase are completely untouched.
+    if (state.tutorialMode) return;
     if (state.status !== 'playing') return;
     if (ceremonyBusy || showcasePaused) return;
     const mult = currentShowcaseMultiplier();
