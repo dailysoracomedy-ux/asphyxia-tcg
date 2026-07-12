@@ -2913,6 +2913,35 @@ rather than assuming a green result meant what it claimed to.
 this commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build.
 
+## Commit 30.2: real card preview while dragging, and a genuine chain-behavior mismatch fixed
+
+**Card preview.** `DragDropLayer` only ever showed a small text label with the
+card's name while dragging. It now renders the actual `Card` component
+following the pointer, so what you see while dragging is genuinely the card
+itself - same art, same frame - not just its name in a box.
+
+**The Engine chain mismatch, confirmed exactly as reported.** With exactly one
+friendly Apex in play, dragging an Ability Engine (Juice-Box, etc.) onto an
+Engine slot auto-chained it to that Apex; clicking the identical card always
+defaulted to playing it unchained. Two input methods, two different real game
+outcomes, for the exact same action. Fixed by removing the auto-chain
+entirely - drag now always plays unchained, matching click's own default.
+Chaining afterward is completely unaffected, since it was never the auto-chain
+logic that provided it - the existing in-play chain mechanic (selecting an
+unchained Engine already on the board) already handles that, for both input
+methods equally.
+
+**Verified**: a real drag sequence is run through the mounted game with
+exactly one friendly Apex in play (the precise scenario the bug depended on),
+confirming the Engine plays and genuinely has no `chainedApexId` set,
+matching click's behavior. The preview fix is verified by rendering
+`DragDropLayer` directly with a real dragged card and confirming an actual
+`Card` component - not a text label - is what's in the DOM.
+
+**Verified**: full regression suite (645+ checks across 32 files, one new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

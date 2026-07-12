@@ -629,6 +629,16 @@ export default function GameBoard() {
     return card ? getCardDef(card.defId).name : null;
   })();
 
+  /** Commit 30.2 - the actual dragged card, for DragDropLayer's real card
+   *  preview (previously it only showed a text label with the card's name).
+   *  Only meaningful for hand-card drags - an attack drag has no card
+   *  instance of its own to preview (it's an already-placed Apex's chosen
+   *  attack), so this is null there and DragDropLayer falls back to its text
+   *  label. */
+  const dragCardInstance = drag.active && drag.source && drag.source.kind === 'hand-card'
+    ? state.players[drag.source.playerId].hand.find((c) => c.instanceId === drag.source!.instanceId) ?? null
+    : null;
+
   const attackerApex =
     (mode.kind === 'attackerChosen' || mode.kind === 'attackAwaitingTarget') &&
     activePlayer.apexSlots.find((a) => a?.instanceId === mode.attackerId);
@@ -1075,7 +1085,7 @@ export default function GameBoard() {
       {logOpen && (
         <BattleLogDrawer log={state.log} onClose={() => setLogOpen(false)} />
       )}
-      <DragDropLayer drag={drag} label={dragLabel} />
+      <DragDropLayer drag={drag} label={dragLabel} cardInstance={dragCardInstance} />
     </div>
   );
 }

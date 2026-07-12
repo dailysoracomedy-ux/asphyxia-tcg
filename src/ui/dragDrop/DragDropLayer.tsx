@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CardInstance } from '@/types/game';
+import Card from '@/components/Card';
 import type { DragSource, DropZoneId } from './dragDropTypes';
 import { zoneKey, EMPTY_DRAG_STATE, type DragState } from './dragDropTypes';
 
@@ -89,19 +91,31 @@ export function useDragDrop(onDrop: (source: DragSource, target: DropZoneId) => 
   return { drag, beginPotentialDrag };
 }
 
-/** Renders nothing but a small ghost card that follows the pointer while a
- *  drag is active - the actual highlighting of legal zones happens where each
- *  zone already computes its own highlight prop (PlayerBoard.tsx etc.),
- *  checking drag.legalZoneKeys/hoveredZoneKey directly, so there's exactly
- *  one source of truth for "what glows" instead of a duplicate. */
-export default function DragDropLayer({ drag, label }: { drag: DragState; label: string | null }) {
+/** Follows the pointer while a drag is active, showing what's actually being
+ *  dragged - a real card preview for hand-card drags (so the player can see
+ *  exactly what they're about to play, not just its name), or a compact text
+ *  label for attack-target drags (there's no card instance to preview there -
+ *  it's an already-placed Apex's chosen attack). The actual highlighting of
+ *  legal zones happens where each zone already computes its own highlight
+ *  prop (PlayerBoard.tsx etc.), checking drag.legalZoneKeys/hoveredZoneKey
+ *  directly, so there's exactly one source of truth for "what glows" instead
+ *  of a duplicate here. */
+export default function DragDropLayer({ drag, label, cardInstance }: { drag: DragState; label: string | null; cardInstance?: CardInstance | null }) {
   if (!drag.active || !label) return null;
   return (
     <div
-      className="fixed z-[60] pointer-events-none px-3 py-2 rounded-md border-2 border-emerald-300 bg-[#0a0a12ee] text-white text-xs font-bold shadow-[0_0_20px_rgba(52,211,153,0.6)]"
-      style={{ left: drag.pointer.x + 12, top: drag.pointer.y + 12, transform: 'translate(0, 0)' }}
+      className="fixed z-[60] pointer-events-none"
+      style={{ left: drag.pointer.x + 16, top: drag.pointer.y - 40, transform: 'translate(0, 0)' }}
     >
-      {label}
+      {cardInstance ? (
+        <div className="drop-shadow-[0_10px_30px_rgba(0,0,0,0.7)] scale-110 origin-top-left">
+          <Card instance={cardInstance} size="hand" disableHoverPreview />
+        </div>
+      ) : (
+        <div className="px-3 py-2 rounded-md border-2 border-emerald-300 bg-[#0a0a12ee] text-white text-xs font-bold shadow-[0_0_20px_rgba(52,211,153,0.6)]">
+          {label}
+        </div>
+      )}
     </div>
   );
 }

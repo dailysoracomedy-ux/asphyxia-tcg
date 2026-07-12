@@ -115,17 +115,15 @@ export function resolveDrop(
     return { ok: true };
   }
   if (target.kind === 'support-slot') {
-    if (card.type === 'AbilitySupport') {
-      // Auto-chain only when there's exactly one friendly Apex to chain to -
-      // a real, unambiguous choice. Otherwise play unchained; the existing
-      // click flow (select the Support afterward) remains available for a
-      // player who wants to choose a chain explicitly.
-      const apexes = player.apexSlots.filter((a): a is CardInstance => !!a);
-      const chainTarget = apexes.length === 1 ? apexes[0].instanceId : undefined;
-      actions.playSupportCard(source.instanceId, target.slotIndex, chainTarget);
-    } else {
-      actions.playSupportCard(source.instanceId, target.slotIndex);
-    }
+    // Commit 30.2 - always play unchained, regardless of card type. A real,
+    // reported mismatch: dragging an AbilitySupport used to auto-chain when
+    // exactly one friendly Apex existed, while clicking the same card always
+    // defaulted to playing unchained - two input methods producing two
+    // different real game outcomes for the identical action. Chaining
+    // afterward is already fully supported once the Engine is in play (see
+    // ownSupportClick's rechainSelectApex mode in GameBoard.tsx), so neither
+    // input method needs to guess a chain target at play time.
+    actions.playSupportCard(source.instanceId, target.slotIndex);
     return { ok: true };
   }
   if (target.kind === 'own-apex' && target.instanceId) {
