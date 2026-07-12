@@ -12,12 +12,18 @@ import { getCardArt } from '@/lib/cardArt';
 export default function GenericArtCard({
   defId,
   onClick,
+  onPointerDown,
   selected,
   disabled,
   footer,
 }: {
   defId: string;
   onClick?: () => void;
+  /** Commit 30 - starts a potential drag. See Card.tsx's identical prop doc -
+   *  this is the actual render path Engine/Equip/Special/React cards use once
+   *  art is mapped, so it needs the same wiring the fallback path already
+   *  has. */
+  onPointerDown?: (e: React.PointerEvent) => void;
   selected?: boolean;
   disabled?: boolean;
   footer?: React.ReactNode;
@@ -27,6 +33,7 @@ export default function GenericArtCard({
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={onPointerDown}
       disabled={disabled}
       className={`relative w-full h-full rounded-md overflow-hidden border-2 shrink-0 transition-transform ${
         disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'

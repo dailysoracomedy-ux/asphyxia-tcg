@@ -179,12 +179,13 @@ export default function Card({
             cardWidth={artW}
             attackPreviews={attackPreviews}
             onClick={onClick}
+            onPointerDown={onPointerDown}
             selected={selected}
             disabled={disabled}
             footer={footer}
           />
         ) : (
-          <GenericArtCard defId={instance.defId} onClick={onClick} selected={selected} disabled={disabled} footer={footer} />
+          <GenericArtCard defId={instance.defId} onClick={onClick} onPointerDown={onPointerDown} selected={selected} disabled={disabled} footer={footer} />
         )}
         {onInspect && (
           <button

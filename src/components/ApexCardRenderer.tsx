@@ -17,6 +17,11 @@ interface ApexCardRendererProps {
    *  with the board, the attack selector, or combat resolution. */
   attackPreviews?: Record<string, AttackDamagePreview>;
   onClick?: () => void;
+  /** Commit 30 - starts a potential drag. See Card.tsx's identical prop doc -
+   *  this is the actual render path real gameplay cards use once art is
+   *  mapped (nearly every card), so this needs the same wiring the fallback
+   *  path already has. */
+  onPointerDown?: (e: React.PointerEvent) => void;
   selected?: boolean;
   disabled?: boolean;
   /** Forces the art layer to render its placeholder gradient even if real art is
@@ -39,6 +44,7 @@ export default function ApexCardRenderer({
   cardWidth,
   attackPreviews,
   onClick,
+  onPointerDown,
   selected,
   disabled,
   forceArtPlaceholder,
@@ -56,6 +62,7 @@ export default function ApexCardRenderer({
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={onPointerDown}
       disabled={disabled}
       className={`relative w-full h-full rounded-md overflow-hidden border-2 shrink-0 transition-transform ${
         disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'

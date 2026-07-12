@@ -2875,6 +2875,44 @@ glow timing, touch behavior - can only be fully confirmed in a real browser;
 a live walkthrough is worth doing before calling this fully settled, same as
 every tutorial pass before it.
 
+## Commit 30.1: drag actually engages now - the real bug behind "still click and auto-places"
+
+You were right, and it wasn't a subtle bug. Card.tsx has multiple render
+branches: a fallback branch, and the art-based branch (`ApexCardRenderer` for
+Apexes, `GenericArtCard` for everything else) used once a card has real art
+mapped in `lib/cardArt.ts` - which is true for nearly every card in the game.
+Commit 30 wired `onPointerDown` onto the fallback branch only. Since real
+gameplay cards render through the art-based branch, drag never started for
+any of them - every interaction silently fell through to the plain `onClick`
+path, which is exactly why it looked like nothing had changed: clicking still
+worked exactly as it always had, because that's the *only* path that was ever
+wired up.
+
+**Fixed** by adding the same `onPointerDown` wiring to `ApexCardRenderer` and
+`GenericArtCard`, and threading it through from `Card.tsx`'s art-based branch
+- the same prop, now reaching every card regardless of which branch renders
+it.
+
+**How this was actually verified, not just patched and hoped**: the first
+version of a DOM-level test I wrote to check this passed even with the bug
+deliberately reintroduced - it used a scenario (one empty Apex slot) where the
+old click fallback's own auto-play behavior produces the identical result to
+a working drag, so it couldn't actually tell the two apart. Caught that before
+trusting it, and rebuilt the test around a scenario the click fallback can
+never satisfy on its own: an Engine card dragged to a specific Support slot
+while all 3 Support slots are open. A plain click there only ever opens a
+slot-choice prompt (`canPlayCardFromHand`'s own click flow never auto-plays
+when more than one legal slot exists) - so a single pointer sequence
+(pointerdown, move past the drag threshold, move over a specific slot,
+pointerup) resulting in the card actually being played can only mean real
+drag resolution occurred. Confirmed the corrected test genuinely fails with
+the bug reintroduced (3/3) and genuinely passes with the fix restored (5/5),
+rather than assuming a green result meant what it claimed to.
+
+**Verified**: full regression suite (640+ checks across 31 files, one new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
