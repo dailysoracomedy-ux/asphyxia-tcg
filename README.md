@@ -3141,6 +3141,63 @@ and is the one piece of this commit most worth you checking by hand.
 this commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build.
 
+## Commit 30.6: the attack selector lives on the card now, not next to it
+
+Per the reference design supplied directly: hovering an attack on the card
+itself highlights that row with a light backing bar, and clicking it selects
+that attack - the separate row of buttons underneath the card from Commit
+30.4/30.5 is gone entirely.
+
+**How it works**: the same percentage-positioned overlay system that already
+draws each attack's name/Sync/damage onto the card face (`ApexOverlayLayer`)
+now optionally renders an invisible, generously-sized button behind each row
+- spanning the full row width, not just the printed text - when the popup
+turns on `attackSelectMode`. Hovering that row swaps in a light backing fill
+and switches the row's text to dark (its normal color is set inline for the
+boosted/reduced/normal delta coloring, which a CSS class alone can't override,
+so this needed a small real hover-state change, not just a `:hover` class) so
+it stays readable against its own highlight. Unaffordable attacks render
+dimmed and don't respond at all, same rule the old button row enforced. This
+is purely additive to the existing overlay - never active outside the attack
+popup, so a card's normal appearance everywhere else in the game (hand,
+board, inspect) is completely unchanged.
+
+One structural note worth naming: the card's outer frame is normally a single
+`<button>` element. Nesting an interactive per-row button inside that would
+be invalid, unreliable-for-clicks HTML, so the outer frame renders as a plain
+`div` specifically while `attackSelectMode` is on - the per-row buttons handle
+100% of the interaction in that mode, so the outer element never needed its
+own click handler there anyway.
+
+**The backdrop is a vignette now, not a flat black screen** - directly
+requested, to make the popup feel like part of the game bringing a card into
+focus rather than a separate screen opening on top of it. The board stays
+visible and in color behind the popup, just dimmed toward the edges via a
+radial gradient, with the card's own shadow and a thin emerald ring doing the
+separation work instead of a heavy dark overlay.
+
+**Everything else is confirmed unclickable while the popup is open** - it
+already was, structurally, since the popup is a full-screen top layer that
+naturally captures every click within its bounds regardless of its own
+background opacity. Added explicit guards anyway (hand-card dragging, End
+Turn, and the Apex/Engine click handlers all now check for the popup's mode
+directly) as real defense in depth, not just relying on stacking order - so
+this stays correct even if z-index or layering elsewhere in the game ever
+changes.
+
+**Verified**: a real DOM test finds the on-card attack rows by their
+accessibility label (not the old button list, which is confirmed gone),
+clicks a real affordable row, and confirms the popup closes and a genuine
+attack log entry exists - not just that a UI panel disappeared. Also confirms
+the End Turn button is genuinely disabled while the popup is open. Two tests
+that asserted the old "Choose an attack" button-list text (now intentionally
+removed) were updated to match the new design rather than left to report a
+false failure against a feature that was deliberately redesigned.
+
+**Verified**: full regression suite (710+ checks across 39 files, one new
+this commit, one obsoleted-by-redesign test removed) and a fresh 72-game
+simulation both ran clean, plus clean `tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
