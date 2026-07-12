@@ -2942,6 +2942,89 @@ matching click's behavior. The preview fix is verified by rendering
 this commit) and a fresh 72-game simulation both ran clean, plus clean
 `tsc`/`eslint`/build.
 
+## Commit 30.3: drag-first combat and Engine chaining, real music, click-to-play removed
+
+A large commit covering four requested pieces at once.
+
+**Combat targeting is drag-first now.** The old three-step click flow (select
+an Apex, choose an attack, then click or drag a target) is gone. Dragging any
+ready Apex straight onto a legal target is the whole interaction - if it only
+has one attack it can currently afford (Sync-wise), that resolves immediately;
+if there's a genuine choice among several affordable attacks, a compact popup
+asks which one, right where the drop landed. The real Overdrive-eligibility
+check every other attack path already had is still made before resolving,
+regardless of which route got there.
+
+**Equip Swap is drag-and-drop.** Dragging a new Equip onto an Apex that
+already has one now correctly routes to `equipSwap` instead of the plain
+attach action, which was silently rejecting that exact case (a real bug found
+while building this, not assumed) - the old Equip returns to hand, the new one
+attaches, in one motion.
+
+**Engine chain/unchain, exactly as specified.** Dragging an Ability Engine
+directly onto an Apex auto-chains it there immediately; dragging it onto an
+empty Engine slot instead still plays it unchained. Clicking an already-
+chained Engine unchains it (a real, new `unchainSupport` store action mirroring
+`chainSupport`'s own shape); clicking an unchained one re-enters the existing
+select-an-Apex flow to chain it. This is the one place click still does
+something meaningful post-commit, since it's not "playing a card" at all - it's
+adjusting a card already on the board.
+
+**Click-to-play is gone.** Hand cards no longer play on click - dragging is the
+only way to play anything from hand now, including Reacts staying exactly as
+specified (response-window, click-to-play-a-React, never forced into drag).
+The old click-driven mode machinery (`selectHandCard`'s play logic, the
+click-to-select-an-attacker step) is disabled rather than deleted outright,
+given the scope of everything else in this commit - it's inert, not reachable
+from any UI path anymore.
+
+**Real music, with faction-based crossfading.** Four tracks (the four supplied,
+converted from source MP3 to AAC/m4a at 128kbps - roughly 30% smaller with no
+audible loss for background music) drive a genuinely new `MusicController`:
+Menu, Tutorial, and AI vs AI Showcase all share one theme track and never
+crossfade between each other (by construction - the track-selection function
+returns the same key for all three, so no change is ever detected); a real
+battle (Vs AI or Hotseat) plays a track keyed to player1's faction, with a
+real ~1.8s crossfade in and out of a battle. Both tracks loop natively via the
+browsable `<audio>` element's own loop attribute.
+
+**Action Zone hit area fixed** - reported directly as "comically bad." The
+visual size is untouched; the actual drop-target area around it is now
+substantially larger via a negative-margin/padding trick, so the target you
+have to hit is much bigger than what you see.
+
+**Three new tutorial steps**, inserted before the finishing blow: dragging an
+Engine onto an Apex to chain it, clicking that Engine to unchain it, and
+dragging a second Equip onto an already-equipped Apex to swap it - the three
+interactions the earlier walkthrough never demonstrated.
+
+**On the GitHub 100-files-per-upload question**: checked directly - this
+isn't a per-folder git limit (no folder in this project holds anywhere close
+to 100 files), it's specifically GitHub's browser-based drag-and-drop upload
+UI capping a single batch at 100 files. Reorganizing folders won't change
+that, since it's about the upload action, not the repo structure. The actual
+fix is using `git` directly (`git add -A && git commit && git push`, no file-
+count limit at all) instead of the web upload flow, or replacing a whole stale
+folder in one commit rather than trickling individual files through the
+100-file batches - covered in more detail further down.
+
+**Verified**: a dedicated test drags an Ability Engine onto an Apex and
+confirms it's genuinely chained (not just played); a second drag onto an empty
+Engine slot confirms it's still genuinely unchained; an Equip dragged onto an
+already-equipped Apex is confirmed to genuinely swap (new Equip attached, old
+one genuinely back in hand, not discarded) rather than silently reject. The
+three new tutorial steps are each verified against real resulting game state,
+not just that a step exists. Music track selection is verified for all
+combinations (Menu/Tutorial/AI-vs-AI all resolve to the shared theme;
+different factions in real battle resolve to genuinely different tracks).
+
+**Verified**: full regression suite (700+ checks across 36 files, several new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. Two pre-existing, already-documented flaky tests
+(ceremony-pacing timing under heavy batch load, ghost-VFX timing) flaked again
+in this run's full batch sweep and passed clean on immediate individual
+re-run - unchanged from their established pattern, not new regressions.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
