@@ -2760,6 +2760,121 @@ one previously-documented flaky test (23.2) flaked again in this run's batch
 sweep and passed clean on immediate re-run, unchanged and consistent with the
 prior finding.
 
+## Commit 29.18: the last step catching up, Restart getting unstuck, and clearer verbiage
+
+**"The last step where the game state pushes way forward and the tutorial menu
+doesn't see it happen."** Root cause: both scripted sequencers' terminal guard
+returned immediately the instant the game left 'playing' status - which is
+exactly what happens the moment the finishing blow wins the match - without
+ever calling the function that clears `busy` and re-enables Continue. The
+match had, in fact, already ended; the panel just never found out, since the
+one thing that would have told it so returned early instead. Fixed by treating
+"the game just ended" as a legitimate reason to finish the sequence properly,
+not as an error to silently return from.
+
+**"When I tried to restart it, it didn't restart and was stuck on 'playing
+this out.'"** Root cause: Restart never explicitly cleared `busy`, and if a
+scripted sequence was still mid-flight when Restart was clicked, that stale
+sequence could keep operating against the fresh game underneath the new
+tutorial run - including, in principle, setting `busy` back to true itself.
+Fixed two ways: Restart now clears `busy` directly and unconditionally, and a
+generation counter (incremented on every fresh tutorial start) lets any
+leftover sequence detect it's been superseded and stop touching anything at
+all, rather than trusting it to wind down safely on its own.
+
+**Verbiage tightened**: several steps described the tutorial playing a card as
+happening "automatically," which reads like a description of the real game
+rather than a walkthrough choice - a fair concern, since a new player has no
+way to know it's not real game behavior. The welcome step now states plainly
+that this walkthrough plays actions out for demonstration and that a real
+match is fully player-driven; individual steps reference "your click,
+normally" at the moments that matter most, without repeating it so often it
+becomes noise. Left untouched: the handful of places where "automatically"
+correctly describes a real, always-true game rule (Emergency Apex Recovery,
+Glitch Step's own damage reduction) - those aren't tutorial scripting, they're
+accurate descriptions of mechanics that work that way in every match.
+
+**Verified concretely, not just by re-reading the code**: a direct test wins
+the match through the real finishing-blow sequence and confirms `busy`
+genuinely clears afterward; a second part starts a real scripted opponent
+sequence, confirms it's genuinely still in flight, restarts mid-sequence
+exactly as reported, and confirms `busy` stays false with a genuinely fresh
+board - not just immediately after, but after waiting long enough for the
+stale sequence to have finished its entire original timeline if it had
+somehow kept running unchecked.
+
+**Verified**: full regression suite (615+ checks across 29 files, one new this
+commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build.
+
+## Commit 30: drag-and-drop gameplay
+
+A real interaction-layer addition, not a rules change: dropping a card onto a
+legal destination now IS the confirmation, replacing several click-then-
+confirm sequences with one motion. Every single drop resolves through the
+exact same store actions the existing click flow already called - no second
+rules engine, no duplicated legality, no changed math.
+
+**Architecture** (`src/ui/dragDrop/`): `dragDropTypes.ts` defines what's being
+dragged and where it can land; `dragDropLogic.ts` is two pure functions with
+zero DOM/React dependency - `legalZonesFor` (what glows, reusing
+`canPlayCardFromHand`'s existing eligibility check rather than re-deriving it)
+and `resolveDrop` (what a valid drop does, calling `playApexCard`/
+`playSupportCard`/`playEquipCard`/`playSpecialCard` directly); `DragDropLayer.tsx`
+is the React side - native Pointer Events (no library), a small ghost that
+follows the cursor, and zone hit-testing via `elementFromPoint` +
+`closest('[data-dropzone]')` rather than pre-measuring bounding rects, so it
+stays correct even if the board scrolls or resizes mid-drag.
+
+**What's covered**: Apex hand-to-slot, Engine hand-to-slot (Ability Engines
+auto-chain only when there's exactly one friendly Apex - a real, unambiguous
+choice; otherwise play unchained, click remains available for an explicit
+choice), Equip hand-to-Apex including Equip Swap, targeted Special drag onto
+a valid target, non-targeted Special drag onto a new compact Action Zone
+placed under each player's Deck/Void per the spec's preferred layout, and
+attack-target dragging once an attacker and attack are already chosen by
+click (per the spec's own guidance to keep that part of the flow, adding drag
+specifically for the final target step) - including the real Overdrive-
+eligibility check the click flow already makes before resolving an attack,
+not bypassed.
+
+**What deliberately stayed click-only**: Reacts (response-window driven, per
+the spec), and the attacker/attack-choice steps before a target drag. Click-
+to-play remains fully intact everywhere as a fallback - nothing was removed,
+only added to.
+
+**Deck/Void remain non-interactive**, exactly as specified - no drag target
+was added for either.
+
+**Tutorial**: unaffected mechanically - the tutorial (Commit 29.17) is already
+fully scripted with zero player-driven game actions, so there was no click
+flow to convert to drag/drop in the first place. Verbiage was updated to
+describe the walkthrough playing moves "by dragging" rather than the earlier
+"automatically"/"click" language, so a new player reads accurate language
+about how a real match works even though the walkthrough itself still plays
+every move out for them.
+
+**Verified**: a dedicated test (`test-drag-drop-logic.ts`) exercises
+`legalZonesFor`/`resolveDrop` directly against real game state for every card
+type - confirming legal zones match reality (including "no zones once slots
+are full"), a valid drop's resolution genuinely calls the real store action
+(not just returns `ok: true`), and an illegal drop (Equip onto an enemy Apex)
+is genuinely rejected. Stress-tested 5 times clean given the test's use of a
+real shuffled deck.
+
+**Verified**: full regression suite (625+ checks across 30 files, one new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The existing full tutorial walkthrough test also still
+passes clean, confirming the new drag props threaded through `GameBoard.tsx`/
+`PlayerBoard.tsx`/`Hand.tsx`/`SharedStatsBar.tsx` didn't introduce any runtime
+regression to a real mounted game.
+
+**Honest scope note**: the logic layer (what's legal, what a drop does) is
+thoroughly verified above. Actual pointer-drag feel - ghost tracking, zone
+glow timing, touch behavior - can only be fully confirmed in a real browser;
+a live walkthrough is worth doing before calling this fully settled, same as
+every tutorial pass before it.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
