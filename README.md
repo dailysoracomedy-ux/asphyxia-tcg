@@ -3104,6 +3104,43 @@ this commit) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep and passed clean on immediate individual
 re-run, unchanged from its established pattern.
 
+## Commit 30.5: the attack popup's actual bug - CSS scale, not click logic
+
+**Root cause, confirmed by reasoning through what `transform: scale()` actually
+does**: the popup enlarged the card visually using a CSS scale transform.
+Scale transforms enlarge an element's *painted* appearance without changing
+the space it reserves in the layout - so the scaled card visually extended
+over the attack buttons rendered below it, while the card's own click area
+grew to match its new, larger, now-overlapping bounds. Clicking what looked
+like an attack button could land on the card's own (non-interactive-here)
+area instead. Fixed by dropping the scale transform entirely and switching
+the card to the `lg` size preset (200&times;280) instead of `xl`
+(380&times;532) - directly addressing "too large" at the same time, since the
+oversized card was the same root choice as the overlap bug.
+
+**Hover backing box added**, per direct request - each attack option now gets
+a clear filled background, a ring, a glow, and a slight scale-up on hover, matching
+the same highlight language the drag-and-drop system already uses elsewhere
+in the game, so hovering an option is now unambiguous before clicking it.
+
+**An honest note on how this was verified.** A real, DOM-driven test
+(`test-attack-popup-click-resolves.ts`) confirms the popup opens on a real
+click and that clicking a real attack option button genuinely fires the
+actual store action, not just closes a UI panel. But when checked directly -
+by temporarily reintroducing the old scale transform and re-running the test
+- it still passed. jsdom (the headless DOM this project's tests run against)
+has no real layout or paint engine, and this test dispatches clicks directly
+on DOM element references rather than by screen coordinates, so it structurally
+cannot detect a CSS-transform-caused visual overlap the way a real browser's
+coordinate-based hit-testing would. Said plainly rather than glossed over: the
+click-logic fix is verified end to end; the CSS fix itself is reasoned from
+how `transform: scale()` genuinely works, not confirmed by an automated test,
+and is the one piece of this commit most worth you checking by hand.
+
+**Verified**: full regression suite (705+ checks across 39 files, one new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
