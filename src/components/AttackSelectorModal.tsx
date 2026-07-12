@@ -45,8 +45,8 @@ export default function AttackSelectorModal({
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/80 backdrop-blur-sm p-4" onClick={onCancel}>
       <div className="flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
-        <div className="drop-shadow-[0_20px_60px_rgba(0,0,0,0.9)] scale-125 sm:scale-150">
-          <Card instance={attacker} size="xl" disableHoverPreview />
+        <div className="drop-shadow-[0_20px_60px_rgba(0,0,0,0.9)]">
+          <Card instance={attacker} size="lg" disableHoverPreview />
         </div>
         <div className="text-[11px] uppercase tracking-widest text-white/50">Choose an attack</div>
         <div className="flex flex-wrap items-center justify-center gap-2 max-w-md">
@@ -59,9 +59,9 @@ export default function AttackSelectorModal({
                 key={atk.id}
                 disabled={!affordable}
                 onClick={() => onChooseAttack(atk.id)}
-                className={`px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
+                className={`px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
                   affordable
-                    ? 'border-emerald-400/60 text-emerald-200 hover:bg-emerald-400/10 hover:border-emerald-300'
+                    ? 'border-emerald-400/60 text-emerald-200 bg-white/5 hover:scale-105 hover:bg-emerald-400/25 hover:border-emerald-300 hover:ring-2 hover:ring-emerald-300 hover:shadow-[0_0_20px_rgba(52,211,153,0.6)]'
                     : 'border-white/10 text-white/25 cursor-not-allowed'
                 }`}
               >
