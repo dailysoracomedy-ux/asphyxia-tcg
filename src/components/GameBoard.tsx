@@ -15,9 +15,7 @@ import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
-import { useTutorialStore } from '@/store/tutorialStore';
-import { TUTORIAL_STEPS, type RequiredAction, TUTORIAL_PACING_MULTIPLIER } from '@/tutorial/tutorialSteps';
-import { tutorialActionMatches, tutorialActionNeedsExplicitAdvance } from '@/tutorial/tutorialGate';
+import { TUTORIAL_PACING_MULTIPLIER } from '@/tutorial/tutorialSteps';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
@@ -73,46 +71,25 @@ export default function GameBoard() {
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const [tutorialToast, setTutorialToast] = useState<string | null>(null);
-  const tutorialStep = useTutorialStore((t) => t.step);
   useEffect(() => {
     if (!tutorialToast) return;
     const t = setTimeout(() => setTutorialToast(null), 2000);
     return () => clearTimeout(t);
   }, [tutorialToast]);
 
-  /** Commit 29.1: the actual fix for the tutorial giving "free reign" - every
-   *  click that would perform a real game action checks this first when
-   *  state.tutorialMode is true. Returns true (and shows a brief toast) if the
-   *  attempted action doesn't match what the current tutorial step requires,
-   *  in which case the caller must bail out *before* calling the underlying
-   *  store action - blocking is only meaningful if it happens before the
-   *  mutation, not after. Outside tutorial mode this is always false and
-   *  costs nothing. */
-  function blockedByTutorial(action: RequiredAction): boolean {
+  /** Commit 29.17 - simplified to match the tutorial's new fully-scripted
+   *  design: every single game action, for both players, is now a hardcoded
+   *  sequence run from a tutorial step's onEnter (see tutorialSteps.ts). There
+   *  is no player-driven game action left to selectively allow or block by
+   *  matching against a required action type - during tutorial mode, this
+   *  unconditionally blocks every one of these handlers, full stop. The
+   *  TutorialOverlay already prevents the click from visually reaching
+   *  anything; this is the input-handler-level backstop underneath it.
+   *  Outside tutorial mode this is always false and costs nothing. */
+  function blockedByTutorial(): boolean {
     if (!state.tutorialMode) return false;
-    const step = TUTORIAL_STEPS[tutorialStep];
-    if (!step) return false;
-    if (step.requiredAction.type === 'ack' || step.requiredAction.type === 'waitForOpponent' || step.requiredAction.type === 'win') {
-      setTutorialToast('Follow the tutorial step first.');
-      return true;
-    }
-    if (!tutorialActionMatches(action, step.requiredAction)) {
-      setTutorialToast('Follow the tutorial step first.');
-      return true;
-    }
-    // selectAttacker and chooseAttack only ever change local UI `mode` state
-    // (attackerChosen / attackAwaitingTarget), never anything in the actual
-    // GameState store - so TutorialPanel's GameState-watching autoAdvanceWhen
-    // has nothing to observe for these two action types specifically, and the
-    // step would otherwise never advance even though the click genuinely
-    // succeeded (this was the actual bug behind "I click Street-Beast, the
-    // attack menu opens, but the tutorial doesn't move forward" - the action
-    // worked; nothing was watching for it). Every other action type changes
-    // real, persisted state that TutorialPanel already detects on its own.
-    if (tutorialActionNeedsExplicitAdvance(action.type)) {
-      useTutorialStore.getState().setStep(Math.min(TUTORIAL_STEPS.length - 1, tutorialStep + 1));
-    }
-    return false;
+    setTutorialToast('This tutorial plays itself - just click Continue.');
+    return true;
   }
   const [logOpen, setLogOpen] = useState(false);
   const [inspected, setInspected] = useState<{ instance: CardInstance; ownerId: PlayerId | null; zone: InspectZone } | null>(null);
@@ -395,19 +372,7 @@ export default function GameBoard() {
     const card = activePlayer.hand.find((c) => c.instanceId === cardId);
     if (!card || state.phase !== 'Main') return;
     if (isActionLocked()) return;
-    if (state.tutorialMode && mode.kind === 'idle') {
-      const actionType =
-        card.type === 'Apex'
-          ? 'playApex'
-          : card.type === 'AbilitySupport' || card.type === 'BatterySupport'
-          ? 'playEngine'
-          : card.type === 'Equip'
-          ? 'playEquip'
-          : card.type === 'Special'
-          ? 'playSpecial'
-          : null;
-      if (actionType && blockedByTutorial({ type: actionType, defId: card.defId } as RequiredAction)) return;
-    }
+    if (blockedByTutorial()) return;
     if (mode.kind === 'equipSwapSelectCard') {
       if (card.type !== 'Equip') return;
       state.equipSwap(mode.apexId, cardId);
@@ -523,7 +488,7 @@ export default function GameBoard() {
     if (state.phase === 'Combat') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (apex && !apex.hasAttacked) {
-        if (blockedByTutorial({ type: 'selectAttacker' })) return;
+        if (blockedByTutorial()) return;
         setMode({ kind: 'attackerChosen', attackerId: apexId });
       }
     }
@@ -551,7 +516,7 @@ export default function GameBoard() {
       return;
     }
     if (mode.kind === 'attackAwaitingTarget') {
-      if (blockedByTutorial({ type: 'selectEnemyTarget' })) return;
+      if (blockedByTutorial()) return;
       const eligible = getOverdriveEligibility(state, mode.attackerId);
       if (eligible) {
         setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId: mode.attackId, targetId: apexId, supportName: eligible.supportName });
@@ -566,9 +531,7 @@ export default function GameBoard() {
   function chooseAttack(attackId: string) {
     if (mode.kind !== 'attackerChosen') return;
     if (isActionLocked()) return;
-    const attackerHit = findApexAnywhere(state, mode.attackerId);
-    const attackerAttackDef = attackerHit ? (getCardDef(attackerHit.apex.defId) as ApexDef).attacks.find((a) => a.id === attackId) : undefined;
-    if (blockedByTutorial({ type: 'chooseAttack', attackId, syncCost: attackerAttackDef?.syncCost })) return;
+    if (blockedByTutorial()) return;
     const hasEnemyApex = oppPlayer.apexSlots.some(Boolean);
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });
@@ -590,7 +553,6 @@ export default function GameBoard() {
   const attackerDef = attackerApex ? (getCardDef(attackerApex.defId) as ApexDef) : null;
 
   const oppApexHighlight = (id: string): 'valid-target' | null => {
-    if (state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'enemyApex') return 'valid-target';
     if (mode.kind === 'attackAwaitingTarget') return 'valid-target';
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'enemyApex' || mode.requiresTarget === 'enemyApexWithChoke')) {
       const target = oppPlayer.apexSlots.find((a) => a?.instanceId === id);
@@ -605,7 +567,6 @@ export default function GameBoard() {
   }
 
   const ownApexHighlight = (id: string): 'valid-target' | null => {
-    if (state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'ownApex') return 'valid-target';
     if (mode.kind === 'equipSwapSelectApex') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
       return apex?.equip && apex.equip.equippedTurn !== state.turnNumber ? 'valid-target' : null;
@@ -808,9 +769,9 @@ export default function GameBoard() {
             label="Combat Phase"
             active={state.phase === 'Combat'}
             enabled={state.phase === 'Main' && !aiIsActing}
-            highlighted={state.tutorialMode && TUTORIAL_STEPS[tutorialStep]?.highlight?.kind === 'combatPhaseButton'}
+            highlighted={false}
             onClick={() => {
-              if (blockedByTutorial({ type: 'advancePhase', phase: 'Combat' })) return;
+              if (blockedByTutorial()) return;
               state.advancePhase('Combat');
             }}
           />

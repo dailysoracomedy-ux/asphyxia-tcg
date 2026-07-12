@@ -2689,6 +2689,77 @@ commit) and a fresh 72-game simulation both ran clean, plus clean
 again in this run's batch sweep, unchanged and consistent with the prior
 finding.
 
+## Commit 29.17: the tutorial's second pivot - purely scripted, zero player-driven game actions
+
+Requested directly, after real, repeated frustration with the previous
+approach: "Just purely scripted with Continue on each step. The logic will
+move the tutorial along. The ONLY player interaction will be moving to the
+next step after reading." This is a genuine architectural pivot, not another
+patch on top of 29.1 through 29.16.
+
+**What changed at the root.** Every version of this tutorial up to now kept
+some real player interaction - clicking the highlighted card, choosing an
+attack, playing a React in a real response window - gated by logic that
+checked whether the game's actual state matched what the current step
+expected. Every fix in that lineage was real and verified, but the fundamental
+shape of the problem never went away: any moment where the player's own clicks
+and the tutorial's step tracking could drift apart was a new way for the same
+class of bug to resurface. This version removes that surface entirely rather
+than continuing to patch it. Every single action - the player's own card plays
+and attacks included, not just the opponent's - is now a hardcoded sequence of
+real store-action calls, fired from each step's onEnter
+(`tutorialRunFullyScriptedTurn` for either player,
+`tutorialRunScriptedOpponentTurn` for the opponent specifically, both in
+gameStore.ts). The player's only input anywhere in the tutorial is clicking
+Continue. The entire old gating system - `blockedByTutorial`'s action-matching,
+the highlight/spotlight targeting, `tutorialGate.ts`, the whole `RequiredAction`
+type - is deleted, not deprecated.
+
+**Three real, non-obvious bugs found and fixed while building this, in the
+order they were found:**
+
+1. A guardrail meant to stop a stray eligible React from being consumed early
+   (auto-passing any response that "isn't this run's business") was, at the
+   exact instant a run's own attack opened a response window and its actions
+   became simultaneously exhausted, treating that response as nobody's
+   business at all - and auto-passing it before the intended, separately-
+   chained React-resolution call ever got a chance to run.
+2. Chaining three scripted sub-sequences (opponent attacks, player
+   auto-reacts, opponent's turn ends) as three independent parallel calls
+   created a genuine race: the "end the turn" call could reach its own
+   completion check before the "resolve the React" call ran, using the same
+   "is there a pending response that's my business" logic to wrongly steal the
+   resolution for itself.
+3. Once that was fixed, a second, subtler bug in the same function surfaced:
+   the fix for bug 1 (suppressing the pending-response check once a run's
+   actions were exhausted) had an ordering problem - the exhausted-actions
+   completion check happened *after* a separate turn-ownership guard that also
+   read the now-suppressed pending-response state, so an exhausted run could
+   get stuck permanently retrying instead of ever reaching its own completion.
+   Fixed by reordering: a run with no actions left to perform now always
+   finishes immediately, checked first, before any turn-ownership or
+   pending-response logic gets a chance to run at all.
+
+Each of these was found through direct, reproducible testing - not guessed at
+and not shipped on faith that the design was sound.
+
+**Verified with a real, honest end-to-end test**: a script that does nothing
+but mount the real game, click Continue, wait for the current step's action to
+finish, and click Continue again - repeated for every single step in the whole
+tutorial, exactly matching what a real player now does. It confirms Reserve
+Grid and Pale Executioner were genuinely played by the script (not assumed),
+Glitch Step was genuinely auto-played to save the player's Apex, and the match
+genuinely ends with the player as the real winner - stress-tested 8 additional
+times clean after the timing fixes above.
+
+**Verified**: full regression suite (600+ checks across 29 files - several
+obsolete gating-specific test files removed, since they tested a mechanism
+that no longer exists; new tests added for the fully-scripted mechanism) and a
+fresh 72-game simulation both ran clean, plus clean `tsc`/`eslint`/build. The
+one previously-documented flaky test (23.2) flaked again in this run's batch
+sweep and passed clean on immediate re-run, unchanged and consistent with the
+prior finding.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41

@@ -23,6 +23,7 @@ import { getCardDef } from '@/data/cards';
 import { buildStarterDeck, shuffle, createInstance } from '@/data/decks';
 import { determineRiftSpace } from '@/game/rifts';
 import { useAnimationStore, CEREMONY_MS, type VisualEvent } from './animationStore';
+import { useTutorialStore } from './tutorialStore';
 import {
   DIRECT_O2_CAP_PER_TURN,
   MAX_ABILITY_SUPPORTS,
@@ -462,6 +463,7 @@ const SCRIPTED_OPPONENT_STEP_DELAY_MS = 700;
 
 export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[], options: { expectsPlayerResponse?: boolean } = {}) {
   let i = 0;
+  useTutorialStore.getState().setBusy(true);
 
   function runNext() {
     const st = useGameStore.getState();
@@ -515,6 +517,7 @@ export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[
         setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
         return;
       }
+      useTutorialStore.getState().setBusy(false);
       st.endTurn();
       return;
     }
@@ -534,6 +537,7 @@ export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[
       const target = st.players.player1.apexSlots.find(Boolean);
       if (attacker && target) st.declareAttack(attacker.instanceId, action.attackId, target.instanceId);
     } else if (action.kind === 'endTurn') {
+      useTutorialStore.getState().setBusy(false);
       st.endTurn();
       return;
     }
@@ -542,6 +546,145 @@ export function tutorialRunScriptedOpponentTurn(actions: ScriptedOpponentAction[
 
   setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
 }
+
+/** Commit 29.17 - the tutorial rebuild's second, larger pivot: purely scripted,
+ *  zero player interaction beyond clicking Continue to advance. Every single
+ *  action for BOTH players - not just the opponent's - is now a hardcoded
+ *  sequence of real store-action calls, exactly like
+ *  `tutorialRunScriptedOpponentTurn` above but generalized to run for either
+ *  player and to cover the full range of actions a tutorial step might need
+ *  (Equips, Specials, Rift choices, Reacts), not just combat. Deliberately
+ *  built as a new, separate function rather than modifying the proven
+ *  opponent-turn runner above - that one already has a real production track
+ *  record, and this rewrite doesn't need to risk it to add the new
+ *  capabilities player1's now-scripted turns require. */
+export type FullyScriptedAction =
+  | { kind: 'advanceToMain' }
+  | { kind: 'playApex'; defId: string }
+  | { kind: 'playSupport'; defId: string }
+  | { kind: 'playEquip'; defId: string }
+  | { kind: 'playSpecial'; defId: string }
+  | { kind: 'advanceToCombat' }
+  | { kind: 'attack'; attackerDefId: string; attackId: string }
+  | { kind: 'resolveRiftChoice'; pick: 'momentum' | 'damage' }
+  | { kind: 'resolveReact'; defId: string }
+  | { kind: 'endTurn' };
+
+export function tutorialRunFullyScriptedTurn(
+  playerId: PlayerId,
+  actions: FullyScriptedAction[],
+  options: { onComplete?: () => void; manageBusy?: boolean } = {}
+) {
+  let i = 0;
+  const opponentId: PlayerId = playerId === 'player1' ? 'player2' : 'player1';
+  const manageBusy = options.manageBusy ?? true;
+  if (manageBusy) useTutorialStore.getState().setBusy(true);
+  const finish = () => {
+    if (manageBusy) useTutorialStore.getState().setBusy(false);
+    options.onComplete?.();
+  };
+
+  function runNext() {
+    const st = useGameStore.getState();
+    if (!st.tutorialMode || st.status !== 'playing') return;
+
+    // Once this run's own actions are exhausted, it must always finish
+    // immediately - regardless of whose turn it is or what else might be
+    // pending. A real, confirmed bug: this check used to come after the
+    // turn-ownership guard below, which also checks for a pending response as
+    // part of its own condition. Once i >= actions.length forces "no pending
+    // response is this run's business" (see the comment further down), that
+    // same signal was wrongly reused by the turn-ownership guard to mean "not
+    // my turn yet, keep waiting" - so an exhausted run could get stuck
+    // retrying forever instead of ever reaching this branch and calling
+    // finish(), even though it had genuinely nothing left to do.
+    if (i >= actions.length) {
+      finish();
+      return;
+    }
+
+    // A pending Rift choice or React window belonging to THIS player blocks
+    // everything else in the engine until resolved - if the current scripted
+    // action isn't specifically here to resolve it, nothing else can proceed,
+    // so check for it before anything else on every pass.
+    const pending = st.pendingResponseQueue[0];
+    const nextAction = actions[i];
+    if (pending) {
+      const belongsToThisRun =
+        (pending.stage === 'civilWarChoice' || pending.stage === 'humanErrorChoice') && pending.playerId === playerId && nextAction?.kind === 'resolveRiftChoice';
+      const isReactBeingHandled = pending.stage === 'reactionChoice' && pending.respondingPlayerId === playerId && nextAction?.kind === 'resolveReact';
+      if (!belongsToThisRun && !isReactBeingHandled) {
+        // Not this run's business to resolve (either it belongs to the other
+        // player, entirely automatic elsewhere, or this run's next action
+        // isn't actually the resolution step yet) - auto-pass/auto-pick a safe
+        // default so a stray eligible response never silently stalls a fully
+        // scripted, no-interaction tutorial.
+        if (pending.stage === 'civilWarChoice') st.resolveResponse({ type: 'civilWar', pick: 'momentum' });
+        else if (pending.stage === 'humanErrorChoice') st.resolveResponse({ type: 'humanError', pick: 'momentum' });
+        else if (pending.stage === 'reactionChoice' || pending.stage === 'negateWindow') st.resolveResponse({ type: 'pass' });
+        setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+        return;
+      }
+    }
+
+    if (st.activePlayerId !== playerId && !pending) {
+      // Not this player's turn yet - keep waiting rather than giving up. See
+      // tutorialRunScriptedOpponentTurn's own comment on why this must retry,
+      // not bail out permanently, for the exact bug this pattern fixes.
+      setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+      return;
+    }
+
+    if (!pending && st.phase === 'Start' && st.startPhasePending) {
+      st.advancePhase('Start');
+      setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+      return;
+    }
+
+    const action = actions[i];
+    i++;
+
+    const player = st.players[playerId];
+    if (action.kind === 'advanceToMain') {
+      st.advancePhase('Main');
+    } else if (action.kind === 'playApex') {
+      const card = player.hand.find((c) => c.defId === action.defId);
+      if (card) st.playApexCard(card.instanceId);
+    } else if (action.kind === 'playSupport') {
+      const card = player.hand.find((c) => c.defId === action.defId);
+      if (card) st.playSupportCard(card.instanceId);
+    } else if (action.kind === 'playEquip') {
+      const card = player.hand.find((c) => c.defId === action.defId);
+      const apex = player.apexSlots.find(Boolean);
+      if (card && apex) st.playEquipCard(card.instanceId, apex.instanceId);
+    } else if (action.kind === 'playSpecial') {
+      const card = player.hand.find((c) => c.defId === action.defId);
+      if (card) st.playSpecialCard(card.instanceId);
+    } else if (action.kind === 'advanceToCombat') {
+      st.advancePhase('Combat');
+    } else if (action.kind === 'attack') {
+      const attacker = player.apexSlots.find((a) => a?.defId === action.attackerDefId);
+      const target = st.players[opponentId].apexSlots.find(Boolean);
+      if (attacker && target) st.declareAttack(attacker.instanceId, action.attackId, target.instanceId);
+    } else if (action.kind === 'resolveRiftChoice') {
+      const item = st.pendingResponseQueue[0];
+      if (item?.stage === 'civilWarChoice') st.resolveResponse({ type: 'civilWar', pick: action.pick });
+      else if (item?.stage === 'humanErrorChoice') st.resolveResponse({ type: 'humanError', pick: action.pick });
+    } else if (action.kind === 'resolveReact') {
+      const item = st.pendingResponseQueue[0];
+      const reactCard = st.players[playerId].hand.find((c) => c.defId === action.defId);
+      if (item?.stage === 'reactionChoice' && reactCard) st.resolveResponse({ type: 'reaction', cardInstanceId: reactCard.instanceId });
+    } else if (action.kind === 'endTurn') {
+      st.endTurn();
+      finish();
+      return;
+    }
+    setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+  }
+
+  setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
+}
+
 export function tutorialEnsureFinishingBlow() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;

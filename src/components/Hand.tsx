@@ -3,8 +3,6 @@
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import Card from './Card';
 import { canPlayCardFromHand, getCardPlayabilityReason } from '@/lib/cardPlayability';
-import { useTutorialStore } from '@/store/tutorialStore';
-import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 
 interface HandProps {
   cards: CardInstance[];
@@ -26,15 +24,6 @@ interface HandProps {
 }
 
 export default function Hand({ cards, selectedId, onSelect, disabledIds, label, onInspectCard, minWidth, state, playerId }: HandProps) {
-  const tutorialStepIndex = useTutorialStore((s) => s.step);
-  const tutorialHighlightDefId =
-    state?.tutorialMode && playerId === 'player1'
-      ? (() => {
-          const h = TUTORIAL_STEPS[tutorialStepIndex]?.highlight;
-          return h?.kind === 'handCard' ? h.defId : null;
-        })()
-      : null;
-
   return (
     <div
       className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[168px] shrink-0 w-fit max-w-full mx-auto"
@@ -46,16 +35,14 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label, 
         {cards.map((c) => {
           const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
           const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
-          const tutorialHighlighted = tutorialHighlightDefId === c.defId;
           return (
-            <div key={c.instanceId} title={reason ?? undefined} className={tutorialHighlighted ? 'tutorial-spotlight' : undefined}>
+            <div key={c.instanceId} title={reason ?? undefined}>
               <Card
                 instance={c}
                 size="hand"
                 selected={selectedId === c.instanceId}
                 disabled={disabledIds?.has(c.instanceId)}
                 isPlayable={playable}
-                highlight={tutorialHighlighted ? 'valid-target' : undefined}
                 onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
                 onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
               />

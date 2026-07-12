@@ -3,8 +3,6 @@
 import type { GameState, ReactionDef } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { useGameStore, type ResponseChoice } from '@/store/gameStore';
-import { useTutorialStore } from '@/store/tutorialStore';
-import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 
 function describeTrigger(state: GameState, item: GameState['pendingResponseQueue'][number]): string {
   if (item.stage !== 'reactionChoice') return '';
@@ -76,23 +74,13 @@ function ReactionPrompt({
     const def = getCardDef(c.defId) as ReactionDef;
     return def.trigger === item.trigger.kind && player.momentum >= def.cost;
   });
-  // Commit 29.1: during a gated "play this exact React" tutorial step, only show
-  // that one card - even if the player happens to have another eligible Reaction
-  // in hand, showing it would undercut the whole point of a locked, focused step.
-  // Commit 29.14: extended further - during tutorial mode but OUTSIDE a
-  // playReact step entirely, no Reacts are shown at all (forced to Pass). A
-  // real, confirmed risk with the fully-scripted opponent: the very first
-  // scripted attack can legitimately open a response window (the player
-  // already has both Glitch Step and enough Momentum by that point, from the
-  // Apex Break Reward a few steps earlier), well before the intended React
-  // step. Without this, nothing would stop the player from playing Glitch Step
-  // here instead, consuming it and leaving the later, actually-scripted React
-  // step with no card left to teach with.
-  const tutorialStep = useTutorialStore((s) => s.step);
-  const currentTutorialAction = state.tutorialMode ? TUTORIAL_STEPS[tutorialStep]?.requiredAction : undefined;
-  if (state.tutorialMode) {
-    eligible = currentTutorialAction?.type === 'playReact' ? eligible.filter((c) => c.defId === currentTutorialAction.defId) : [];
-  }
+  // Commit 29.17 - during tutorial mode, this modal never shows any eligible
+  // Reacts at all. Every response in the tutorial - Reacts included - is now
+  // resolved directly by the scripted sequence itself
+  // (tutorialRunFullyScriptedTurn's resolveReact action calls resolveResponse
+  // straight through the store, bypassing this UI entirely), so there's
+  // nothing left for a player to see or click here even momentarily.
+  if (state.tutorialMode) eligible = [];
 
   return (
     <>
