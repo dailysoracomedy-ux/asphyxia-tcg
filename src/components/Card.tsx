@@ -32,6 +32,11 @@ interface CardProps {
   /** Opens a full detail view for this card - separate from onClick so it never
    *  conflicts with the card's normal gameplay action. */
   onInspect?: () => void;
+  /** Commit 30.6 - see ApexOverlayLayer's own doc. Threaded through to
+   *  ApexCardRenderer for the attack popup's card-integrated selector. */
+  attackSelectMode?: boolean;
+  affordableAttackIds?: Set<string>;
+  onSelectAttack?: (attackId: string) => void;
   /** Internal - set on the enlarged preview copy itself so it doesn't try to spawn
    *  a hover preview of its own. Not meant to be passed by normal callers. */
   disableHoverPreview?: boolean;
@@ -62,6 +67,9 @@ export default function Card({
   effectiveDef,
   attackPreviews,
   onInspect,
+  attackSelectMode,
+  affordableAttackIds,
+  onSelectAttack,
   disableHoverPreview,
   isPlayable,
 }: CardProps) {
@@ -183,6 +191,9 @@ export default function Card({
             selected={selected}
             disabled={disabled}
             footer={footer}
+            attackSelectMode={attackSelectMode}
+            affordableAttackIds={affordableAttackIds}
+            onSelectAttack={onSelectAttack}
           />
         ) : (
           <GenericArtCard defId={instance.defId} onClick={onClick} onPointerDown={onPointerDown} selected={selected} disabled={disabled} footer={footer} />

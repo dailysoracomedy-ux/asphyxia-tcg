@@ -107,12 +107,12 @@ async function main() {
     const clickEvent = new dom.window.MouseEvent('click', { bubbles: true, cancelable: true });
     btn.dispatchEvent(clickEvent);
     await wait(30);
-    if (dom.window.document.body.textContent?.includes('Choose an attack')) {
+    if (dom.window.document.body.textContent?.includes('Hover an attack, click to select')) {
       foundPopup = true;
       break;
     }
   }
-  check('clicking a ready Apex genuinely opens the new "Choose an attack" popup', foundPopup);
+  check('clicking a ready Apex genuinely opens the new card-integrated attack popup', foundPopup);
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed (final) ===`);

@@ -462,6 +462,7 @@ export default function GameBoard() {
 
   function ownApexClick(apexId: string) {
     if (isActionLocked()) return;
+    if (mode.kind === 'attackerChosen') return; // the attack popup is the only valid interaction right now
     if (mode.kind === 'equipSwapSelectApex') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (!apex?.equip || apex.equip.equippedTurn === state.turnNumber) return;
@@ -510,6 +511,7 @@ export default function GameBoard() {
   }
 
   function ownSupportClick(supportId: string) {
+    if (mode.kind === 'attackerChosen') return; // the attack popup is the only valid interaction right now
     if (mode.kind === 'reconfigureReturn') {
       setMode({ kind: 'reconfigurePlay', returnId: supportId });
       return;
@@ -532,6 +534,7 @@ export default function GameBoard() {
   }
 
   function oppApexClick(apexId: string) {
+    if (mode.kind === 'attackerChosen') return; // the attack popup is the only valid interaction right now
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'enemyApex' || mode.requiresTarget === 'enemyApexWithChoke')) {
       const target = oppPlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (mode.requiresTarget === 'enemyApexWithChoke' && (target?.counters?.choke ?? 0) === 0) return;
@@ -969,7 +972,7 @@ export default function GameBoard() {
           <button
             type="button"
             onClick={scrollSafeClick(() => state.endTurn())}
-            disabled={state.phase !== 'Combat' || aiIsActing}
+            disabled={state.phase !== 'Combat' || aiIsActing || mode.kind === 'attackerChosen'}
             className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
               state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
             }`}
@@ -1155,7 +1158,11 @@ export default function GameBoard() {
           minWidth={boardWidth}
           state={state}
           playerId={viewerBottomId}
-          onCardPointerDown={(state.phase === 'Main' || state.phase === 'Combat') && bottomIsActingPlayer && !aiIsActing && !state.tutorialMode ? onHandCardPointerDown : undefined}
+          onCardPointerDown={
+            (state.phase === 'Main' || state.phase === 'Combat') && bottomIsActingPlayer && !aiIsActing && !state.tutorialMode && mode.kind !== 'attackerChosen'
+              ? onHandCardPointerDown
+              : undefined
+          }
         />
       </div>
 

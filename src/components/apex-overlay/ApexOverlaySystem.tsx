@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { CardInstance, ApexDef } from '@/types/game';
 import { APEX_TEMPLATE_ZONES, getValueDeltaState, type ValueDeltaState } from '@/lib/apexOverlay';
 import { getCardArt } from '@/lib/cardArt';
@@ -63,16 +64,21 @@ export function DynamicStatText({
   deltaState,
   align = 'center',
   sizePx,
+  colorOverride,
 }: {
   value: string | number;
   deltaState: ValueDeltaState;
   align?: 'center' | 'right' | 'left';
   sizePx: number;
+  /** Commit 30.6 - overrides the normal delta-based color (boosted/reduced/
+   *  normal), used when the attack-select hover backing makes the usual
+   *  light text unreadable against its own light background. */
+  colorOverride?: string;
 }) {
   return (
     <span
       className="font-mono font-bold w-full leading-none"
-      style={{ color: deltaColor(deltaState), textAlign: align, fontSize: `${sizePx}px`, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+      style={{ color: colorOverride ?? deltaColor(deltaState), textAlign: align, fontSize: `${sizePx}px`, textShadow: colorOverride ? 'none' : '0 1px 2px rgba(0,0,0,0.8)' }}
     >
       {value}
     </span>
@@ -157,6 +163,9 @@ export function ApexOverlayLayer({
   bakedAttackNames,
   cardWidth,
   debugZones,
+  attackSelectMode,
+  affordableAttackIds,
+  onSelectAttack,
 }: {
   instance: CardInstance;
   apexDef: ApexDef;
@@ -169,8 +178,20 @@ export function ApexOverlayLayer({
   /** Actual rendered card width in px - every text element scales off this. */
   cardWidth: number;
   debugZones?: boolean;
+  /** Commit 30.6 - when true, each attack row gets a full-width interactive
+   *  backing zone (hover highlight + click to select), directly on the card
+   *  face - replacing the old separate button-list UI in the attack popup.
+   *  Never set outside that popup, so a card's normal appearance everywhere
+   *  else in the game (hand, board, inspect) is completely unaffected. */
+  attackSelectMode?: boolean;
+  /** Which attack ids are currently affordable (Sync-wise) - unaffordable rows
+   *  render dimmed and don't respond to hover/click, same rule the old
+   *  button list enforced. */
+  affordableAttackIds?: Set<string>;
+  onSelectAttack?: (attackId: string) => void;
 }) {
   const z = APEX_TEMPLATE_ZONES;
+  const [hoveredAttackId, setHoveredAttackId] = useState<string | null>(null);
   const defDelta = getValueDeltaState(apexDef.baseDef, effectiveDef);
   // Ratios/clamps are sized so a 3-digit value actually fits inside its zone width
   // (DEF zone = 16% of card, attack-value zone = 13.5%), not just a value that
@@ -190,8 +211,31 @@ export function ApexOverlayLayer({
         const top = z.attacks.rows[i];
         const shown = attackDamages[atk.id] ?? atk.baseDamage;
         const delta = getValueDeltaState(atk.baseDamage, shown);
+        const affordable = !attackSelectMode || (affordableAttackIds?.has(atk.id) ?? true);
+        const isHovered = attackSelectMode && affordable && hoveredAttackId === atk.id;
         return (
           <div key={atk.id}>
+            {attackSelectMode && (
+              <button
+                type="button"
+                disabled={!affordable}
+                onClick={() => affordable && onSelectAttack?.(atk.id)}
+                onMouseEnter={() => affordable && setHoveredAttackId(atk.id)}
+                onMouseLeave={() => setHoveredAttackId((cur) => (cur === atk.id ? null : cur))}
+                className={`absolute rounded-sm transition-colors ${
+                  affordable
+                    ? 'cursor-pointer bg-transparent hover:bg-white/85 hover:ring-1 hover:ring-emerald-300'
+                    : 'cursor-not-allowed opacity-40'
+                }`}
+                style={{
+                  left: `${z.attacks.leftZone.left}%`,
+                  top: `${top - 0.3}%`,
+                  width: `${z.attacks.valueZone.left + z.attacks.valueZone.width - z.attacks.leftZone.left}%`,
+                  height: `${z.attacks.leftZone.height + 0.6}%`,
+                }}
+                aria-label={`${atk.name}, ${atk.syncCost} sync, ${shown} damage`}
+              />
+            )}
             {!bakedAttackNames && (
               <Zone
                 zone={{ left: z.attacks.leftZone.left, top, width: z.attacks.leftZone.width, height: z.attacks.leftZone.height }}
@@ -199,8 +243,8 @@ export function ApexOverlayLayer({
                 debugLabel={`ATK ${i + 1} name`}
               >
                 <span
-                  className="text-white/90 leading-none truncate w-full"
-                  style={{ fontSize: `${attackNameFontSize}px`, textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
+                  className={`leading-none truncate w-full ${isHovered ? 'text-black' : 'text-white/90'}`}
+                  style={{ fontSize: `${attackNameFontSize}px`, textShadow: isHovered ? 'none' : '0 1px 2px rgba(0,0,0,0.8)' }}
                 >
                   [{atk.syncCost}] {atk.name}
                 </span>
@@ -211,7 +255,7 @@ export function ApexOverlayLayer({
               debug={debugZones}
               debugLabel={`ATK ${i + 1} value`}
             >
-              <DynamicStatText value={shown} deltaState={delta} align="right" sizePx={attackNameFontSize} />
+              <DynamicStatText value={shown} deltaState={delta} align="right" sizePx={attackNameFontSize} colorOverride={isHovered ? '#000000' : undefined} />
             </Zone>
           </div>
         );

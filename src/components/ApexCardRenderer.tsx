@@ -29,6 +29,13 @@ interface ApexCardRendererProps {
   forceArtPlaceholder?: boolean;
   debugZones?: boolean;
   footer?: React.ReactNode;
+  /** Commit 30.6 - see ApexOverlayLayer's own doc. When true, the outer
+   *  element renders as a plain div instead of a button (the per-row attack
+   *  buttons handle all interaction in this mode - nesting a button inside a
+   *  button is invalid and unreliable for click handling). */
+  attackSelectMode?: boolean;
+  affordableAttackIds?: Set<string>;
+  onSelectAttack?: (attackId: string) => void;
 }
 
 /**
@@ -50,6 +57,9 @@ export default function ApexCardRenderer({
   forceArtPlaceholder,
   debugZones,
   footer,
+  attackSelectMode,
+  affordableAttackIds,
+  onSelectAttack,
 }: ApexCardRendererProps) {
   const def = getCardDef(instance.defId) as ApexDef;
 
@@ -58,17 +68,12 @@ export default function ApexCardRenderer({
     attackDamages[atk.id] = attackPreviews?.[atk.id]?.modifiedDamage ?? atk.baseDamage;
   }
 
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      onPointerDown={onPointerDown}
-      disabled={disabled}
-      className={`relative w-full h-full rounded-md overflow-hidden border-2 shrink-0 transition-transform ${
-        disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
-      } ${selected ? 'ring-2 ring-yellow-300 ring-offset-1 ring-offset-black' : ''}`}
-      style={{ borderColor: '#ffffff33' }}
-    >
+  const frameClassName = `relative w-full h-full rounded-md overflow-hidden border-2 shrink-0 transition-transform ${
+    disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
+  } ${selected ? 'ring-2 ring-yellow-300 ring-offset-1 ring-offset-black' : ''}`;
+  const frameStyle = { borderColor: '#ffffff33' };
+  const overlay = (
+    <>
       <CardArtLayer defId={instance.defId} faction={def.faction} forcePlaceholder={forceArtPlaceholder} />
       <ApexOverlayLayer
         instance={instance}
@@ -77,8 +82,25 @@ export default function ApexCardRenderer({
         attackDamages={attackDamages}
         cardWidth={cardWidth}
         debugZones={debugZones}
+        attackSelectMode={attackSelectMode}
+        affordableAttackIds={affordableAttackIds}
+        onSelectAttack={onSelectAttack}
       />
       {footer}
+    </>
+  );
+
+  if (attackSelectMode) {
+    return (
+      <div className={frameClassName} style={frameStyle}>
+        {overlay}
+      </div>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} onPointerDown={onPointerDown} disabled={disabled} className={frameClassName} style={frameStyle}>
+      {overlay}
     </button>
   );
 }
