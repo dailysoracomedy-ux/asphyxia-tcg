@@ -3025,6 +3025,85 @@ this commit) and a fresh 72-game simulation both ran clean, plus clean
 in this run's full batch sweep and passed clean on immediate individual
 re-run - unchanged from their established pattern, not new regressions.
 
+## Commit 30.4: attack reverted to click + popup, Combat Phase removed, Drone Choir fixed
+
+Four real changes, one of them (the phase merge) genuinely deep - worth being
+honest about how much that one touched and what it caught along the way.
+
+**Attacking is click-based again**, reverted from Commit 30's drag experiment
+per direct feedback ("I don't like the drag to opponent apex to attack
+thing... I think the attack part should be the way it was"). Drag-based attack
+targeting is gone; clicking a ready Apex opens the new popup instead.
+
+**The new attack popup** - "the card blows up into a popup with an attack
+selector" - replaces the old inline CombatControls strip for choosing an
+attack. The card renders large and centered, its real attacks listed right
+underneath with live damage previews, click one to select it. This is a pure
+presentation layer over the exact same `chooseAttack`/target-click resolution
+that already existed - no new attack logic, just a much more direct picker.
+
+**Combat Phase no longer exists as something the player declares.** Per direct
+request: no explicit "Enter Combat" step, ever. The instant a turn begins
+(right after the automatic draw), both playing cards and attacking are
+simultaneously legal, in any order, for the whole turn - internally this is
+still two `GameState.phase` values (`Main` immediately auto-chains into
+`Combat` the moment it's entered, computing Sync right away), but nothing in
+the UI ever asks the player to trigger that second half.
+
+This is the deep part, and it's worth naming directly what a phase merge like
+this actually risks: anything anywhere in the codebase that checked for
+`phase === 'Main'` specifically, expecting it to be an observable, lingering
+state, silently stopped working the moment `Main` became transient. Found and
+fixed several real instances of exactly that, not guessed at:
+
+- **The AI never played a single card.** Both `aiPlayOneMainPhaseAction`'s own
+  internal guard and the AI driver's UI-level dispatch checked for `phase ===
+  'Main'` exclusively - with Main now transient, that branch became
+  permanently unreachable. The AI would still attack, since it does still
+  observe the merged `Combat` phase for target: fell through directly to
+  combat actions with an empty board, every single turn. This would have
+  meant every Vs AI and AI vs AI Showcase match was silently broken.
+- **The 72-game simulation would have stopped playing any cards too** - same
+  root cause, in `simulate.ts`'s own turn loop.
+- **Six test files had a genuine infinite loop**, not just a wrong assertion:
+  `while (phase !== 'Main') { ... }`, waiting for a state that no longer
+  persists. Caught directly - the test run hung, not passed with a wrong
+  number.
+- Several UI-gating checks (including, critically, whether a hand card was
+  draggable at all) checked `phase === 'Main'` specifically and needed the
+  same fix.
+
+Fixed uniformly: any check that used to mean "is it currently Main Phase"
+means "is it Main or Combat" now (i.e., "is it currently the active player's
+turn to act"), and the AI/simulation loops that used to branch on Main
+specifically now run main-phase-style actions and combat actions back to back
+within the single `Combat` phase value both share.
+
+**Drone Choir (Synth Ascendancy) now boosts damage immediately**, not on a
+delayed future attack - a real, reported bug: its old rules text explicitly
+said the bonus applied "during your next turn," which is delayed by design,
+not a bug in isolation, but not what was wanted. Rewritten to use
+`chainedAttackBonus` - the same live, immediate mechanism Spark-Plug
+(cards.neon.ts) already uses - applied directly to the attack that's
+currently resolving. Simplified to a flat +100 (previously +200 specifically
+for a Synth Ascendancy chained Apex) - resolving that faction check safely
+from this file would need an import that risks a real circular dependency
+back through `cards.ts`, not worth it for a secondary detail when the core,
+reported issue was "should be immediate."
+
+**Verified**: the merged phase model is checked directly - confirming Sync is
+already computed and a card is genuinely playable the instant a turn begins,
+with no separate phase transition in between. Drone Choir's bonus is
+confirmed present on the very first attack an Apex makes, not a later one. The
+new attack popup is confirmed to genuinely open on a real click, through a
+real mounted board, not assumed from the code alone.
+
+**Verified**: full regression suite (700+ checks across 38 files, three new
+this commit) and a fresh 72-game simulation both ran clean, plus clean
+`tsc`/`eslint`/build. The one previously-documented flaky test (23.2) flaked
+again in this run's batch sweep and passed clean on immediate individual
+re-run, unchanged from its established pattern.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
