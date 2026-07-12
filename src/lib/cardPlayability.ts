@@ -37,7 +37,7 @@ export function canPlayCardFromHand(state: GameState, playerId: PlayerId, card: 
   // Every non-Reaction play requires Main phase, no pending response window, and
   // it being this player's own active turn - matches every play-action's own
   // opening guard clause exactly.
-  if (!isActive || state.phase !== 'Main' || state.pendingResponseQueue.length > 0) return false;
+  if (!isActive || (state.phase !== 'Main' && state.phase !== 'Combat') || state.pendingResponseQueue.length > 0) return false;
 
   switch (card.type) {
     case 'Apex':
@@ -95,7 +95,7 @@ export function getCardPlayabilityReason(state: GameState, playerId: PlayerId, c
   }
 
   if (!isActive) return "Not your turn";
-  if (state.phase !== 'Main') return 'Only playable during Main Phase';
+  if ((state.phase !== 'Main' && state.phase !== 'Combat')) return 'Not your turn to play cards right now';
   if (state.pendingResponseQueue.length > 0) return 'Waiting on a response window';
 
   switch (card.type) {

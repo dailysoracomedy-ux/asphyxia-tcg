@@ -197,7 +197,7 @@ console.log('=== Scenario 8 & 9: Specials/Equips are not playable as the non-act
     st.selectOpeningApex(pid, apex.instanceId);
   }
   // Burn the mandatory no-attack first turn to get into a normal Main phase.
-  while (useGameStore.getState().phase !== 'Main') {
+  while (useGameStore.getState().phase === 'Start') {
     const st = useGameStore.getState();
     if (st.phase === 'Start' && st.startPhasePending) st.advancePhase('Start');
     else if (st.phase === 'Start') st.advancePhase('Main');

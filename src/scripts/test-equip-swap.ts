@@ -27,7 +27,7 @@ function freshGame() {
 
 freshGame();
 let s = useGameStore.getState();
-while (s.status === 'playing' && (s.phase !== 'Main' || s.startPhasePending)) {
+while (s.status === 'playing' && (s.phase === 'Start' || s.startPhasePending)) {
   if (s.phase === 'Start' && s.startPhasePending) s.advancePhase('Start');
   else s.advancePhase('Main');
   s = useGameStore.getState();
@@ -78,7 +78,7 @@ while (s.activePlayerId !== activeId) {
   if (s.phase === 'Main') { s.advancePhase('Combat'); s = useGameStore.getState(); continue; }
   if (s.phase === 'Combat') { s.endTurn(); s = useGameStore.getState(); continue; }
 }
-while (s.phase !== 'Main' || s.startPhasePending) {
+while (s.phase === 'Start' || s.startPhasePending) {
   if (s.phase === 'Start' && s.startPhasePending) s.advancePhase('Start');
   else s.advancePhase('Main');
   s = useGameStore.getState();

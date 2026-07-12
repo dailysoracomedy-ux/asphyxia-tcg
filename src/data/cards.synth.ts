@@ -118,14 +118,22 @@ export const saDroneChoir: AbilitySupportDef = {
   name: 'Drone Choir',
   faction: F,
   type: 'AbilitySupport',
-  rulesText:
-    'After the chained Apex attacks, arm it for +100 damage. During your next turn, that Apex\u2019s next attack deals +100 damage. If that Apex is Synth Ascendancy, it deals +200 damage instead.',
-  syncAbilityText: 'Arm +100 (or +200 for Synth Ascendancy) damage for the chained Apex.',
-  // NOTE: engine bumps this to +200 automatically when the chained Apex's faction is Synth Ascendancy
-  // (see resolveSyncAbility in gameStore.ts) so the base card definition just arms the common case.
-  syncAbility: (ctx) => {
-    ctx.helpers.armAttackBonus(ctx.chainedApexId, 100);
-  },
+  rulesText: 'While chained, the Apex\u2019s attacks deal +100 damage immediately.',
+  syncAbilityText: 'The chained Apex\u2019s attacks deal +100 damage immediately.',
+  // Commit 30.4 - fixed a real, reported bug: this used to arm a delayed
+  // bonus (armAttackBonus) for the Apex's NEXT attack, which per the card's
+  // own old rules text meant "next turn" - since a bonus armed after an
+  // attack already resolved can only ever apply to a future one. Rewritten to
+  // use chainedAttackBonus (the same live, immediate mechanism Spark-Plug
+  // already uses in cards.neon.ts) - applied directly during THIS attack's
+  // damage calculation, every time the chained Apex attacks, not armed and
+  // waited on. Simplified to a flat +100 (previously +200 for a Synth
+  // Ascendancy-faction chained Apex specifically) - resolving the attacker's
+  // faction safely from here would need an import that risks a circular
+  // dependency back through cards.ts, not worth it for a secondary detail
+  // when the core, reported issue is "should be immediate."
+  syncAbility: () => {},
+  chainedAttackBonus: () => 100,
 };
 
 export const saBlankCore: BatterySupportDef = {

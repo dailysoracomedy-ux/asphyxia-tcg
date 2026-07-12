@@ -173,7 +173,7 @@ console.log('=== Test 7: AI Control Conflict decision advances the phase either 
   aiDecideControlConflict('player2');
   const after = useGameStore.getState();
   check('AI locked the Support since Momentum was not capped', after.players.player2.supportSlots[0]?.lockedByControlConflict === true);
-  check('AI advanced to Main Phase afterward', after.phase === 'Main');
+  check('AI advanced past Start Phase afterward (now auto-chains straight into Combat - see Commit 30.4)', after.phase === 'Combat');
 }
 
 console.log('=== Test 8: AI response heuristic passes when nothing is worth using ===');

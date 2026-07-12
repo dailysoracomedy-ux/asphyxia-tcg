@@ -29,7 +29,7 @@ function setupToMainPhase() {
     const apex = st.players[pid].hand.find((c) => c.type === 'Apex')!;
     st.selectOpeningApex(pid, apex.instanceId);
   }
-  while (useGameStore.getState().phase !== 'Main') {
+  while (useGameStore.getState().phase === 'Start') {
     const st = useGameStore.getState();
     if (st.phase === 'Start' && st.startPhasePending) st.advancePhase('Start');
     else if (st.phase === 'Start') st.advancePhase('Main');

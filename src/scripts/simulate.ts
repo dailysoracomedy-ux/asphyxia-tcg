@@ -209,19 +209,20 @@ function runOneGame(f1: Faction, f2: Faction, maxTurns: number): { turns: number
       st.advancePhase('Main');
       continue;
     }
-    if (st.phase === 'Main') {
+    if (st.phase === 'Combat') {
+      // Commit 30.4 - Main and Combat are merged now (advancePhase('Main')
+      // auto-chains straight into 'Combat' - see gameStore.ts's own comment
+      // on that transition), so there's no longer a distinct, observable
+      // 'Main' phase value to branch on here. Main-phase-style actions
+      // (playing cards) and combat actions (attacking) both happen within
+      // this single phase now, in that order, same as a real turn.
       playMainPhaseActions();
-      // verify card conservation after main phase actions
       for (const pid of ['player1', 'player2'] as PlayerId[]) {
         if (totalCards(pid) !== 30) {
           throw new Error(`Card conservation broken for ${pid}: has ${totalCards(pid)} expected 30`);
         }
       }
-      assertSaneNumbers(`${st.activePlayerId} end of Main Phase turn ${st.turnNumber}`);
-      useGameStore.getState().advancePhase('Combat');
-      continue;
-    }
-    if (st.phase === 'Combat') {
+      assertSaneNumbers(`${st.activePlayerId} mid-turn (post main-phase actions) turn ${st.turnNumber}`);
       playCombatPhaseActions();
       turns += 1;
       useGameStore.getState().endTurn();

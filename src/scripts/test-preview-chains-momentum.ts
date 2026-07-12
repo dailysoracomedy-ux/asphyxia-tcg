@@ -150,7 +150,7 @@ console.log('=== Test 5 & 6: Chain indicators show the correct Apex <-> Support 
     const apex = st.players[pid].hand.find((c) => c.type === 'Apex')!;
     st.selectOpeningApex(pid, apex.instanceId);
   }
-  while (useGameStore.getState().phase !== 'Main') {
+  while (useGameStore.getState().phase === 'Start') {
     const st = useGameStore.getState();
     if (st.phase === 'Start' && st.startPhasePending) st.advancePhase('Start');
     else if (st.phase === 'Start') st.advancePhase('Main');

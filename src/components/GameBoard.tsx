@@ -9,6 +9,7 @@ import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
 import CombatControls from './CombatControls';
+import AttackSelectorModal from './AttackSelectorModal';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
 import CardInspectModal, { type InspectZone } from './CardInspectModal';
@@ -250,18 +251,20 @@ export default function GameBoard() {
       return; // otherwise let the shared Draw Phase effect above auto-advance to Main
     }
 
-    if (state.phase === 'Main') {
-      const t = setTimeout(() => {
-        const acted = aiPlayOneMainPhaseAction(acting);
-        if (!acted) useGameStore.getState().advancePhase('Combat');
-      }, 650 * mult);
-      return () => clearTimeout(t);
-    }
-
     if (state.phase === 'Combat') {
+      // Commit 30.4 - Main and Combat are merged now (advancePhase('Main')
+      // auto-chains straight into 'Combat'), so there's no longer a distinct
+      // 'Main' phase value for the AI to branch on separately. Tries a
+      // main-phase-style action first (playing a card) every tick; once
+      // there's nothing left to play, falls through to a combat action
+      // (attacking); once there's nothing left to attack with either, ends
+      // the turn. Same real actions as before, just no longer gated behind
+      // a phase value that no longer persists long enough to branch on.
       const t = setTimeout(() => {
-        const acted = aiPlayOneCombatAction(acting);
-        if (!acted) useGameStore.getState().endTurn();
+        const playedCard = aiPlayOneMainPhaseAction(acting);
+        if (playedCard) return;
+        const attacked = aiPlayOneCombatAction(acting);
+        if (!attacked) useGameStore.getState().endTurn();
       }, 650 * mult);
       return () => clearTimeout(t);
     }
@@ -355,15 +358,13 @@ export default function GameBoard() {
     if (!bottomIsActingPlayer) return "Waiting for the other player's turn...";
     if (mode.kind !== 'idle') return ''; // that mode's own ConfirmBar/prompt already explains itself
     if (state.phase === 'Start') return 'Drawing for the turn...';
-    if (state.phase === 'Main') {
+    if (state.phase === 'Main' || state.phase === 'Combat') {
       const canPlayAnything = activePlayer.hand.some((c) => canPlayCardFromHand(state, activeId, c));
-      return canPlayAnything
-        ? 'Main Phase: play an Apex, Engine, Equip, or one Special from your hand.'
-        : 'Main Phase: nothing playable right now - advance to Combat when ready.';
-    }
-    if (state.phase === 'Combat') {
       const canStillAttack = activePlayer.apexSlots.some((a) => a && !a.hasAttacked);
-      return canStillAttack ? 'Combat Phase: choose an Apex above to attack with.' : 'Combat Phase: no Apex left to attack with - End Turn.';
+      if (canPlayAnything && canStillAttack) return 'Drag a card to play it, or click an Apex to attack.';
+      if (canPlayAnything) return 'Drag a card to play it.';
+      if (canStillAttack) return 'Click an Apex to attack, or End Turn when ready.';
+      return 'Nothing left to do - End Turn when ready.';
     }
     return '';
   }
@@ -492,11 +493,20 @@ export default function GameBoard() {
       resetMode();
       return;
     }
-    // Commit 30.3 - the old click-to-select-an-attacker branch that used to
-    // live here is gone. Attacks are drag-only now: dragging a ready Apex
-    // straight onto a target is the entire flow (see onOwnApexPointerDown
-    // and handleDragDrop's apex-attack branch) - there's no more "select an
-    // attacker first" click step to replace.
+    // Commit 30.4 - reverted per direct request: attacks are click-based
+    // again, not drag. Clicking a ready Apex opens the new "blown up" attack
+    // popup (see the attackerChosen-mode render block) instead of the old
+    // inline CombatControls panel. No more explicit Combat Phase to be in
+    // first either - Main and Combat are merged (see advancePhase's own
+    // comment in gameStore.ts), so this fires any time during the player's
+    // turn the moment they click a ready Apex.
+    if (state.phase === 'Combat' || state.phase === 'Main') {
+      const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
+      if (apex && !apex.hasAttacked) {
+        if (blockedByTutorial() || isActionLocked()) return;
+        setMode({ kind: 'attackerChosen', attackerId: apexId });
+      }
+    }
   }
 
   function ownSupportClick(supportId: string) {
@@ -504,7 +514,7 @@ export default function GameBoard() {
       setMode({ kind: 'reconfigurePlay', returnId: supportId });
       return;
     }
-    if (mode.kind === 'idle' && state.phase === 'Main') {
+    if (mode.kind === 'idle' && (state.phase === 'Main' || state.phase === 'Combat')) {
       if (blockedByTutorial() || isActionLocked()) return;
       const support = activePlayer.supportSlots.find((s) => s?.instanceId === supportId);
       if (support?.type === 'AbilitySupport' && support.chainedApexId) {
@@ -674,15 +684,6 @@ export default function GameBoard() {
    *  drop lands on a legal target - see handleDragDrop's apex-attack branch -
    *  since it doesn't affect which targets are legal to drag onto in the
    *  first place. */
-  function onOwnApexPointerDown(e: React.PointerEvent, instanceId: string) {
-    if (state.phase !== 'Combat') return;
-    if (blockedByTutorial() || isActionLocked()) return;
-    const apex = activePlayer.apexSlots.find((a) => a?.instanceId === instanceId);
-    if (!apex || apex.hasAttacked) return;
-    const source: DragSource = { kind: 'apex-attack', playerId: viewerBottomId, instanceId };
-    beginPotentialDrag(e, source, legalZonesFor(state, source));
-  }
-
   /** Commit 30 - human-readable label for the drag ghost, shown by
    *  DragDropLayer while a drag is active. */
   const dragLabel = (() => {
@@ -869,7 +870,7 @@ export default function GameBoard() {
           </div>
         )}
 
-        {state.phase === 'Combat' && (
+        {state.phase === 'Combat' && mode.kind !== 'attackerChosen' && (
           <CombatControls
             apexDef={attackerDef}
             state={state}
@@ -880,6 +881,16 @@ export default function GameBoard() {
             onChooseAttack={chooseAttack}
             onCancel={resetMode}
             awaitingTarget={mode.kind === 'attackAwaitingTarget'}
+          />
+        )}
+
+        {mode.kind === 'attackerChosen' && attackerApex && (
+          <AttackSelectorModal
+            attacker={attackerApex}
+            state={state}
+            availableSync={activePlayer.availableSync}
+            onChooseAttack={chooseAttack}
+            onCancel={resetMode}
           />
         )}
 
@@ -924,7 +935,7 @@ export default function GameBoard() {
           onOpenVoid={() => setVoidInspecting(viewerBottomId)}
           containerRef={boardRef}
           drag={drag}
-          onApexAttackDragStart={bottomIsActingPlayer ? onOwnApexPointerDown : undefined}
+          onApexAttackDragStart={undefined}
         />
       </div>
 
@@ -955,16 +966,6 @@ export default function GameBoard() {
               {state.players.player2.faction} AI is taking its turn...
             </span>
           )}
-          <PhaseButton
-            label="Combat Phase"
-            active={state.phase === 'Combat'}
-            enabled={state.phase === 'Main' && !aiIsActing}
-            highlighted={false}
-            onClick={() => {
-              if (blockedByTutorial()) return;
-              state.advancePhase('Combat');
-            }}
-          />
           <button
             type="button"
             onClick={scrollSafeClick(() => state.endTurn())}
@@ -977,7 +978,7 @@ export default function GameBoard() {
           </button>
         </div>
 
-        {state.phase === 'Main' && !aiIsActing && (
+        {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
           <div className="rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <button type="button"
@@ -1036,7 +1037,7 @@ export default function GameBoard() {
           </div>
         )}
 
-        {state.phase === 'Main' && !aiIsActing && (
+        {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
           <div className="rounded-lg border border-orange-500/30 bg-[#05050a] p-1.5 text-[11px]">
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <button type="button"
@@ -1154,7 +1155,7 @@ export default function GameBoard() {
           minWidth={boardWidth}
           state={state}
           playerId={viewerBottomId}
-          onCardPointerDown={state.phase === 'Main' && bottomIsActingPlayer && !aiIsActing && !state.tutorialMode ? onHandCardPointerDown : undefined}
+          onCardPointerDown={(state.phase === 'Main' || state.phase === 'Combat') && bottomIsActingPlayer && !aiIsActing && !state.tutorialMode ? onHandCardPointerDown : undefined}
         />
       </div>
 

@@ -48,7 +48,7 @@ function opponentOf(playerId: PlayerId): PlayerId {
 export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
   const store = useGameStore.getState();
   const player = store.players[playerId];
-  if (store.status !== 'playing' || store.phase !== 'Main' || store.pendingResponseQueue.length > 0) return false;
+  if (store.status !== 'playing' || (store.phase !== 'Main' && store.phase !== 'Combat') || store.pendingResponseQueue.length > 0) return false;
 
   // Verifies a play actually went through (the card left hand) rather than being
   // silently rejected (e.g. a failed canPlay precondition, no legal target, a cost

@@ -106,7 +106,7 @@ function setupToMainPhase() {
     else if (st.phase === 'Main') st.advancePhase('Combat');
   }
   useGameStore.getState().endTurn();
-  while (useGameStore.getState().phase !== 'Main') {
+  while (useGameStore.getState().phase === 'Start') {
     const st = useGameStore.getState();
     if (st.phase === 'Start' && st.startPhasePending) st.advancePhase('Start');
     else if (st.phase === 'Start') st.advancePhase('Main');

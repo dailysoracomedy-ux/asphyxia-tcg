@@ -85,7 +85,7 @@ async function main() {
 
   // Force it to be the AI's turn in Main phase - the most common moment the AI
   // driver would otherwise act on its own fixed timer.
-  useGameStore.setState((st) => ({ ...st, activePlayerId: 'player2', phase: 'Main', startPhasePending: false }));
+  useGameStore.setState((st) => ({ ...st, activePlayerId: 'player2', phase: 'Combat', startPhasePending: false }));
 
   // Artificially hold a ceremony lock open, the same mechanism a real banner-
   // worthy event creates, and confirm the AI does not act while it's held.

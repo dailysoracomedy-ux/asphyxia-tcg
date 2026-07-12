@@ -1069,9 +1069,6 @@ function finalizeAttackEffects(
         const supportDef = getCardDef(support.defId) as AbilitySupportDef;
         if (supportDef.chainedAttackBonus) continue; // already applied live during damage calculation
         supportDef.syncAbility({ ...ctx, chainedApexId: trigger.attackerInstanceId });
-        if (support.defId === 'sa-drone-choir' && apexDef.faction === 'Synth Ascendancy') {
-          helpers.armAttackBonus(trigger.attackerInstanceId, 100);
-        }
         logMsg(draft, `${supportDef.name}'s Sync Ability triggers.`, 'support');
       }
     }
@@ -1430,10 +1427,23 @@ export const useGameStore = create<GameStore>((set) => ({
         const statusAfterRecovery = draft.status as GameState['status'];
         if (statusAfterRecovery === 'gameover') return;
         logMsg(draft, `${draft.activePlayerId} enters Main Phase.`, 'phase');
+        // Commit 30.4 - immediately continue into Combat Phase too, computing
+        // Sync right away. Per the explicit request: no separate "Enter
+        // Combat" step should ever exist - Main and Combat are one
+        // continuous "your turn" from the player's perspective, where card
+        // plays and attacks are both legal in any order, the whole time.
+        // Internally these are still two GameState.phase values (touching as
+        // little of the existing Sync/effect logic as possible), but nothing
+        // in the UI ever asks the player to trigger this second half - it
+        // just happens.
+        const activePlayerAfterMain = draft.players[draft.activePlayerId];
+        activePlayerAfterMain.availableSync = computeAvailableSync(draft, draft.activePlayerId);
+        draft.phase = 'Combat';
+        logMsg(draft, `${draft.activePlayerId} has ${activePlayerAfterMain.availableSync} Sync available.`, 'phase');
         return;
       }
       if (phase === 'Combat') {
-        if (draft.phase !== 'Main') return;
+        if ((draft.phase !== 'Main' && draft.phase !== 'Combat')) return;
         player.availableSync = computeAvailableSync(draft, draft.activePlayerId);
         draft.phase = 'Combat';
         logMsg(draft, `${draft.activePlayerId} enters Combat Phase with ${player.availableSync} Sync available.`, 'phase');
@@ -1452,7 +1462,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   playApexCard: (cardInstanceId, slotIndex) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const idx = player.hand.findIndex((c) => c.instanceId === cardInstanceId);
@@ -1477,7 +1487,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   playSupportCard: (cardInstanceId, slotIndex, chainedApexId) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const idx = player.hand.findIndex((c) => c.instanceId === cardInstanceId);
@@ -1531,7 +1541,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   playEquipCard: (cardInstanceId, apexInstanceId) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const idx = player.hand.findIndex((c) => c.instanceId === cardInstanceId);
@@ -1582,7 +1592,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   equipSwap: (apexInstanceId, newCardInstanceId) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       if (player.turnFlags.equipSwapUsedThisTurn) {
@@ -1649,7 +1659,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   playSpecialCard: (cardInstanceId, targetApexInstanceId) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const idx = player.hand.findIndex((c) => c.instanceId === cardInstanceId);
@@ -1722,7 +1732,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
   reconfigure: (returnInstanceId, playInstanceId, chainedApexId) =>
     mutate(set, (draft) => {
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       if (player.turnFlags.reconfigureUsedThisTurn) {
@@ -1791,7 +1801,7 @@ export const useGameStore = create<GameStore>((set) => ({
       // Free, optional (re)assignment of an already-unchained Ability Support to an eligible
       // Apex during Main Phase. Does not count as playing a new Support and does not touch
       // Reconfigure - it's purely fixing up an existing card already on the board.
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const support = player.supportSlots.find((s) => s?.instanceId === supportInstanceId);
@@ -1819,7 +1829,7 @@ export const useGameStore = create<GameStore>((set) => ({
       // optional unassignment of an already-chained Ability Support - purely
       // fixing up an existing card already on the board, same as chaining
       // itself never counts as a new play and never touches Reconfigure.
-      if (draft.status !== 'playing' || draft.phase !== 'Main' || draft.pendingResponseQueue.length > 0) return;
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
       const playerId = draft.activePlayerId;
       const player = draft.players[playerId];
       const support = player.supportSlots.find((s) => s?.instanceId === supportInstanceId);

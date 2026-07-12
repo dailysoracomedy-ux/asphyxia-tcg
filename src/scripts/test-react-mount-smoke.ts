@@ -89,7 +89,7 @@ async function main() {
   console.error = (...args: unknown[]) => { consoleErrors.push(args); };
   s = useGameStore.getState();
   let guard = 0;
-  while (s.status === 'playing' && (s.phase !== 'Main' || s.startPhasePending) && guard < 10) {
+  while (s.status === 'playing' && (s.phase === 'Start' || s.startPhasePending) && guard < 10) {
     guard += 1;
     if (s.phase === 'Start' && s.startPhasePending) s.advancePhase('Start');
     else s.advancePhase('Main');
