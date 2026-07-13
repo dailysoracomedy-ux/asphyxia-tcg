@@ -364,7 +364,7 @@ export default function GameBoard() {
       </>
     );
   }
-  if (state.status === 'gameover') {
+  if (state.status === 'gameover' && !ceremonyBusy) {
     return (
       <>
         <GameOverScreen />
@@ -372,7 +372,7 @@ export default function GameBoard() {
       </>
     );
   }
-  if (state.status !== 'playing') return null;
+  if (state.status !== 'playing' && !(state.status === 'gameover' && ceremonyBusy)) return null;
 
   const activeId = state.activePlayerId;
   const aiIsActing = !state.debugMode && (!!state.aiVsAiMode || (state.vsAI && activeId === 'player2'));
@@ -385,8 +385,8 @@ export default function GameBoard() {
   // it actually is - the viewport never swaps, so the human watches AI actions happen
   // on the top board while their own board/hand stays put. In Hotseat, the board still
   // swaps to whoever is active (the existing pass-and-play model).
-  const viewerBottomId: PlayerId = state.vsAI ? 'player1' : activeId;
-  const viewerTopId: PlayerId = state.vsAI ? 'player2' : oppId;
+  const viewerBottomId: PlayerId = state.vsAI || state.aiVsAiMode ? 'player1' : activeId;
+  const viewerTopId: PlayerId = state.vsAI || state.aiVsAiMode ? 'player2' : oppId;
   const bottomIsActingPlayer = viewerBottomId === activeId;
 
   // "What can I do now?" prompt (Commit 29 Flow QoL) - short, derived guidance text
@@ -1573,6 +1573,19 @@ function GameOverScreen() {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [showFallback, setShowFallback] = useState(false);
 
+  // Commit 33 - the actual result text, matching how the match was actually
+  // played rather than always showing the raw "player1"/"player2" id:
+  // - Vs AI: from the human's own perspective ("You Win!"/"You Lose!")
+  // - AI vs AI or Hotseat: the winning faction's name, since neither side is
+  //   "you" here - a real result a spectator or either human player can read
+  const winnerText = !state.winnerId
+    ? 'Draw!'
+    : state.vsAI
+    ? state.winnerId === 'player1'
+      ? 'You Win!'
+      : 'You Lose!'
+    : `${state.players[state.winnerId].faction} Won!`;
+
   useEffect(() => {
     // From the human's perspective in Vs AI mode; in Hotseat a human won either
     // way, so it's always a win worth a victory cue.
@@ -1607,7 +1620,7 @@ function GameOverScreen() {
         <div className="text-center">
           <div className="text-[11px] uppercase tracking-widest text-white/40 mb-2">Game Over</div>
           <div className="text-3xl font-black mb-2" style={{ color: theme?.primary ?? '#fff' }}>
-            {state.winnerId ? `${state.winnerId} wins!` : 'Draw!'}
+            {winnerText}
           </div>
           {loserId && <div className="text-xs text-white/40 mb-2">{loserId} lost the game.</div>}
           <div className="text-xs text-white/60 mb-4">{state.gameOverReason ?? 'The game has ended.'}</div>

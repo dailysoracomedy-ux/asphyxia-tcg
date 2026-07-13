@@ -32,12 +32,14 @@ export const useAudioStore = create<AudioSettingsState>()(
       toggleSfxMuted: () => set((s) => ({ sfxMuted: !s.sfxMuted })),
       setSfxVolume: (v) => set({ sfxVolume: Math.max(0, Math.min(1, v)) }),
 
-      // Music defaults to muted - autoplay-with-sound is broadly blocked by
-      // browsers until a real user gesture anyway, and starting silent by default
-      // is the friendlier choice regardless (nobody's ever mad their game was
-      // too quiet on first load; the opposite happens constantly).
-      musicMuted: true,
-      musicVolume: 0.35,
+      // Commit 33 - music now defaults ON. The autoplay-retry mechanism
+      // (Commit 31.1 - retries playback on the very first click/keydown if
+      // the browser blocked the initial attempt) already handles the one
+      // real risk of defaulting to on, so there's no reason to make everyone
+      // opt in by hand anymore. Volume defaults much lower too - reported
+      // directly as too loud at the old 0.35 default.
+      musicMuted: false,
+      musicVolume: 0.07,
       toggleMusicMuted: () => set((s) => ({ musicMuted: !s.musicMuted })),
       setMusicVolume: (v) => set({ musicVolume: Math.max(0, Math.min(1, v)) }),
     }),

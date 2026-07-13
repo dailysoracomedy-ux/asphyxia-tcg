@@ -81,7 +81,7 @@ export function getArtAspectRatio(cardType: string): number {
  *  reference), so this crops straight into that existing design rather than
  *  needing separate flap-only art. Tunable in one place if it needs nudging once
  *  seen rendered for real. */
-export const EQUIP_FLAP_CROP_RATIO = 0.16;
+export const EQUIP_FLAP_CROP_RATIO = 0.27;
 
 export function getCardArt(defId: string): string | undefined {
   return CARD_ART[defId];

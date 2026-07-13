@@ -7,8 +7,13 @@ import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
 import { useTutorialStore } from '@/store/tutorialStore';
 import AudioSettingsControl from '@/audio/AudioSettingsControl';
+import { playSfx } from '@/audio/sfx';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
+
+function randomFaction(): Faction {
+  return FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
+}
 
 function FactionPicker({
   label,
@@ -27,9 +32,14 @@ function FactionPicker({
           const theme = factionTheme(f);
           const active = value === f;
           return (
-            <button type="button"
+            <button
+              type="button"
               key={f}
-              onClick={() => onChange(f)}
+              onClick={() => {
+                playSfx('ui.click');
+                onChange(f);
+              }}
+              onMouseEnter={() => playSfx('ui.hover')}
               className={`text-left px-3 py-2 rounded-md border-2 transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
                 borderColor: theme.border,
@@ -49,100 +59,184 @@ function FactionPicker({
   );
 }
 
+/** A primary menu button - shared hover/click sound + glow, used for all three
+ *  main-menu options so they behave and feel identically. */
+function MenuButton({
+  label,
+  sublabel,
+  colorClass,
+  glowColorClass,
+  onClick,
+}: {
+  label: string;
+  sublabel: string;
+  colorClass: string;
+  glowColorClass: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        playSfx('ui.confirm');
+        onClick();
+      }}
+      onMouseEnter={() => playSfx('ui.hover')}
+      className={`group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:scale-[1.02] hover:brightness-110 ${colorClass} ${glowColorClass}`}
+    >
+      {label}
+      <div className="text-[10px] font-normal tracking-normal opacity-60 mt-0.5 normal-case">{sublabel}</div>
+    </button>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        playSfx('ui.click');
+        onClick();
+      }}
+      onMouseEnter={() => playSfx('ui.hover')}
+      className="text-xs text-white/40 hover:text-white/70 mb-4 flex items-center gap-1"
+    >
+      &larr; Back
+    </button>
+  );
+}
+
+type MenuView = 'main' | 'new-game' | 'simulated';
+
 export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () => void }) {
   const startNewGame = useGameStore((s) => s.startNewGame);
+  const [view, setView] = useState<MenuView>('main');
   const [p1, setP1] = useState<Faction>('Neon Underground');
   const [p2, setP2] = useState<Faction>('Dark White');
-  const [vsAI, setVsAI] = useState(true);
+  const [hotseat, setHotseat] = useState(false);
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
-      <div className="max-w-3xl w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
-        <h1 className="text-4xl font-black text-center mb-1 tracking-tight">
-          <span className="text-fuchsia-400 text-shadow-glow">ASPHYXIA</span>
-        </h1>
-        <p className="text-center text-white/40 text-xs tracking-[0.3em] mb-8">v0.2.1 · LOCAL HOTSEAT PROTOTYPE</p>
-        <div className="flex justify-center mb-6">
-          <AudioSettingsControl />
-        </div>
+      <div className="max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+        {/* Commit 33 - the real Asphyxia logo, replacing the plain text header.
+            Transparent PNG built for a dark background - fits the card's own
+            black backdrop with no extra framing needed. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full max-w-[280px] mx-auto mb-2 select-none pointer-events-none" draggable={false} />
 
-        <div className="text-center -mt-6 mb-6">
+        <div className="text-center mb-6">
           <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">
             {BUILD_VERSION}
           </span>
         </div>
 
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <span className="text-xs uppercase tracking-widest text-white/40 mr-2">Mode</span>
-          <button
-            type="button"
-            onClick={() => setVsAI(true)}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
-              vsAI ? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
-            }`}
-          >
-            Single Player
-          </button>
-          <button
-            type="button"
-            onClick={() => setVsAI(false)}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold border-2 transition-all ${
-              !vsAI ? 'border-cyan-400 text-cyan-200 bg-cyan-400/10' : 'border-white/15 text-white/40 hover:opacity-80'
-            }`}
-          >
-            2-Player
-          </button>
+        <div className="flex justify-center mb-6">
+          <AudioSettingsControl />
         </div>
 
-        <div className="flex gap-6 flex-wrap justify-center">
-          <FactionPicker label="Player 1" value={p1} onChange={setP1} />
-          <FactionPicker label={vsAI ? 'Player 2 (AI)' : 'Player 2'} value={p2} onChange={setP2} />
-        </div>
+        {view === 'main' && (
+          <div className="flex flex-col gap-3">
+            <MenuButton
+              label="New Game"
+              sublabel="Pick your deck. Your opponent's is a surprise."
+              colorClass="border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-400/10"
+              glowColorClass="hover:shadow-[0_0_20px_rgba(232,121,249,0.4)]"
+              onClick={() => setView('new-game')}
+            />
+            <MenuButton
+              label="Learn To Play"
+              sublabel="A guided walkthrough of the whole game."
+              colorClass="border-emerald-400/60 text-emerald-200 bg-emerald-400/10"
+              glowColorClass="hover:shadow-[0_0_20px_rgba(52,211,153,0.4)]"
+              onClick={() => {
+                startNewGame('Neon Underground', 'Dark White', false, false, true);
+                useTutorialStore.getState().setSlideshowActive(true);
+                useTutorialStore.getState().setSlideIndex(0);
+                useTutorialStore.getState().setStep(0);
+                useTutorialStore.getState().setHelperMessage(null);
+              }}
+            />
+            <MenuButton
+              label="Simulated Match"
+              sublabel="Watch two AI decks of your choice fight it out."
+              colorClass="border-cyan-400/60 text-cyan-200 bg-cyan-400/10"
+              glowColorClass="hover:shadow-[0_0_20px_rgba(34,211,238,0.4)]"
+              onClick={() => setView('simulated')}
+            />
 
-        <button type="button"
-          onClick={() => startNewGame(p1, p2, vsAI)}
-          className="mt-8 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
-        >
-          START NEW GAME
-        </button>
+            {onOpenDeveloper && (
+              <button
+                type="button"
+                onClick={onOpenDeveloper}
+                onMouseEnter={() => playSfx('ui.hover')}
+                className="mx-auto mt-2 text-[10px] text-white/25 hover:text-white/50 underline"
+              >
+                Developer — Apex Card Gallery
+              </button>
+            )}
+          </div>
+        )}
 
-        <div className="flex gap-3 mt-3">
-          <button
-            type="button"
-            onClick={() => {
-              startNewGame('Neon Underground', 'Dark White', false, false, true);
-              useTutorialStore.getState().setSlideshowActive(true);
-              useTutorialStore.getState().setSlideIndex(0);
-              useTutorialStore.getState().setStep(0);
-              useTutorialStore.getState().setHelperMessage(null);
-            }}
-            className="flex-1 py-2 rounded-md font-bold text-xs tracking-widest border-2 border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10 transition-all"
-          >
-            LEARN TO PLAY
-          </button>
-          <button
-            type="button"
-            onClick={() => startNewGame(p1, p2, false, true)}
-            className="flex-1 py-2 rounded-md font-bold text-xs tracking-widest border-2 border-fuchsia-400/50 text-fuchsia-300 hover:bg-fuchsia-400/10 transition-all"
-          >
-            WATCH AI VS AI
-          </button>
-        </div>
+        {view === 'new-game' && (
+          <div>
+            <BackButton onClick={() => setView('main')} />
+            <FactionPicker label="Your Deck" value={p1} onChange={setP1} />
 
-        <p className="text-center text-white/25 text-[10px] mt-4">
-          {vsAI
-            ? 'You play as Player 1. The built-in AI controls Player 2 and takes its turns automatically.'
-            : 'Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.'}
-        </p>
+            <label className="flex items-center gap-2 mt-4 text-xs text-white/50 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hotseat}
+                onChange={(e) => {
+                  playSfx('ui.click');
+                  setHotseat(e.target.checked);
+                }}
+              />
+              2-Player (pass and play — pick both decks)
+            </label>
 
-        {onOpenDeveloper && (
-          <button
-            type="button"
-            onClick={onOpenDeveloper}
-            className="block mx-auto mt-3 text-[10px] text-white/25 hover:text-white/50 underline"
-          >
-            Developer — Apex Card Gallery
-          </button>
+            {hotseat && <div className="mt-4"><FactionPicker label="Player 2's Deck" value={p2} onChange={setP2} /></div>}
+
+            <button
+              type="button"
+              onClick={() => {
+                playSfx('ui.confirm');
+                startNewGame(p1, hotseat ? p2 : randomFaction(), !hotseat);
+              }}
+              onMouseEnter={() => playSfx('ui.hover')}
+              className="mt-6 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
+            >
+              START
+            </button>
+            <p className="text-center text-white/25 text-[10px] mt-3">
+              {hotseat
+                ? 'Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.'
+                : "You play as Player 1. The opponent's deck is chosen at random, and the built-in AI controls them."}
+            </p>
+          </div>
+        )}
+
+        {view === 'simulated' && (
+          <div>
+            <BackButton onClick={() => setView('main')} />
+            <div className="flex gap-6 flex-wrap justify-center">
+              <FactionPicker label="Deck A" value={p1} onChange={setP1} />
+              <FactionPicker label="Deck B" value={p2} onChange={setP2} />
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playSfx('ui.confirm');
+                startNewGame(p1, p2, false, true);
+              }}
+              onMouseEnter={() => playSfx('ui.hover')}
+              className="mt-6 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
+            >
+              START SIMULATED MATCH
+            </button>
+            <p className="text-center text-white/25 text-[10px] mt-3">
+              Both decks are AI-controlled. Sit back and watch the match play out.
+            </p>
+          </div>
         )}
       </div>
     </div>
