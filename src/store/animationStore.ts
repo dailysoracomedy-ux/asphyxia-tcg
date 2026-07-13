@@ -22,6 +22,8 @@ export type VisualEventType =
   | 'MOMENTUM_GAINED'
   | 'MOMENTUM_SPENT'
   | 'CARD_PLACED'
+  | 'CARD_DRAWN'
+  | 'EQUIP_SWAPPED'
   | 'ENGINE_TRIGGER'
   | 'RIFT_TRIGGER';
 

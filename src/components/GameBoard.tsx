@@ -115,6 +115,7 @@ export default function GameBoard() {
   function tutorialGate(matches: boolean, rejectMessage: string): boolean {
     if (!state.tutorialMode) return false;
     if (matches) return false;
+    playSfx('ui.invalid');
     useTutorialStore.getState().setHelperMessage(rejectMessage);
     return true;
   }
@@ -737,6 +738,7 @@ export default function GameBoard() {
       resetMode();
       if (state.tutorialMode) tutorialAdvance();
     } else if (result.reason) {
+      playSfx('ui.invalid');
       setActionToast(state.tutorialMode ? 'That card doesn\u2019t go there. Try the glowing zone.' : result.reason);
     }
   }
@@ -1494,7 +1496,14 @@ function ConfirmBar({
       <span className="text-yellow-200">{text}</span>
       <div className="flex gap-2 shrink-0">
         {onConfirm && (
-          <button type="button" onClick={onConfirm} className="px-2 py-1 rounded bg-yellow-300 text-black font-bold">
+          <button
+            type="button"
+            onClick={() => {
+              playSfx('ui.confirm');
+              onConfirm();
+            }}
+            className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
+          >
             {confirmLabel}
           </button>
         )}

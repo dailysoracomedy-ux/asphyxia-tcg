@@ -1,21 +1,22 @@
 /**
- * Reusable SFX framework (Commit 25). No sound assets exist yet, so every key
- * below is a small synthesized tone via the Web Audio API rather than an
- * <audio>/mp3 file - this is explicitly allowed by the spec ("optionally use
- * simple generated browser oscillator blips... if not appropriate and not
- * annoying") and means the framework is fully wired and usable today, with real
- * sound files a drop-in swap later (see NOTE at the bottom) rather than a second
- * build pass.
+ * Reusable SFX framework (Commit 25). Commit 32 - swapped the synthesized
+ * placeholder tones for the real sound set, one real file per key
+ * (public/audio/sfx/{key}.m4a - converted from the supplied source files to
+ * compact AAC/m4a, ~790KB total for all 25), exactly the drop-in swap the
+ * original NOTE at the bottom of this file anticipated - the public API
+ * (playSfx(key)) and every call site elsewhere in the app needed zero
+ * changes.
  *
  * Safety, all handled here so no caller needs to think about it:
- * - a single shared AudioContext, created lazily on first real playback attempt
- *   (never at module load, which can throw/warn under browser autoplay policies)
  * - every playback wrapped in try/catch; a failure here can never throw into
  *   game logic, matching the same defensive pattern gameStore.ts's emitVfx uses
  * - respects useAudioStore's mute/volume settings, read fresh on every call
  * - does nothing at all outside a browser (Node/simulate.ts/tests never trigger
  *   this path in the first place, since it's only ever invoked from a mounted
  *   React component's effect, never from gameStore.ts or rules.ts directly)
+ * - a small pool of Audio elements per key (not just one), so a fast run of
+ *   the same event (several hits in quick succession, for instance) overlaps
+ *   naturally instead of the second play cutting the first one off
  */
 import { useAudioStore } from '@/store/audioStore';
 
@@ -52,130 +53,69 @@ export type SfxKey =
   | 'match.victory'
   | 'match.defeat';
 
-interface Tone {
-  freq: number;
-  durationMs: number;
-  type?: OscillatorType;
-  gain?: number; // 0-1, relative to the user's volume setting
-  delayMs?: number; // for multi-note sequences
-}
+const SFX_SRC: Record<SfxKey, string> = {
+  'ui.click': '/audio/sfx/ui.click.m4a',
+  'ui.hover': '/audio/sfx/ui.hover.m4a',
+  'ui.invalid': '/audio/sfx/ui.invalid.m4a',
+  'ui.confirm': '/audio/sfx/ui.confirm.m4a',
 
-/** One or more tones per key - a sequence plays as a tiny melodic/rhythmic
- *  phrase (used for victory/defeat and a couple of the more "eventful" cues)
- *  rather than needing a separate sequencing system. */
-const SFX_TONES: Record<SfxKey, Tone[]> = {
-  'ui.click': [{ freq: 880, durationMs: 35, type: 'square', gain: 0.5 }],
-  'ui.hover': [{ freq: 660, durationMs: 25, type: 'sine', gain: 0.25 }],
-  'ui.invalid': [{ freq: 180, durationMs: 120, type: 'sawtooth', gain: 0.5 }],
-  'ui.confirm': [{ freq: 720, durationMs: 60, type: 'triangle', gain: 0.5 }],
+  'card.draw': '/audio/sfx/card.draw.m4a',
+  'card.apexPlay': '/audio/sfx/card.apexPlay.m4a',
+  'card.enginePlay': '/audio/sfx/card.enginePlay.m4a',
+  'card.equipAttach': '/audio/sfx/card.equipAttach.m4a',
+  'card.equipSwap': '/audio/sfx/card.equipSwap.m4a',
+  'card.specialPlay': '/audio/sfx/card.specialPlay.m4a',
+  'card.reactPlay': '/audio/sfx/card.reactPlay.m4a',
+  'card.negatePlay': '/audio/sfx/card.negatePlay.m4a',
 
-  'card.draw': [{ freq: 500, durationMs: 60, type: 'sine', gain: 0.4 }],
-  'card.apexPlay': [
-    { freq: 220, durationMs: 90, type: 'triangle', gain: 0.55 },
-    { freq: 330, durationMs: 110, type: 'triangle', gain: 0.45, delayMs: 60 },
-  ],
-  'card.enginePlay': [{ freq: 300, durationMs: 130, type: 'sine', gain: 0.5 }],
-  'card.equipAttach': [
-    { freq: 260, durationMs: 70, type: 'square', gain: 0.4 },
-    { freq: 520, durationMs: 90, type: 'square', gain: 0.4, delayMs: 50 },
-  ],
-  'card.equipSwap': [
-    { freq: 520, durationMs: 60, type: 'square', gain: 0.4 },
-    { freq: 260, durationMs: 90, type: 'square', gain: 0.4, delayMs: 60 },
-  ],
-  'card.specialPlay': [{ freq: 700, durationMs: 130, type: 'triangle', gain: 0.5 }],
-  'card.reactPlay': [{ freq: 900, durationMs: 100, type: 'sine', gain: 0.5 }],
-  'card.negatePlay': [
-    { freq: 900, durationMs: 60, type: 'sawtooth', gain: 0.5 },
-    { freq: 160, durationMs: 140, type: 'sawtooth', gain: 0.55, delayMs: 50 },
-  ],
+  'combat.attackDeclare': '/audio/sfx/combat.attackDeclare.m4a',
+  'combat.hit': '/audio/sfx/combat.hit.m4a',
+  'combat.heavyHit': '/audio/sfx/combat.heavyHit.m4a',
+  'combat.directO2': '/audio/sfx/combat.directO2.m4a',
+  'combat.overflow': '/audio/sfx/combat.overflow.m4a',
+  'combat.destroy': '/audio/sfx/combat.destroy.m4a',
 
-  'combat.attackDeclare': [{ freq: 340, durationMs: 90, type: 'sawtooth', gain: 0.5 }],
-  'combat.hit': [{ freq: 150, durationMs: 90, type: 'square', gain: 0.55 }],
-  'combat.heavyHit': [{ freq: 100, durationMs: 160, type: 'square', gain: 0.65 }],
-  'combat.directO2': [{ freq: 200, durationMs: 140, type: 'sawtooth', gain: 0.55 }],
-  'combat.overflow': [{ freq: 130, durationMs: 180, type: 'sawtooth', gain: 0.6 }],
-  'combat.destroy': [
-    { freq: 400, durationMs: 80, type: 'sawtooth', gain: 0.55 },
-    { freq: 90, durationMs: 220, type: 'sawtooth', gain: 0.6, delayMs: 70 },
-  ],
+  'resource.o2Loss': '/audio/sfx/resource.o2Loss.m4a',
+  'resource.momentumGain': '/audio/sfx/resource.momentumGain.m4a',
+  'resource.momentumSpend': '/audio/sfx/resource.momentumSpend.m4a',
 
-  'resource.o2Loss': [{ freq: 260, durationMs: 90, type: 'sine', gain: 0.4 }],
-  'resource.momentumGain': [{ freq: 660, durationMs: 80, type: 'triangle', gain: 0.45 }],
-  'resource.momentumSpend': [{ freq: 440, durationMs: 70, type: 'triangle', gain: 0.4 }],
+  'engine.trigger': '/audio/sfx/engine.trigger.m4a',
+  'rift.trigger': '/audio/sfx/rift.trigger.m4a',
 
-  'engine.trigger': [{ freq: 380, durationMs: 90, type: 'sine', gain: 0.4 }],
-  'rift.trigger': [{ freq: 250, durationMs: 200, type: 'sine', gain: 0.45 }],
-
-  'match.victory': [
-    { freq: 523, durationMs: 130, type: 'triangle', gain: 0.55 },
-    { freq: 659, durationMs: 130, type: 'triangle', gain: 0.55, delayMs: 120 },
-    { freq: 784, durationMs: 220, type: 'triangle', gain: 0.6, delayMs: 240 },
-  ],
-  'match.defeat': [
-    { freq: 300, durationMs: 160, type: 'sawtooth', gain: 0.5 },
-    { freq: 220, durationMs: 160, type: 'sawtooth', gain: 0.5, delayMs: 140 },
-    { freq: 140, durationMs: 320, type: 'sawtooth', gain: 0.55, delayMs: 280 },
-  ],
+  'match.victory': '/audio/sfx/match.victory.m4a',
+  'match.defeat': '/audio/sfx/match.defeat.m4a',
 };
 
-let ctx: AudioContext | null = null;
-function getContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  if (ctx) return ctx;
-  try {
-    const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return null;
-    ctx = new Ctor();
-    return ctx;
-  } catch {
-    return null;
+const POOL_SIZE = 3;
+const pools = new Map<SfxKey, HTMLAudioElement[]>();
+const poolCursor = new Map<SfxKey, number>();
+
+function getPool(key: SfxKey): HTMLAudioElement[] {
+  let pool = pools.get(key);
+  if (!pool) {
+    pool = Array.from({ length: POOL_SIZE }, () => {
+      const el = new Audio(SFX_SRC[key]);
+      el.preload = 'auto';
+      return el;
+    });
+    pools.set(key, pool);
+    poolCursor.set(key, 0);
   }
+  return pool;
 }
 
-function playTone(audioCtx: AudioContext, tone: Tone, masterVolume: number) {
-  const osc = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  osc.type = tone.type ?? 'sine';
-  osc.frequency.value = tone.freq;
-  const peakGain = (tone.gain ?? 0.5) * masterVolume;
-  const startAt = audioCtx.currentTime + (tone.delayMs ?? 0) / 1000;
-  const endAt = startAt + tone.durationMs / 1000;
-  // Quick attack, exponential-ish decay to a near-zero floor - avoids the sharp
-  // "click" a hard cutoff would otherwise produce at the end of every tone.
-  gainNode.gain.setValueAtTime(0, startAt);
-  gainNode.gain.linearRampToValueAtTime(peakGain, startAt + 0.008);
-  gainNode.gain.exponentialRampToValueAtTime(Math.max(0.0001, peakGain * 0.01), endAt);
-  osc.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  osc.start(startAt);
-  osc.stop(endAt + 0.02);
-}
-
-/** Play a sound effect by key. Safe to call from anywhere in a mounted React
- *  component - does nothing (silently) if muted, if audio can't initialize, or
- *  if the browser blocks playback for any reason. Never throws. */
 export function playSfx(key: SfxKey) {
   try {
     const { sfxMuted, sfxVolume } = useAudioStore.getState();
     if (sfxMuted || sfxVolume <= 0) return;
-    const audioCtx = getContext();
-    if (!audioCtx) return;
-    if (audioCtx.state === 'suspended') {
-      // Best-effort - browsers require a user gesture to resume; if this fails,
-      // the tone below simply won't be audible yet, but nothing throws either way.
-      audioCtx.resume().catch(() => {});
-    }
-    for (const tone of SFX_TONES[key]) playTone(audioCtx, tone, sfxVolume);
+    const pool = getPool(key);
+    const i = poolCursor.get(key) ?? 0;
+    const el = pool[i];
+    poolCursor.set(key, (i + 1) % pool.length);
+    el.currentTime = 0;
+    el.volume = Math.max(0, Math.min(1, sfxVolume));
+    el.play().catch(() => {});
   } catch {
     // Audio is enhancement-only - never let a playback failure affect anything else.
   }
 }
-
-/*
- * NOTE for swapping in real sound files later: replace playTone's internals with
- * an <audio>/HTMLAudioElement (or decoded AudioBuffer) lookup keyed by the same
- * SfxKey, pooling a few instances per key for overlapping playback if needed. The
- * public API (playSfx(key)) and every call site elsewhere in the app would not
- * need to change at all.
- */

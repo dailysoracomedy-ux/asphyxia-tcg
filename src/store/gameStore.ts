@@ -172,6 +172,7 @@ function runStartPhase(draft: GameState) {
   logMsg(draft, `--- Turn ${draft.turnNumber}: ${playerId} (${player.faction}) - Draw Phase ---`, 'phase');
 
   drawCardsFn(draft, playerId, 1);
+  emitVfx({ type: 'CARD_DRAWN', playerId });
 
   if (draft.riftSpace) {
     switch (draft.riftSpace.id) {
@@ -1654,6 +1655,7 @@ export const useGameStore = create<GameStore>((set) => ({
       const negatingPlayerId = otherPlayer(playerId);
 
       logMsg(draft, `${playerId} plays ${def.name} (Equip Swap).`, 'play');
+      emitVfx({ type: 'EQUIP_SWAPPED', apexInstanceId, faction, cardDefId: card.defId }, 1000);
       maybeTriggerRecursiveFailureSecondCard(draft, playerId);
       const opened = maybeOpenResponseWindow(
         draft,

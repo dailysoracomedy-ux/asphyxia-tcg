@@ -3,6 +3,7 @@
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import Card from './Card';
 import { canPlayCardFromHand, getCardPlayabilityReason } from '@/lib/cardPlayability';
+import { playSfx } from '@/audio/sfx';
 
 interface HandProps {
   cards: CardInstance[];
@@ -66,7 +67,7 @@ export default function Hand({
               ? 'tutorial-target'
               : 'tutorial-dim';
           return (
-            <div key={c.instanceId} title={reason ?? undefined}>
+            <div key={c.instanceId} title={reason ?? undefined} onMouseEnter={playable ? () => playSfx('ui.hover') : undefined}>
               <Card
                 instance={c}
                 size="hand"
