@@ -235,7 +235,7 @@ export function ApexOverlayLayer({
                 }`}
                 style={{
                   left: `${z.attacks.leftZone.left}%`,
-                  top: `${top - 2}%`,
+                  top: `${top - 0.4}%`,
                   width: `${z.attacks.valueZone.left + z.attacks.valueZone.width - z.attacks.leftZone.left}%`,
                   height: '4%',
                 }}

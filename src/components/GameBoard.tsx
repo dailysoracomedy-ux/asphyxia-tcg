@@ -858,7 +858,7 @@ export default function GameBoard() {
     >
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
-      <TutorialOverlay onBlockedClick={() => setActionToast('Follow the tutorial step first.')} />
+      <TutorialOverlay />
       {state.tutorialMode && <TutorialPanel />}
       {actionToast && (
         <div className="fixed top-[8%] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg border-2 border-yellow-400/60 bg-[#05050ae8] text-yellow-200 text-sm font-bold shadow-[0_0_20px_rgba(250,204,21,0.3)] pointer-events-none">
