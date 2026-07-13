@@ -3198,6 +3198,153 @@ false failure against a feature that was deliberately redesigned.
 this commit, one obsoleted-by-redesign test removed) and a fresh 72-game
 simulation both ran clean, plus clean `tsc`/`eslint`/build.
 
+## Hotfix (bundled with 31): attack popup card size
+
+Reported directly, bundled into this commit rather than shipped separately:
+the enlarged Apex card in the attack popup needed to be bigger. Switched back
+to the `xl` size preset (380&times;532, up from `lg`'s 200&times;280). Safe to
+do now specifically because Commit 30.5 already removed the CSS
+`transform: scale()` that was the actual cause of `xl` looking (and
+behaving) wrong originally - the size preset itself was never the problem.
+
+## Commit 31: Tutorial Rebuild - intro slideshow + a genuinely guided match
+
+The tutorial's third major architectural pivot. Commit 29.17 deliberately
+removed all real player interaction from the tutorial - a fully scripted,
+Continue-only walkthrough - specifically to eliminate a whole class of
+softlock/desync bugs that had plagued earlier, more interactive versions.
+This commit deliberately reverses that decision, per direct request: the
+tutorial should feel like the real game with training wheels on, not a
+slideshow of the game playing itself. Worth being honest up front - reversing
+a decision that was made for real, previously-documented reasons is exactly
+the kind of change most likely to reintroduce old bugs, so the React-response
+softlock safety got specific, direct attention (see below), not just a
+"should be fine" assumption.
+
+### Part 1 - the intro slideshow
+
+A new `TutorialSlideshow` component (`src/tutorial/TutorialSlideshow.tsx`)
+shows before the match board exists at all - nine slides (Apex, Engine,
+Battery Engine, Ability Engine, Equip, Special, React, O2/Momentum/Rift
+Space, and a transition slide), each showing a real card at large size with
+plain-language explanation, Continue-driven. `useTutorialStore`'s new
+`slideshowActive` flag (defaults true) gates `GameBoard.tsx`'s very first
+render check - while it's true, the slideshow renders instead of the match
+board entirely, at a higher z-index (70) than anything else in the game, so
+nothing underneath is reachable. The final slide's "Start Tutorial Match"
+button sets `slideshowActive` to false, revealing the match board - which
+was already fully initialized underneath the whole time, just not visible.
+
+### Part 2 - the guided match: how the restrictions actually work
+
+**The core idea**: a new `GuidedAction` type (`tutorialSteps.ts`) describes
+the one specific real action each step is waiting on - `playApex`,
+`playEngine`, `playEquip`, `playSpecial`, `playReact`, `riftChoice`,
+`declareAttack`, `selectAttack`, `selectTarget`. Every interaction point that
+could act on the board now checks through one function, `tutorialGate`
+(`GameBoard.tsx`) - outside tutorial mode it's a no-op, so normal play is
+completely unaffected; inside a guided step, it only allows the action that
+step's `GuidedAction` actually specifies, and shows a brief, friendly
+rejection message otherwise (not a hard block with no explanation).
+
+**Drag-and-drop is entirely reused, not duplicated.** The gate sits at the
+drag *start* (a hand card's `onPointerDown`) - only the correct card is ever
+allowed to begin a drag at all during a guided step, so `legalZonesFor`/
+`resolveDrop` (Commit 30's real, validated drag-drop pipeline) run completely
+unmodified underneath. Wrong-zone drops still go through the exact same
+rejection path a normal illegal drop already used, just with tutorial-
+specific wording. No parallel rules engine, no fake tutorial-only card
+movement - every guided action is the same real store action normal play
+uses, called through the same real handler.
+
+**Highlighting** extends `Card.tsx`'s existing `highlight` prop with two new
+states, `tutorial-target` (a standing spotlight ring, reusing the
+`.tutorial-spotlight` CSS class and dim/lockdown overlay system that already
+existed in the codebase from an earlier, pre-29.17 tutorial version - found
+and reactivated rather than rebuilt) and `tutorial-dim` (reduced opacity,
+`pointer-events: none` - the wrong cards are genuinely inert, not just
+visually muted). The one structural wrinkle: this highlighting needed to
+apply directly at the outer wrapper Card.tsx actually renders for real
+gameplay cards (`ApexCardRenderer`/`GenericArtCard`), not the older
+`highlight`-driven styling that only affected a fallback render path nothing
+in real gameplay ever uses - the same class of gap Commit 30.1's drag fix
+found and fixed for click handlers.
+
+**Auto-advance** happens at the exact point a guided action is confirmed
+correct and genuinely resolves - never speculatively, never on a generic
+state-watcher. A successful drag calls `tutorialAdvance()` right after
+`resolveDrop` reports success; the attack popup, the response modal, and the
+Rift prompt each do the same at their own real resolution points.
+
+### React response-window softlock safety - the part most worth being careful about
+
+The opponent's attack is still scripted (the player doesn't control the
+opponent, so there's nothing to "guide" there) via
+`tutorialRunScriptedOpponentTurn`, unchanged from the prior architecture and
+still real, validated game actions under the hood. Called with
+`expectsPlayerResponse: true`, which is the actual safety mechanism: the
+scripted sequence will not auto-pass the response window it opens, and will
+not call `endTurn()` until the response queue is genuinely empty - i.e. until
+the player's own real click on the highlighted React resolves it. The
+highlighted React itself is guaranteed present and affordable
+(`tutorialEnsureReactReady`, unchanged, an existing helper), and
+`ReactionPrompt`'s old hardcoded `if (tutorialMode) eligible = []` (which
+routed every tutorial response through direct store calls, bypassing this UI
+entirely) is gone - the real modal, with the real eligible React list, is
+what the player sees and clicks now. Pass is explicitly rejected with a
+helper message during this specific step, so there's no way to skip past the
+moment being taught.
+
+### A real design bug found and fixed while building this
+
+The original guided sequence tried to have the player play a second Engine
+on the same turn as the first. A real, existing game rule - one Support per
+turn - silently rejected that every time (the card correctly rendered
+disabled), which an end-to-end test caught directly rather than a symptom
+being guessed at. Fixed by moving the second Engine to a fresh turn (right
+after the Rift choice, which naturally begins a new turn) where it's legal.
+A related consequence, also respecting "don't change Sync math" rather than
+working around it: Sync is computed once at the start of Combat Phase and
+doesn't retroactively increase when a new Engine is played mid-turn, so the
+final attack step targets the 1-Sync attack (genuinely available) rather
+than a higher one that would have required an additional full turn cycle.
+
+### Known limitations
+
+The end-to-end test needed a real fix for its own timing (a retry loop
+re-querying the DOM before each drag attempt) to reliably drive several
+drags in a row without a flaky race - the underlying drag mechanism itself
+was never the issue (confirmed directly: `legalZonesFor` returned correct
+results when called directly even on attempts where the simulated pointer
+event didn't register), this was jsdom/test-timing specific. Worth a real
+hands-on pass to confirm the pacing feels right in an actual browser, same
+as every interaction-heavy commit before this one.
+
+### Manual test results (from the spec's own 21-step script)
+
+Verified via a full, real, end-to-end automated test
+(`test-tutorial-guided-match.ts`) driving actual simulated drags and clicks
+through the mounted board - not step data or store actions checked in
+isolation: opening hand renders, the correct Apex/Engine/Equip/Special are
+each spotlighted and playable while others are inert, the Equip attaches
+with the real equip flow, the Special resolves through the Action Zone, the
+opponent's attack genuinely opens a real response window that does not
+resolve early, the highlighted React genuinely negates it and the tutorial
+advances only after that real resolution, the Civil War Rift choice
+genuinely triggers Momentum-behind logic and only the correct option
+responds, the second Engine plays on the new turn, the real enlarged attack
+selector opens on an Apex click with the correct Sync row highlighted, and
+completing the attack against the enemy Apex genuinely reduces O2 to 0 and
+reaches the victory step. Also verified the slideshow renders all nine
+slides in order before the match board exists, dismisses cleanly into it,
+and that normal matches, AI vs AI, and the full existing regression suite
+remain completely unaffected.
+
+**Verified**: full regression suite (740+ checks across 41 files, three new
+this commit - the guided-match end-to-end test, the slideshow test, plus one
+obsolete fully-scripted test removed) and a fresh 72-game simulation both ran
+clean, plus clean `tsc`/`eslint`/build.
+
 ## Verifying it yourself
 
 `npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
