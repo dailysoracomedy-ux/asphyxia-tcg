@@ -5,6 +5,7 @@ import type { Faction } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { factionTheme } from '@/lib/theme';
 import { BUILD_VERSION } from '@/lib/version';
+import { useTutorialStore } from '@/store/tutorialStore';
 import AudioSettingsControl from '@/audio/AudioSettingsControl';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
@@ -108,7 +109,13 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         <div className="flex gap-3 mt-3">
           <button
             type="button"
-            onClick={() => startNewGame('Neon Underground', 'Dark White', false, false, true)}
+            onClick={() => {
+              startNewGame('Neon Underground', 'Dark White', false, false, true);
+              useTutorialStore.getState().setSlideshowActive(true);
+              useTutorialStore.getState().setSlideIndex(0);
+              useTutorialStore.getState().setStep(0);
+              useTutorialStore.getState().setHelperMessage(null);
+            }}
             className="flex-1 py-2 rounded-md font-bold text-xs tracking-widest border-2 border-emerald-400/50 text-emerald-300 hover:bg-emerald-400/10 transition-all"
           >
             LEARN TO PLAY

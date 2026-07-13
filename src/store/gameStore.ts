@@ -721,6 +721,27 @@ export function tutorialRunFullyScriptedTurn(
   setTimeout(runNext, SCRIPTED_OPPONENT_STEP_DELAY_MS);
 }
 
+/** Commit 31 - directly engineers "player1 is behind on O2" so the Civil War
+ *  Rift choice (this tutorial's fixed Neon Underground vs Dark White matchup
+ *  always uses Civil War - see determineRiftSpace in game/rifts.ts) triggers
+ *  naturally at the start of player1's next turn, rather than leaving it to
+ *  chance whether the scripted opponent's attack happened to land enough
+ *  real damage. Same established pattern as tutorialEnsureFinishingBlow/
+ *  tutorialEnsureReactReady below - a direct, guaranteed setup for a specific
+ *  teaching moment, not a change to how the Rift itself works. */
+export function tutorialSetupCivilWarBehind() {
+  useGameStore.setState((st) => {
+    if (!st.tutorialMode) return st;
+    return {
+      players: {
+        ...st.players,
+        player1: { ...st.players.player1, o2: 8 },
+        player2: { ...st.players.player2, o2: 12 },
+      },
+    };
+  });
+}
+
 export function tutorialEnsureFinishingBlow() {
   useGameStore.setState((st) => {
     if (!st.tutorialMode) return st;
@@ -1253,14 +1274,21 @@ export const useGameStore = create<GameStore>((set) => ({
         // clean break - see the fuller explanation right at that placement.
         if (tutorialMode && pid === 'player1') {
           const byDefId = (defId: string) => deck.find((c) => c.defId === defId);
+          const allByDefId = (defId: string) => deck.filter((c) => c.defId === defId);
+          // Commit 31 - rebuilt for the new guided match flow (real
+          // drag-and-drop, not scripted plays). Two Dead Battery copies (one
+          // before combat, one is the "reach 3 Sync" third Engine moment),
+          // Smog Jacket named explicitly by the design doc, Overclock for the
+          // Special step, Glitch Step for the real React step, Juice-Box as
+          // a second Engine source so there's always a legal third Engine to
+          // play even if a Dead Battery copy got drawn earlier by chance.
           const priority = [
             byDefId('nu-street-beast'),
-            byDefId('nu-dead-battery'),
-            byDefId('nu-plasma-edge'),
+            ...allByDefId('nu-dead-battery'),
+            byDefId('nu-smog-jacket'),
             byDefId('nu-overclock'),
             byDefId('nu-glitch-step'),
-            byDefId('nu-riot-runner'),
-            byDefId('nu-static-jack'),
+            ...allByDefId('nu-juice-box'),
           ].filter((c): c is CardInstance => !!c);
           const rest = deck.filter((c) => !priority.includes(c));
           deck = [...priority, ...rest];

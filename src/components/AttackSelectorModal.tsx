@@ -5,6 +5,8 @@ import type { ApexDef, CardInstance, GameState } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { getPreviewAttackDamage } from '@/game/rules';
 import Card from './Card';
+import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
+import { useTutorialStore } from '@/store/tutorialStore';
 
 /**
  * Commit 30.4 introduced this as a popup with the card next to a separate row
@@ -54,6 +56,11 @@ export default function AttackSelectorModal({
   }
   const affordableAttackIds = new Set(def.attacks.filter((a) => a.syncCost <= availableSync).map((a) => a.id));
 
+  const tutorialStep = useTutorialStore((s) => s.step);
+  const guided = state.tutorialMode ? TUTORIAL_STEPS[tutorialStep]?.guided : undefined;
+  const tutorialHighlightAttackId =
+    guided?.kind === 'selectAttack' ? def.attacks.find((a) => a.syncCost === guided.syncCost)?.id ?? null : null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 p-4"
@@ -64,12 +71,13 @@ export default function AttackSelectorModal({
         <div className="drop-shadow-[0_25px_70px_rgba(0,0,0,0.85)] rounded-md ring-2 ring-emerald-300/40">
           <Card
             instance={attacker}
-            size="lg"
+            size="xl"
             disableHoverPreview
             attackSelectMode
             affordableAttackIds={affordableAttackIds}
             onSelectAttack={onChooseAttack}
             attackPreviews={attackPreviews}
+            tutorialHighlightAttackId={tutorialHighlightAttackId}
           />
         </div>
         <div className="text-[11px] uppercase tracking-widest text-white/60">Hover an attack, click to select</div>

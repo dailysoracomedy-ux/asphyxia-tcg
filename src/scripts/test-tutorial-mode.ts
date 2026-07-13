@@ -68,7 +68,14 @@ async function main() {
   const hand = s.players.player1.hand;
   check('the scripted opening hand actually contains an Apex (needed for opening selection)', hand.some((c) => c.type === 'Apex'));
   check('the scripted opening hand actually contains an Engine (Battery or Ability Support)', hand.some((c) => c.type === 'BatterySupport' || c.type === 'AbilitySupport'));
-  check('the scripted opening hand actually contains an Equip (ideally Plasma Edge)', hand.some((c) => c.type === 'Equip'));
+  check('the scripted opening hand actually contains an Equip (Smog Jacket)', hand.some((c) => c.type === 'Equip'));
+
+  const { useTutorialStore } = await import('@/store/tutorialStore');
+  // Commit 31 - the intro slideshow renders first now, by design, and blocks
+  // the match board until dismissed. Skip past it here since this test is
+  // specifically about the match-board panel, not the slideshow itself
+  // (which has its own coverage - see test-tutorial-slideshow.ts).
+  useTutorialStore.getState().setSlideshowActive(false);
 
   const container = dom.window.document.getElementById('root')!;
   const root = createRoot(container as unknown as Element);
@@ -78,7 +85,6 @@ async function main() {
   const html1 = container.innerHTML;
   check('the tutorial panel actually renders during opening Apex selection', html1.includes('Learn To Play') && html1.includes('Step 1'));
 
-  const { useTutorialStore } = await import('@/store/tutorialStore');
   useTutorialStore.getState().setStep(3);
   await new Promise((r) => setTimeout(r, 150));
   const html2 = container.innerHTML;

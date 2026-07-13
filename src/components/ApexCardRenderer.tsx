@@ -36,6 +36,7 @@ interface ApexCardRendererProps {
   attackSelectMode?: boolean;
   affordableAttackIds?: Set<string>;
   onSelectAttack?: (attackId: string) => void;
+  tutorialHighlightAttackId?: string | null;
 }
 
 /**
@@ -60,6 +61,7 @@ export default function ApexCardRenderer({
   attackSelectMode,
   affordableAttackIds,
   onSelectAttack,
+  tutorialHighlightAttackId,
 }: ApexCardRendererProps) {
   const def = getCardDef(instance.defId) as ApexDef;
 
@@ -85,6 +87,7 @@ export default function ApexCardRenderer({
         attackSelectMode={attackSelectMode}
         affordableAttackIds={affordableAttackIds}
         onSelectAttack={onSelectAttack}
+        tutorialHighlightAttackId={tutorialHighlightAttackId}
       />
       {footer}
     </>

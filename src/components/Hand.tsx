@@ -27,9 +27,27 @@ interface HandProps {
    *  never do anything, and this keeps that explicit rather than relying on
    *  an empty legal-zone set to silently no-op. */
   onCardPointerDown?: (e: React.PointerEvent, card: CardInstance) => void;
+  /** Commit 31 - during a guided tutorial step, exactly one hand card is the
+   *  correct one to drag. That card gets the spotlight; everything else in
+   *  hand dims and stops responding to pointer events entirely (not just
+   *  disabled styling - the tutorial's whole point is that only the
+   *  correct thing can be touched right now). */
+  tutorialSpotlightInstanceId?: string | null;
 }
 
-export default function Hand({ cards, selectedId, onSelect, disabledIds, label, onInspectCard, minWidth, state, playerId, onCardPointerDown }: HandProps) {
+export default function Hand({
+  cards,
+  selectedId,
+  onSelect,
+  disabledIds,
+  label,
+  onInspectCard,
+  minWidth,
+  state,
+  playerId,
+  onCardPointerDown,
+  tutorialSpotlightInstanceId,
+}: HandProps) {
   return (
     <div
       className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[168px] shrink-0 w-fit max-w-full mx-auto"
@@ -41,6 +59,12 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label, 
         {cards.map((c) => {
           const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
           const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
+          const tutorialHighlight: 'tutorial-target' | 'tutorial-dim' | null =
+            tutorialSpotlightInstanceId === undefined
+              ? null
+              : c.instanceId === tutorialSpotlightInstanceId
+              ? 'tutorial-target'
+              : 'tutorial-dim';
           return (
             <div key={c.instanceId} title={reason ?? undefined}>
               <Card
@@ -49,8 +73,9 @@ export default function Hand({ cards, selectedId, onSelect, disabledIds, label, 
                 selected={selectedId === c.instanceId}
                 disabled={disabledIds?.has(c.instanceId)}
                 isPlayable={playable}
+                highlight={tutorialHighlight}
                 onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
-                onPointerDown={playable && onCardPointerDown ? (e) => onCardPointerDown(e, c) : undefined}
+                onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
                 onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
               />
             </div>

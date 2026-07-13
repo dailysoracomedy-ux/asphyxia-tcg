@@ -166,6 +166,7 @@ export function ApexOverlayLayer({
   attackSelectMode,
   affordableAttackIds,
   onSelectAttack,
+  tutorialHighlightAttackId,
 }: {
   instance: CardInstance;
   apexDef: ApexDef;
@@ -189,6 +190,10 @@ export function ApexOverlayLayer({
    *  button list enforced. */
   affordableAttackIds?: Set<string>;
   onSelectAttack?: (attackId: string) => void;
+  /** Commit 31 - during a guided tutorial choose-attack step, the one
+   *  correct attack row gets a standing spotlight ring even before hover,
+   *  so the player knows which one to click without having to guess. */
+  tutorialHighlightAttackId?: string | null;
 }) {
   const z = APEX_TEMPLATE_ZONES;
   const [hoveredAttackId, setHoveredAttackId] = useState<string | null>(null);
@@ -212,7 +217,8 @@ export function ApexOverlayLayer({
         const shown = attackDamages[atk.id] ?? atk.baseDamage;
         const delta = getValueDeltaState(atk.baseDamage, shown);
         const affordable = !attackSelectMode || (affordableAttackIds?.has(atk.id) ?? true);
-        const isHovered = attackSelectMode && affordable && hoveredAttackId === atk.id;
+        const isTutorialTarget = attackSelectMode && tutorialHighlightAttackId === atk.id;
+        const isHovered = attackSelectMode && affordable && (hoveredAttackId === atk.id || isTutorialTarget);
         return (
           <div key={atk.id}>
             {attackSelectMode && (
@@ -224,7 +230,7 @@ export function ApexOverlayLayer({
                 onMouseLeave={() => setHoveredAttackId((cur) => (cur === atk.id ? null : cur))}
                 className={`absolute rounded-sm transition-colors ${
                   affordable
-                    ? 'cursor-pointer bg-transparent hover:bg-white/85 hover:ring-1 hover:ring-emerald-300'
+                    ? `cursor-pointer hover:bg-white/85 hover:ring-1 hover:ring-emerald-300 ${isTutorialTarget ? 'bg-white/85 ring-2 ring-emerald-300 animate-pulse' : 'bg-transparent'}`
                     : 'cursor-not-allowed opacity-40'
                 }`}
                 style={{

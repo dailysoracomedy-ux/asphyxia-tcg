@@ -23,7 +23,7 @@ interface CardProps {
    *  which are game pieces (compact tactical info only), not full card previews. */
   compact?: boolean;
   faceDown?: boolean;
-  highlight?: 'valid-target' | 'attacked' | 'locked' | null;
+  highlight?: 'valid-target' | 'attacked' | 'locked' | 'tutorial-target' | 'tutorial-dim' | null;
   footer?: React.ReactNode;
   effectiveDef?: number;
   /** Per-attack damage preview, keyed by attack id - computed via getPreviewAttackDamage
@@ -37,6 +37,7 @@ interface CardProps {
   attackSelectMode?: boolean;
   affordableAttackIds?: Set<string>;
   onSelectAttack?: (attackId: string) => void;
+  tutorialHighlightAttackId?: string | null;
   /** Internal - set on the enlarged preview copy itself so it doesn't try to spawn
    *  a hover preview of its own. Not meant to be passed by normal callers. */
   disableHoverPreview?: boolean;
@@ -70,6 +71,7 @@ export default function Card({
   attackSelectMode,
   affordableAttackIds,
   onSelectAttack,
+  tutorialHighlightAttackId,
   disableHoverPreview,
   isPlayable,
 }: CardProps) {
@@ -174,8 +176,10 @@ export default function Card({
     const artW = Math.round(h * artRatio);
     return (
       <div
-        className="relative inline-block shrink-0"
-        style={{ width: artW, height: h, ...dimStyle }}
+        className={`relative inline-block shrink-0 ${
+          highlight === 'tutorial-target' ? 'tutorial-spotlight' : highlight === 'tutorial-dim' ? 'pointer-events-none' : ''
+        }`}
+        style={{ width: artW, height: h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms', ...dimStyle }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
@@ -194,6 +198,7 @@ export default function Card({
             attackSelectMode={attackSelectMode}
             affordableAttackIds={affordableAttackIds}
             onSelectAttack={onSelectAttack}
+            tutorialHighlightAttackId={tutorialHighlightAttackId}
           />
         ) : (
           <GenericArtCard defId={instance.defId} onClick={onClick} onPointerDown={onPointerDown} selected={selected} disabled={disabled} footer={footer} />

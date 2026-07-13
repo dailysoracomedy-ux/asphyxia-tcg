@@ -16,7 +16,9 @@ import CardInspectModal, { type InspectZone } from './CardInspectModal';
 import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
-import { TUTORIAL_PACING_MULTIPLIER } from '@/tutorial/tutorialSteps';
+import TutorialSlideshow from '@/tutorial/TutorialSlideshow';
+import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@/tutorial/tutorialSteps';
+import { useTutorialStore } from '@/store/tutorialStore';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
@@ -94,9 +96,41 @@ export default function GameBoard() {
    *  TutorialOverlay already prevents the click from visually reaching
    *  anything; this is the input-handler-level backstop underneath it.
    *  Outside tutorial mode this is always false and costs nothing. */
+  /** Commit 31 - the current guided step's required action, or null outside
+   *  tutorial mode / during a pure-explanation step. The single source of
+   *  truth every gated interaction point below reads from. */
+  function currentGuidedAction(): GuidedAction | null {
+    if (!state.tutorialMode) return null;
+    return TUTORIAL_STEPS[useTutorialStore.getState().step]?.guided ?? null;
+  }
+
+  /** Commit 31 - the single tutorial gate every real interaction point checks
+   *  through. `matches` is the caller's own answer to "is this specific
+   *  card/zone/choice the one the current guided step is waiting on" -
+   *  outside tutorial mode this always passes through untouched (`matches`
+   *  is never even evaluated as blocking), so every call site behaves
+   *  identically in normal play. When blocked, sets a brief, friendly
+   *  helper-message rather than silently doing nothing - never mutates
+   *  state, never advances anything on its own. */
+  function tutorialGate(matches: boolean, rejectMessage: string): boolean {
+    if (!state.tutorialMode) return false;
+    if (matches) return false;
+    useTutorialStore.getState().setHelperMessage(rejectMessage);
+    return true;
+  }
+
+  /** Commit 31 - advances the guided tutorial to its next step. Only ever
+   *  called right after a real, successful player action was confirmed to
+   *  match the current guided step - never speculatively. */
+  function tutorialAdvance() {
+    if (!state.tutorialMode) return;
+    useTutorialStore.getState().setHelperMessage(null);
+    useTutorialStore.getState().setStep(useTutorialStore.getState().step + 1);
+  }
+
   function blockedByTutorial(): boolean {
     if (!state.tutorialMode) return false;
-    setActionToast('This tutorial plays itself - just click Continue.');
+    setActionToast('Follow the tutorial prompt to continue.');
     return true;
   }
   const [logOpen, setLogOpen] = useState(false);
@@ -315,6 +349,11 @@ export default function GameBoard() {
     setActionLockUntil(actionLockedUntilRef);
   }
 
+  const slideshowActive = useTutorialStore((s) => s.slideshowActive);
+  if (state.tutorialMode && slideshowActive) {
+    return <TutorialSlideshow onComplete={() => useTutorialStore.getState().setSlideshowActive(false)} />;
+  }
+
   if (state.status === 'selectingOpeningApex') {
     return (
       <>
@@ -504,8 +543,13 @@ export default function GameBoard() {
     if (state.phase === 'Combat' || state.phase === 'Main') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === apexId);
       if (apex && !apex.hasAttacked) {
-        if (blockedByTutorial() || isActionLocked()) return;
+        if (isActionLocked()) return;
+        const guided = currentGuidedAction();
+        if (state.tutorialMode) {
+          if (tutorialGate(guided?.kind === 'declareAttack', 'Follow the tutorial prompt to continue.')) return;
+        }
         setMode({ kind: 'attackerChosen', attackerId: apexId });
+        if (state.tutorialMode && guided?.kind === 'declareAttack') tutorialAdvance();
       }
     }
   }
@@ -543,7 +587,10 @@ export default function GameBoard() {
       return;
     }
     if (mode.kind === 'attackAwaitingTarget') {
-      if (blockedByTutorial()) return;
+      const guided = currentGuidedAction();
+      if (state.tutorialMode) {
+        if (tutorialGate(guided?.kind === 'selectTarget', 'Follow the tutorial prompt to continue.')) return;
+      }
       const eligible = getOverdriveEligibility(state, mode.attackerId);
       if (eligible) {
         setMode({ kind: 'overdrivePrompt', attackerId: mode.attackerId, attackId: mode.attackId, targetId: apexId, supportName: eligible.supportName });
@@ -551,6 +598,7 @@ export default function GameBoard() {
         state.declareAttack(mode.attackerId, mode.attackId, apexId);
         lockActions();
         resetMode();
+        if (state.tutorialMode && guided?.kind === 'selectTarget') tutorialAdvance();
       }
     }
   }
@@ -558,10 +606,17 @@ export default function GameBoard() {
   function chooseAttack(attackId: string) {
     if (mode.kind !== 'attackerChosen') return;
     if (isActionLocked()) return;
-    if (blockedByTutorial()) return;
+    const guided = currentGuidedAction();
+    if (state.tutorialMode) {
+      const attackerHit = findApexAnywhere(state, mode.attackerId);
+      const attackDef = attackerHit ? (getCardDef(attackerHit.apex.defId) as ApexDef).attacks.find((a) => a.id === attackId) : null;
+      const matches = guided?.kind === 'selectAttack' && attackDef?.syncCost === guided.syncCost;
+      if (tutorialGate(matches, 'Not that attack yet. Try the highlighted row.')) return;
+    }
     const hasEnemyApex = oppPlayer.apexSlots.some(Boolean);
     if (hasEnemyApex) {
       setMode({ kind: 'attackAwaitingTarget', attackerId: mode.attackerId, attackId });
+      if (state.tutorialMode && guided?.kind === 'selectAttack') tutorialAdvance();
     } else {
       const eligible = getOverdriveEligibility(state, mode.attackerId);
       if (eligible) {
@@ -570,6 +625,7 @@ export default function GameBoard() {
         state.declareAttack(mode.attackerId, attackId);
         lockActions();
         resetMode();
+        if (state.tutorialMode && guided?.kind === 'selectAttack') tutorialAdvance();
       }
     }
   }
@@ -600,7 +656,6 @@ export default function GameBoard() {
    *  oppApexClick already make before calling declareAttack - that's a real,
    *  unresolved choice per the spec, not a redundant confirm to skip. */
   function handleDragDrop(source: DragSource, target: DropZoneId) {
-    if (blockedByTutorial()) return;
     if (isActionLocked()) return;
 
     if (source.kind === 'apex-attack') {
@@ -659,8 +714,9 @@ export default function GameBoard() {
     if (result.ok) {
       lockActions();
       resetMode();
+      if (state.tutorialMode) tutorialAdvance();
     } else if (result.reason) {
-      setActionToast(result.reason);
+      setActionToast(state.tutorialMode ? 'That card doesn\u2019t go there. Try the glowing zone.' : result.reason);
     }
   }
 
@@ -670,7 +726,17 @@ export default function GameBoard() {
    *  computed fresh here via legalZonesFor, the same function that drives
    *  which zones actually glow. */
   function onHandCardPointerDown(e: React.PointerEvent, card: CardInstance) {
-    if (blockedByTutorial() || isActionLocked()) return;
+    if (isActionLocked()) return;
+    const guided = currentGuidedAction();
+    const matchesCard =
+      !!guided &&
+      ((guided.kind === 'playApex' && card.defId === guided.defId) ||
+        (guided.kind === 'playEngine' && card.defId === guided.defId) ||
+        (guided.kind === 'playEquip' && card.defId === guided.defId) ||
+        (guided.kind === 'playSpecial' && card.defId === guided.defId));
+    if (state.tutorialMode) {
+      if (tutorialGate(matchesCard, 'Not that one yet. Let\u2019s play the highlighted card first.')) return;
+    }
     const source: DragSource = { kind: 'hand-card', playerId: viewerBottomId, instanceId: card.instanceId, cardType: card.type };
     beginPotentialDrag(e, source, legalZonesFor(state, source));
   }
@@ -722,6 +788,10 @@ export default function GameBoard() {
   const attackerDef = attackerApex ? (getCardDef(attackerApex.defId) as ApexDef) : null;
 
   const oppApexHighlight = (id: string): 'valid-target' | null => {
+    if (state.tutorialMode) {
+      const guided = currentGuidedAction();
+      if (guided?.kind === 'selectTarget' && mode.kind === 'attackAwaitingTarget') return 'valid-target';
+    }
     if (mode.kind === 'attackAwaitingTarget') return 'valid-target';
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'enemyApex' || mode.requiresTarget === 'enemyApexWithChoke')) {
       const target = oppPlayer.apexSlots.find((a) => a?.instanceId === id);
@@ -736,6 +806,13 @@ export default function GameBoard() {
   }
 
   const ownApexHighlight = (id: string): 'valid-target' | null => {
+    if (state.tutorialMode) {
+      const guided = currentGuidedAction();
+      if (guided?.kind === 'declareAttack') {
+        const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
+        return apex && !apex.hasAttacked ? 'valid-target' : null;
+      }
+    }
     if (mode.kind === 'equipSwapSelectApex') {
       const apex = activePlayer.apexSlots.find((a) => a?.instanceId === id);
       return apex?.equip && apex.equip.equippedTurn !== state.turnNumber ? 'valid-target' : null;
@@ -1158,8 +1235,22 @@ export default function GameBoard() {
           minWidth={boardWidth}
           state={state}
           playerId={viewerBottomId}
+          tutorialSpotlightInstanceId={
+            state.tutorialMode
+              ? (() => {
+                  const guided = currentGuidedAction();
+                  if (!guided) return undefined;
+                  const defId =
+                    guided.kind === 'playApex' || guided.kind === 'playEngine' || guided.kind === 'playEquip' || guided.kind === 'playSpecial'
+                      ? guided.defId
+                      : null;
+                  if (!defId) return undefined;
+                  return state.players[viewerBottomId].hand.find((c) => c.defId === defId)?.instanceId ?? null;
+                })()
+              : undefined
+          }
           onCardPointerDown={
-            (state.phase === 'Main' || state.phase === 'Combat') && bottomIsActingPlayer && !aiIsActing && !state.tutorialMode && mode.kind !== 'attackerChosen'
+            (state.phase === 'Main' || state.phase === 'Combat') && bottomIsActingPlayer && !aiIsActing && mode.kind !== 'attackerChosen'
               ? onHandCardPointerDown
               : undefined
           }
@@ -1505,6 +1596,28 @@ function GameOverScreen() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-2 mb-4">
+            {state.tutorialMode && (
+              <>
+                <button type="button"
+                  onClick={() => {
+                    state.startNewGame('Neon Underground', 'Dark White', false, false, true);
+                    useTutorialStore.getState().setStep(0);
+                    useTutorialStore.getState().setBusy(false);
+                    useTutorialStore.getState().setHelperMessage(null);
+                    useTutorialStore.getState().setSlideshowActive(false);
+                  }}
+                  className="px-4 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black"
+                >
+                  Play Again
+                </button>
+                <button type="button"
+                  onClick={() => state.startNewGame(state.players.player1.faction, state.players.player2.faction, true, false, false)}
+                  className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
+                >
+                  Play Real Match
+                </button>
+              </>
+            )}
             <button type="button"
               onClick={() => setShowLog((v) => !v)}
               className="px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20"
@@ -1519,9 +1632,9 @@ function GameOverScreen() {
             </button>
             <button type="button"
               onClick={() => state.resetToMenu()}
-              className="px-4 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black"
+              className={state.tutorialMode ? 'px-4 py-2 rounded-md text-xs font-bold bg-white/10 hover:bg-white/20' : 'px-4 py-2 rounded-md font-bold bg-gradient-to-r from-fuchsia-400 to-cyan-300 text-black'}
             >
-              Start New Game
+              {state.tutorialMode ? 'Return to Menu' : 'Start New Game'}
             </button>
           </div>
         </div>

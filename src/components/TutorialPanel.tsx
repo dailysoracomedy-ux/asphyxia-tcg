@@ -6,35 +6,29 @@ import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
 
 /**
- * Commit 29.17 - a drastically simplified panel matching the tutorial's second
- * pivot: purely scripted, zero player-driven game actions anywhere. Every step
- * shows the same three things - a title, an explanation of what the code just
- * did (or is about to do), and a Continue button - because there is nothing
- * left to gate, highlight, or wait on except the scripted action's own async
- * completion (tracked by `busy` in tutorialStore.ts, set by
- * tutorialRunFullyScriptedTurn/tutorialRunScriptedOpponentTurn in
- * gameStore.ts). No requiredAction types, no highlight targets, no watch-step
- * timeout fallback, no phase-safety-net - none of it has anything left to do,
- * since there's no player click for any of that machinery to react to anymore.
+ * Commit 31 - rebuilt for the guided-match architecture. A step now shows one
+ * of two things: a Continue button (pure-explanation steps, `guided` absent -
+ * e.g. "your opponent is about to attack"), or a live "waiting for your
+ * action" indicator (guided steps - e.g. "drag the highlighted Apex") with NO
+ * Continue button at all, since per spec a real gameplay action should never
+ * be skippable via Continue. Auto-advance happens at the real action's own
+ * success point (GameBoard.tsx's tutorialAdvance / ResponseModal.tsx's
+ * inline advance calls), not here - this panel is purely a display of
+ * whatever step is currently active, never a driver of it.
  */
-// Module-level, not component state or a ref - deliberately survives a
-// component remount, which a ref or useState would not. onEnter must never
-// fire twice for the same step: several steps chain multiple async
-// sub-sequences together (see tutorialSteps.ts's 'opponent-turn-2'), and a
-// double-fire would start two competing copies of the same chain, racing each
-// other over the same pending response.
 let lastOnEnterStep = -1;
 
 export default function TutorialPanel() {
   const state = useGameStore();
   const step = useTutorialStore((s) => s.step);
   const setStep = useTutorialStore((s) => s.setStep);
-  const busy = useTutorialStore((s) => s.busy);
+  const helperMessage = useTutorialStore((s) => s.helperMessage);
 
   useEffect(() => {
     if (state.turnNumber <= 1 && state.status === 'selectingOpeningApex') {
       lastOnEnterStep = -1;
       useTutorialStore.getState().setBusy(false);
+      useTutorialStore.getState().setHelperMessage(null);
       setStep(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,9 +43,18 @@ export default function TutorialPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // Helper messages are transient - clear themselves a couple seconds after
+  // whatever set them, so a wrong-action message doesn't linger forever.
+  useEffect(() => {
+    if (!helperMessage) return;
+    const t = setTimeout(() => useTutorialStore.getState().setHelperMessage(null), 2800);
+    return () => clearTimeout(t);
+  }, [helperMessage]);
+
   if (!current) return null;
   const resolvedText = typeof current.text === 'function' ? current.text(state) : current.text;
   const isLastStep = step >= TUTORIAL_STEPS.length - 1;
+  const isGuided = !!current.guided;
 
   return (
     <div className="fixed top-1/2 left-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
@@ -71,41 +74,37 @@ export default function TutorialPanel() {
       <div className="text-base font-bold text-emerald-200 mb-1.5">{current.title}</div>
       <div className="text-[12px] text-white/80 leading-relaxed mb-3">{resolvedText}</div>
 
-      {busy && (
-        <div className="text-[10px] text-cyan-300/80 italic mb-2 animate-pulse">&#9679; Playing this out...</div>
+      {helperMessage && (
+        <div className="text-[11px] text-amber-300 bg-amber-400/10 border border-amber-400/30 rounded px-2 py-1.5 mb-3">
+          {helperMessage}
+        </div>
+      )}
+
+      {isGuided && !helperMessage && (
+        <div className="text-[10px] text-emerald-300/70 italic mb-2 animate-pulse">&#9679; Follow the glowing highlight</div>
       )}
 
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => {
-            // Restart means a genuinely fresh tutorial match, not just resetting
-            // the step counter back to 0 while every actual game state change so
-            // far stays exactly as it was. Also explicitly clears `busy` -
-            // real, reported bug: if Restart was clicked while a scripted
-            // sequence's own setTimeout chain was still in flight, that stale
-            // chain could still be the last thing to touch `busy`, leaving
-            // Continue stuck disabled ("Playing this out...") against a match
-            // that had, in fact, already restarted clean.
             useGameStore.getState().startNewGame('Neon Underground', 'Dark White', false, false, true);
             lastOnEnterStep = -1;
             useTutorialStore.getState().setBusy(false);
+            useTutorialStore.getState().setHelperMessage(null);
+            useTutorialStore.getState().setSlideshowActive(true);
+            useTutorialStore.getState().setSlideIndex(0);
             setStep(0);
           }}
           className="px-2 py-1 rounded border border-white/15 text-[10px] text-white/50 hover:bg-white/10"
         >
           Restart
         </button>
-        {!isLastStep && (
+        {!isGuided && !isLastStep && (
           <button
             type="button"
-            disabled={busy}
             onClick={() => setStep(step + 1)}
-            className={`px-3 py-1.5 rounded border text-[11px] font-bold ${
-              busy
-                ? 'border-white/10 text-white/30 cursor-not-allowed'
-                : 'border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 animate-pulse'
-            }`}
+            className="px-3 py-1.5 rounded border text-[11px] font-bold border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 animate-pulse"
           >
             Continue
           </button>
