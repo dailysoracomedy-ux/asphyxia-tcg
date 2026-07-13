@@ -221,27 +221,6 @@ export function ApexOverlayLayer({
         const isHovered = attackSelectMode && affordable && (hoveredAttackId === atk.id || isTutorialTarget);
         return (
           <div key={atk.id}>
-            {attackSelectMode && (
-              <button
-                type="button"
-                disabled={!affordable}
-                onClick={() => affordable && onSelectAttack?.(atk.id)}
-                onMouseEnter={() => affordable && setHoveredAttackId(atk.id)}
-                onMouseLeave={() => setHoveredAttackId((cur) => (cur === atk.id ? null : cur))}
-                className={`absolute rounded-sm transition-colors ${
-                  affordable
-                    ? `cursor-pointer hover:bg-white/85 hover:ring-1 hover:ring-emerald-300 ${isTutorialTarget ? 'bg-white/85 ring-2 ring-emerald-300 animate-pulse' : 'bg-transparent'}`
-                    : 'cursor-not-allowed opacity-40'
-                }`}
-                style={{
-                  left: `${z.attacks.leftZone.left}%`,
-                  top: `${top - 0.4}%`,
-                  width: `${z.attacks.valueZone.left + z.attacks.valueZone.width - z.attacks.leftZone.left}%`,
-                  height: '4%',
-                }}
-                aria-label={`${atk.name}, ${atk.syncCost} sync, ${shown} damage`}
-              />
-            )}
             {!bakedAttackNames && (
               <Zone
                 zone={{ left: z.attacks.leftZone.left, top, width: z.attacks.leftZone.width, height: z.attacks.leftZone.height }}
@@ -249,7 +228,7 @@ export function ApexOverlayLayer({
                 debugLabel={`ATK ${i + 1} name`}
               >
                 <span
-                  className={`leading-none truncate w-full ${isHovered ? 'text-black' : 'text-white/90'}`}
+                  className={`leading-none truncate w-full ${isHovered ? 'text-black' : affordable ? 'text-white/90' : 'text-white/30'}`}
                   style={{ fontSize: `${attackNameFontSize}px`, textShadow: isHovered ? 'none' : '0 1px 2px rgba(0,0,0,0.8)' }}
                 >
                   [{atk.syncCost}] {atk.name}
@@ -261,9 +240,35 @@ export function ApexOverlayLayer({
               debug={debugZones}
               debugLabel={`ATK ${i + 1} value`}
             >
-              <DynamicStatText value={shown} deltaState={delta} align="right" sizePx={attackNameFontSize} colorOverride={isHovered ? '#000000' : undefined} />
+              <DynamicStatText
+                value={shown}
+                deltaState={delta}
+                align="right"
+                sizePx={attackNameFontSize}
+                colorOverride={isHovered ? '#000000' : !affordable ? 'rgba(255,255,255,0.3)' : undefined}
+              />
             </Zone>
-          </div>
+            {attackSelectMode && (
+              <button
+                type="button"
+                disabled={!affordable}
+                onClick={() => affordable && onSelectAttack?.(atk.id)}
+                onMouseEnter={() => affordable && setHoveredAttackId(atk.id)}
+                onMouseLeave={() => setHoveredAttackId((cur) => (cur === atk.id ? null : cur))}
+                className={`absolute rounded-sm transition-colors ${
+                  affordable
+                    ? `cursor-pointer hover:bg-white/85 hover:ring-1 hover:ring-emerald-300 ${isTutorialTarget ? 'bg-white/85 ring-2 ring-emerald-300 animate-pulse' : 'bg-transparent'}`
+                    : 'cursor-not-allowed bg-transparent'
+                }`}
+                style={{
+                  left: `${z.attacks.leftZone.left}%`,
+                  top: `${top - 0.4}%`,
+                  width: `${z.attacks.valueZone.left + z.attacks.valueZone.width - z.attacks.leftZone.left}%`,
+                  height: '4%',
+                }}
+                aria-label={`${atk.name}, ${atk.syncCost} sync, ${shown} damage`}
+              />
+            )}          </div>
         );
       })}
 
