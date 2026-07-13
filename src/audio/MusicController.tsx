@@ -78,6 +78,33 @@ export default function MusicController() {
     };
   }, []);
 
+  // Commit 31.1 - hotfix: browsers block audio autoplay entirely until a
+  // genuine user gesture (click/keydown/touch) has happened anywhere on the
+  // page - the very first play() attempt on initial load fails silently
+  // (previously just swallowed by .catch(() => {}), with nothing retrying
+  // it), which is exactly why the theme never played on first load but did
+  // once a match started (that click *was* the unlocking gesture) and again
+  // after returning to the menu (already unlocked by then). Retries once,
+  // on the first real interaction, only if nothing ended up audibly playing.
+  useEffect(() => {
+    function retryOnFirstGesture() {
+      if (musicMuted) return;
+      const active = slotsRef.current[activeIndexRef.current];
+      if (active && active.paused && active.src) {
+        active.play().catch(() => {});
+      } else if (currentKeyRef.current === null) {
+        switchToKey(desiredTrackKey(useGameStore.getState()));
+      }
+    }
+    window.addEventListener('pointerdown', retryOnFirstGesture, { once: true });
+    window.addEventListener('keydown', retryOnFirstGesture, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', retryOnFirstGesture);
+      window.removeEventListener('keydown', retryOnFirstGesture);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function clearFade() {
     if (fadeTimerRef.current) {
       clearInterval(fadeTimerRef.current);

@@ -187,6 +187,7 @@ export default function GameBoard() {
   useEffect(() => {
     if (state.status !== 'playing' || state.phase !== 'Combat') return;
     if (state.pendingResponseQueue.length > 0) return;
+    if (state.tutorialMode) return; // turn-ending during tutorial is driven by the guided steps themselves, never automatic
     if ((state.vsAI && state.activePlayerId === 'player2') || state.aiVsAiMode) return; // never auto-ends an AI-controlled turn
     const active = state.players[state.activePlayerId];
     const anyApexCanStillAttack = active.apexSlots.some((a) => a && !a.hasAttacked);

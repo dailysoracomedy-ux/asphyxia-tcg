@@ -235,9 +235,9 @@ export function ApexOverlayLayer({
                 }`}
                 style={{
                   left: `${z.attacks.leftZone.left}%`,
-                  top: `${top - 0.3}%`,
+                  top: `${top - 2}%`,
                   width: `${z.attacks.valueZone.left + z.attacks.valueZone.width - z.attacks.leftZone.left}%`,
-                  height: `${z.attacks.leftZone.height + 0.6}%`,
+                  height: '4%',
                 }}
                 aria-label={`${atk.name}, ${atk.syncCost} sync, ${shown} damage`}
               />
