@@ -42,7 +42,8 @@ export type GuidedAction =
   | { kind: 'riftChoice'; pick: 'momentum' | 'damage' }
   | { kind: 'declareAttack' }
   | { kind: 'selectAttack'; syncCost: number }
-  | { kind: 'selectTarget' };
+  | { kind: 'selectTarget' }
+  | { kind: 'selectSpecialTarget' };
 
 export interface TutorialStep {
   id: string;
@@ -82,6 +83,12 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: 'Play a Special',
     text: 'Now play a Special into the Action Zone to activate its effect.',
     guided: { kind: 'playSpecial', defId: 'nu-overclock' },
+  },
+  {
+    id: 'special-target',
+    title: 'Choose a Target',
+    text: 'Now click your Apex to apply Overclock to it.',
+    guided: { kind: 'selectSpecialTarget' },
   },
   {
     id: 'enemy-attack-setup',

@@ -146,14 +146,33 @@ async function main() {
   // --- Step 3: play-special ---
   await dragHandCardToZone('nu-overclock', 'action-zone');
   s = useGameStore.getState();
-  check('tutorial genuinely advanced to step 4 (enemy-attack-setup)', stepIndex() === 4);
+  check('the Special is genuinely still in hand (specialReady mode, not resolved yet)', s.players.player1.hand.some((c) => c.defId === 'nu-overclock'));
+  check('tutorial genuinely advanced to step 4 (special-target)', stepIndex() === 4);
 
-  // --- Step 4: enemy-attack-setup (Continue button, explanation only) ---
+  // --- Step 4: special-target - real click on own Apex to complete Overclock ---
+  await wait(150);
+  const ownApexCandidates = Array.from(dom.window.document.querySelectorAll('button')).filter(
+    (b) => b.closest('[data-dropzone]') === null && b.textContent !== 'i' && /Street-Beast|Razor Swipe|Neon Pounce/i.test(b.textContent ?? '')
+  );
+  let overclockResolved = false;
+  for (const btn of ownApexCandidates.length ? ownApexCandidates : Array.from(dom.window.document.querySelectorAll('button')).filter((b) => b.closest('[data-dropzone]') === null && b.textContent !== 'i' && !/end turn|battle log|reset|restart|exit|continue/i.test(b.textContent ?? ''))) {
+    click(btn);
+    await wait(50);
+    s = useGameStore.getState();
+    if (!s.players.player1.hand.some((c) => c.defId === 'nu-overclock')) {
+      overclockResolved = true;
+      break;
+    }
+  }
+  check('clicking the Apex genuinely completed Overclock - card left hand', overclockResolved);
+  check('tutorial genuinely advanced to step 5 (enemy-attack-setup)', stepIndex() === 5);
+
+  // --- Step 5: enemy-attack-setup (Continue button, explanation only) ---
   const continueBtn = Array.from(dom.window.document.querySelectorAll('button')).find((b) => b.textContent === 'Continue');
   check('a real Continue button is genuinely present for this explanation-only step', !!continueBtn);
   if (continueBtn) click(continueBtn);
   await wait(400);
-  check('tutorial genuinely advanced to step 5 (play-react) - the opponent\u2019s scripted attack is now firing', stepIndex() === 5);
+  check('tutorial genuinely advanced to step 6 (play-react) - the opponent\u2019s scripted attack is now firing', stepIndex() === 6);
 
   // Wait for the opponent's scripted attack to actually open a real response window.
   let waited = 0;
@@ -181,7 +200,7 @@ async function main() {
   }
   s = useGameStore.getState();
   check('the Civil War Rift choice genuinely triggered at the start of player1\u2019s next turn', s.pendingResponseQueue[0]?.stage === 'civilWarChoice');
-  check('tutorial genuinely advanced to the rift-choice step', stepIndex() === 6);
+  check('tutorial genuinely advanced to the rift-choice step', stepIndex() === 7);
 
   // --- Step 6: rift-choice - real click ---
   await wait(150);
@@ -191,13 +210,13 @@ async function main() {
   await wait(300);
   s = useGameStore.getState();
   check('the Rift choice genuinely resolved - momentum increased', s.players.player1.momentum >= 1);
-  check('tutorial genuinely advanced to play-engine-2 (a fresh turn - legal now)', stepIndex() === 7);
+  check('tutorial genuinely advanced to play-engine-2 (a fresh turn - legal now)', stepIndex() === 8);
 
   // --- Step 7: play-engine-2 (second Engine, now legal - fresh turn) ---
   await dragHandCardToZone('nu-juice-box', 'support-slot');
   s = useGameStore.getState();
   check('second Engine genuinely on board (2 Engines total, Sync bumps to 2 next turn)', s.players.player1.supportSlots.filter(Boolean).length === 2);
-  check('tutorial genuinely advanced to declare-attack', stepIndex() === 8);
+  check('tutorial genuinely advanced to declare-attack', stepIndex() === 9);
 
   // --- Step 8: declare-attack - real click on own Apex ---
   await wait(150);
@@ -214,7 +233,7 @@ async function main() {
     }
   }
   check('clicking the spotlighted Apex genuinely opened the real attack selector popup', openedPopup);
-  check('tutorial genuinely advanced to choose-attack', stepIndex() === 9);
+  check('tutorial genuinely advanced to choose-attack', stepIndex() === 10);
 
   // --- Step 9: choose-attack - real click on the 1-Sync row ---
   await wait(200);
@@ -223,7 +242,7 @@ async function main() {
   check('the 1-Sync attack row is genuinely rendered and enabled', !!bigAttackBtn && !bigAttackBtn.hasAttribute('disabled'));
   if (bigAttackBtn) click(bigAttackBtn);
   await wait(200);
-  check('tutorial genuinely advanced to select-target', stepIndex() === 10);
+  check('tutorial genuinely advanced to select-target', stepIndex() === 11);
 
   // --- Step 10: select-target - real click on enemy Apex ---
   await wait(150);
@@ -240,7 +259,7 @@ async function main() {
   s = useGameStore.getState();
   check('the match genuinely ended in victory', s.status === 'gameover');
   check('player1 (the human) genuinely won - opponent O2 at 0', s.players.player2.o2 <= 0);
-  check('tutorial genuinely advanced to the final win step', stepIndex() === 11);
+  check('tutorial genuinely advanced to the final win step', stepIndex() === 12);
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);

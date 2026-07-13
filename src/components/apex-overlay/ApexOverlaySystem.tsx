@@ -32,15 +32,17 @@ function Zone({
   children,
   debugLabel,
   debug,
+  pointerEventsNone,
 }: {
   zone: { left: number; top: number; width: number; height: number };
   children?: React.ReactNode;
   debugLabel?: string;
   debug?: boolean;
+  pointerEventsNone?: boolean;
 }) {
   return (
     <div
-      className="absolute flex items-center"
+      className={`absolute flex items-center ${pointerEventsNone ? 'pointer-events-none' : ''}`}
       style={{ left: `${zone.left}%`, top: `${zone.top}%`, width: `${zone.width}%`, height: `${zone.height}%` }}
     >
       {debug && (
@@ -221,33 +223,6 @@ export function ApexOverlayLayer({
         const isHovered = attackSelectMode && affordable && (hoveredAttackId === atk.id || isTutorialTarget);
         return (
           <div key={atk.id}>
-            {!bakedAttackNames && (
-              <Zone
-                zone={{ left: z.attacks.leftZone.left, top, width: z.attacks.leftZone.width, height: z.attacks.leftZone.height }}
-                debug={debugZones}
-                debugLabel={`ATK ${i + 1} name`}
-              >
-                <span
-                  className={`leading-none truncate w-full ${isHovered ? 'text-black' : affordable ? 'text-white/90' : 'text-white/30'}`}
-                  style={{ fontSize: `${attackNameFontSize}px`, textShadow: isHovered ? 'none' : '0 1px 2px rgba(0,0,0,0.8)' }}
-                >
-                  [{atk.syncCost}] {atk.name}
-                </span>
-              </Zone>
-            )}
-            <Zone
-              zone={{ left: z.attacks.valueZone.left, top, width: z.attacks.valueZone.width, height: z.attacks.valueZone.height }}
-              debug={debugZones}
-              debugLabel={`ATK ${i + 1} value`}
-            >
-              <DynamicStatText
-                value={shown}
-                deltaState={delta}
-                align="right"
-                sizePx={attackNameFontSize}
-                colorOverride={isHovered ? '#000000' : !affordable ? 'rgba(255,255,255,0.3)' : undefined}
-              />
-            </Zone>
             {attackSelectMode && (
               <button
                 type="button"
@@ -268,7 +243,37 @@ export function ApexOverlayLayer({
                 }}
                 aria-label={`${atk.name}, ${atk.syncCost} sync, ${shown} damage`}
               />
-            )}          </div>
+            )}
+            {!bakedAttackNames && (
+              <Zone
+                zone={{ left: z.attacks.leftZone.left, top, width: z.attacks.leftZone.width, height: z.attacks.leftZone.height }}
+                debug={debugZones}
+                debugLabel={`ATK ${i + 1} name`}
+                pointerEventsNone={attackSelectMode}
+              >
+                <span
+                  className={`leading-none truncate w-full ${isHovered ? 'text-black' : affordable ? 'text-white/90' : 'text-white/30'}`}
+                  style={{ fontSize: `${attackNameFontSize}px`, textShadow: isHovered ? 'none' : '0 1px 2px rgba(0,0,0,0.8)' }}
+                >
+                  [{atk.syncCost}] {atk.name}
+                </span>
+              </Zone>
+            )}
+            <Zone
+              zone={{ left: z.attacks.valueZone.left, top, width: z.attacks.valueZone.width, height: z.attacks.valueZone.height }}
+              debug={debugZones}
+              debugLabel={`ATK ${i + 1} value`}
+              pointerEventsNone={attackSelectMode}
+            >
+              <DynamicStatText
+                value={shown}
+                deltaState={delta}
+                align="right"
+                sizePx={attackNameFontSize}
+                colorOverride={isHovered ? '#000000' : !affordable ? 'rgba(255,255,255,0.3)' : undefined}
+              />
+            </Zone>
+          </div>
         );
       })}
 

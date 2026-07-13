@@ -1,5 +1,4 @@
-import type { CardInstance, GameState, PlayerId, SpecialDef } from '@/types/game';
-import { getCardDef } from '@/data/cards';
+import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
 import type { DragSource, DropZoneId } from './dragDropTypes';
 import { zoneKey } from './dragDropTypes';
@@ -38,7 +37,6 @@ export function legalZonesFor(state: GameState, source: DragSource): Set<string>
   // hand-card
   const card = player.hand.find((c) => c.instanceId === source.instanceId);
   if (!card || !canPlayCardFromHand(state, source.playerId, card)) return zones;
-  const def = getCardDef(card.defId);
 
   if (card.type === 'Apex') {
     player.apexSlots.forEach((slot, i) => {
@@ -69,20 +67,12 @@ export function legalZonesFor(state: GameState, source: DragSource): Set<string>
       if (freshAttach || legalSwap) zones.add(zoneKey({ kind: 'own-apex', playerId: source.playerId, instanceId: a.instanceId }));
     });
   } else if (card.type === 'Special') {
-    const sdef = def as SpecialDef;
-    if (!sdef.requiresTarget) {
-      zones.add(zoneKey({ kind: 'action-zone', playerId: source.playerId }));
-    } else if (sdef.requiresTarget === 'ownApex' || sdef.requiresTarget === 'ownApexWithUpgrade') {
-      player.apexSlots.forEach((a) => {
-        if (a) zones.add(zoneKey({ kind: 'own-apex', playerId: source.playerId, instanceId: a.instanceId }));
-      });
-    } else if (sdef.requiresTarget === 'enemyApex' || sdef.requiresTarget === 'enemyApexWithChoke') {
-      opponent.apexSlots.forEach((a) => {
-        if (!a) return;
-        if (sdef.requiresTarget === 'enemyApexWithChoke' && (a.counters?.choke ?? 0) === 0) return;
-        zones.add(zoneKey({ kind: 'enemy-apex', playerId: opponentId, instanceId: a.instanceId }));
-      });
-    }
+    // Commit 31.5 - every Special now plays into the Action Zone first,
+    // regardless of whether it needs a follow-up target - see
+    // GameBoard.tsx's handleDragDrop for how a targeted Special enters
+    // specialReady mode (reviving the existing click-to-target flow) after
+    // landing here, instead of resolving immediately.
+    zones.add(zoneKey({ kind: 'action-zone', playerId: source.playerId }));
   }
 
   return zones;

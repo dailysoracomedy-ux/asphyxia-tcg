@@ -520,8 +520,13 @@ export default function GameBoard() {
       return;
     }
     if (mode.kind === 'specialReady' && (mode.requiresTarget === 'ownApex' || mode.requiresTarget === 'ownApexWithUpgrade')) {
+      const guidedSpecial = currentGuidedAction();
+      if (state.tutorialMode) {
+        if (tutorialGate(guidedSpecial?.kind === 'selectSpecialTarget', 'Follow the tutorial prompt to continue.')) return;
+      }
       state.playSpecialCard(mode.cardId, apexId);
       resetMode();
+      if (state.tutorialMode && guidedSpecial?.kind === 'selectSpecialTarget') tutorialAdvance();
       return;
     }
     if (mode.kind === 'reconfigureChain') {
@@ -703,6 +708,21 @@ export default function GameBoard() {
         setMode({ kind: 'attackChoicePending', attackerId: source.instanceId, targetId: target.instanceId });
       }
       return;
+    }
+
+    // Commit 31.5 - a targeted Special landing on the Action Zone doesn't
+    // resolve immediately - it enters specialReady mode instead, reusing
+    // the existing (previously click-only) target-selection flow, so the
+    // player picks the actual Apex next. A non-targeted Special still
+    // resolves immediately, same as before.
+    if (source.kind === 'hand-card' && source.cardType === 'Special' && target.kind === 'action-zone') {
+      const card = activePlayer.hand.find((c) => c.instanceId === source.instanceId);
+      const sdef = card ? (getCardDef(card.defId) as SpecialDef) : null;
+      if (sdef?.requiresTarget) {
+        setMode({ kind: 'specialReady', cardId: source.instanceId, requiresTarget: sdef.requiresTarget });
+        if (state.tutorialMode) tutorialAdvance();
+        return;
+      }
     }
 
     const result = resolveDrop(state, source, target, {

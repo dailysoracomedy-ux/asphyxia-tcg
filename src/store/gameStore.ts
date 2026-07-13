@@ -47,6 +47,7 @@ import {
   pruneExpiredModifiers,
   applyTempDefBuffFn,
   computeAvailableSync,
+  MAX_SYNC,
   addCounterFn,
 } from '@/game/rules';
 
@@ -1560,6 +1561,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.supportSlots[targetSlot] = card;
       player.turnFlags.cardsPlayedThisTurn += 1;
       player.turnFlags.supportsPlayedThisTurn += 1;
+      player.availableSync = Math.min(MAX_SYNC, player.availableSync + 1);
       const def = getCardDef(card.defId);
       emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       const chainSuffix = card.type === 'AbilitySupport' ? (card.chainedApexId ? ' (chained)' : ' (unchained)') : '';
