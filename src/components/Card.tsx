@@ -148,8 +148,14 @@ export default function Card({
   // Purely visual - isPlayable defaults to undefined everywhere except Hand.tsx, so
   // every other caller (board, inspect modal, gallery, hover preview) is completely
   // unaffected by this and stays exactly as bright as it always was.
-  const dimStyle: React.CSSProperties | undefined =
-    isPlayable === false ? { opacity: 0.5, filter: 'grayscale(55%)', transition: 'opacity 150ms, filter 150ms' } : undefined;
+  //
+  // Commit 41.3 - no longer fades the whole card via opacity, which made the art
+  // itself look transparent/broken rather than intentionally unavailable. Instead:
+  // a real black backing plate sits behind the card render, and a real dim overlay
+  // sits above it - the card content itself renders at full opacity the entire
+  // time, sandwiched between the two. The hover/zoom preview is unaffected since
+  // it renders through a portal straight to document.body, outside this wrapper.
+  const isDisabledVisual = isPlayable === false;
 
   const ringClass = selected
     ? 'ring-2 ring-yellow-300 ring-offset-1 ring-offset-black'
@@ -180,29 +186,38 @@ export default function Card({
         className={`relative inline-block shrink-0 ${
           highlight === 'tutorial-target' ? 'tutorial-spotlight' : highlight === 'tutorial-dim' ? 'pointer-events-none' : ''
         }`}
-        style={{ width: artW, height: h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms', ...dimStyle }}
+        style={{ width: artW, height: h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {hoverPreview}
-        {isApex && apexDef ? (
-          <ApexCardRenderer
-            instance={instance}
-            effectiveDef={effectiveDef ?? apexDef.baseDef}
-            cardWidth={artW}
-            attackPreviews={attackPreviews}
-            onClick={onClick}
-            onPointerDown={onPointerDown}
-            selected={selected}
-            disabled={disabled}
-            footer={footer}
-            attackSelectMode={attackSelectMode}
-            affordableAttackIds={affordableAttackIds}
-            onSelectAttack={onSelectAttack}
-            tutorialHighlightAttackId={tutorialHighlightAttackId}
+        {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
+        <div className="relative" style={{ zIndex: 1 }}>
+          {hoverPreview}
+          {isApex && apexDef ? (
+            <ApexCardRenderer
+              instance={instance}
+              effectiveDef={effectiveDef ?? apexDef.baseDef}
+              cardWidth={artW}
+              attackPreviews={attackPreviews}
+              onClick={onClick}
+              onPointerDown={onPointerDown}
+              selected={selected}
+              disabled={disabled}
+              footer={footer}
+              attackSelectMode={attackSelectMode}
+              affordableAttackIds={affordableAttackIds}
+              onSelectAttack={onSelectAttack}
+              tutorialHighlightAttackId={tutorialHighlightAttackId}
+            />
+          ) : (
+            <GenericArtCard defId={instance.defId} onClick={onClick} onPointerDown={onPointerDown} selected={selected} disabled={disabled} footer={footer} />
+          )}
+        </div>
+        {isDisabledVisual && (
+          <div
+            className="absolute inset-0 rounded-md pointer-events-none transition-opacity duration-150"
+            style={{ background: 'rgba(0,0,0,0.55)', zIndex: 2 }}
           />
-        ) : (
-          <GenericArtCard defId={instance.defId} onClick={onClick} onPointerDown={onPointerDown} selected={selected} disabled={disabled} footer={footer} />
         )}
         {onInspect && (
           <button
@@ -222,7 +237,9 @@ export default function Card({
   }
 
   return (
-    <div className="relative inline-block shrink-0" style={dimStyle} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div className="relative inline-block shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
+    <div className="relative" style={{ zIndex: 1 }}>
     {hoverPreview}
     <button
       type="button"
@@ -238,7 +255,7 @@ export default function Card({
         boxShadow: selected ? `0 0 10px ${theme.primary}` : `0 0 4px ${theme.primary}66`,
       }}
       className={`relative flex flex-col text-left rounded-md border-2 p-1.5 overflow-hidden shrink-0 transition-transform ${textScale} ${ringClass} ${
-        disabled ? 'opacity-40 cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
+        disabled ? 'cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
       } ${highlight === 'attacked' ? 'opacity-50' : ''}`}
     >
       <div className="flex items-center justify-between gap-1">
@@ -315,6 +332,13 @@ export default function Card({
 
       {footer}
     </button>
+    </div>
+    {isDisabledVisual && (
+      <div
+        className="absolute inset-0 rounded-md pointer-events-none transition-opacity duration-150"
+        style={{ background: 'rgba(0,0,0,0.55)', zIndex: 2 }}
+      />
+    )}
     {onInspect && (
       <button
         type="button"

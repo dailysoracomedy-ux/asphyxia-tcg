@@ -992,7 +992,7 @@ export default function GameBoard() {
         <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end">
 
       {/* Row 3: opponent board */}
-      <div className="min-h-0">
+      <div className="min-h-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
         <PlayerBoard
           state={state}
           playerId={viewerTopId}
