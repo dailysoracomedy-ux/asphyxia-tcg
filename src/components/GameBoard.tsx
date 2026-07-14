@@ -971,7 +971,7 @@ export default function GameBoard() {
 
       {state.aiVsAiMode && <ShowcaseControls />}
 
-      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-3">
         {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
         <div className="w-[230px] shrink-0 flex flex-col gap-2 justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -992,7 +992,7 @@ export default function GameBoard() {
         <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end">
 
       {/* Row 3: opponent board */}
-      <div className="min-h-0 overflow-hidden">
+      <div className="min-h-0">
         <PlayerBoard
           state={state}
           playerId={viewerTopId}
