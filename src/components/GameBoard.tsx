@@ -17,7 +17,7 @@ import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
 import TutorialSlideshow from '@/tutorial/TutorialSlideshow';
-import Sidebar from './Sidebar';
+import { SidebarPlayerChip, OptionsInline } from './PlayerIdentityRow';
 import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@/tutorial/tutorialSteps';
 import { useTutorialStore } from '@/store/tutorialStore';
 import AudioController from '@/audio/AudioController';
@@ -151,7 +151,6 @@ export default function GameBoard() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const recentMoves = state.log.slice(-4);
 
   // Draw Phase is automatic: resolve the draw itself, then move straight to Main Phase,
   // except when Control Conflict's optional lock decision is available - that pauses
@@ -867,17 +866,14 @@ export default function GameBoard() {
   }
 
   const reconfigureDisabled = activePlayer.turnFlags.reconfigureUsedThisTurn || state.phase !== 'Main';
-  const equipSwapDisabled = activePlayer.turnFlags.equipSwapUsedThisTurn || state.phase !== 'Main';
   const supportBudgetSpent = activePlayer.turnFlags.supportsPlayedThisTurn >= 1;
   const eligibleReconfigurePlays =
     mode.kind === 'reconfigurePlay' && !supportBudgetSpent
       ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport')
       : [];
 
-  const theme = factionTheme(activePlayer.faction);
-
   return (
-    <div className="h-full max-h-full overflow-hidden flex gap-2 p-2 max-w-[1350px] mx-auto w-full">
+    <div className="h-full max-h-full overflow-x-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative">
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       <TutorialOverlay />
@@ -889,27 +885,36 @@ export default function GameBoard() {
       )}
       <AudioController />
 
-      <Sidebar
-        state={state}
-        topId={viewerTopId}
-        bottomId={viewerBottomId}
-        drag={drag}
-        onOpenLog={() => {
-          setLogOpen(true);
-          setLastSeenLogCount(state.log.length);
-        }}
-        logHasUnread={state.log.length > lastSeenLogCount}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/asphyxia-logo.png"
+        alt="ASPHYXIA"
+        className="absolute top-1 left-2 w-[72px] select-none pointer-events-none opacity-80 z-10"
+        draggable={false}
       />
 
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-center">
-        {/* Row 1: Rift + Turn/Phase together, one compact bar */}
-        <div className="shrink-0 flex items-center justify-center gap-3 flex-wrap">
-          <RiftPanel rift={state.riftSpace} />
-          <div className="rounded-lg border border-white/10 bg-[#05050a] px-3 py-1 text-[11px] text-white/50 shrink-0">
-            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
-            {phasePrompt && <span className="hidden lg:inline text-white/40 italic ml-2">{phasePrompt}</span>}
-          </div>
-        </div>
+      {/* Rift, centered near the very top */}
+      <div className="shrink-0 flex justify-center">
+        <RiftPanel rift={state.riftSpace} />
+      </div>
+
+      {/* Both players' identity + O2/Momentum, one compact centered row */}
+      <div className="shrink-0 flex items-center justify-center gap-3 flex-wrap text-[11px]">
+        <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
+        <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />
+      </div>
+
+      {/* Options, compact, directly below */}
+      <div className="shrink-0 flex justify-center">
+        <OptionsInline
+          state={state}
+          onOpenLog={() => {
+            setLogOpen(true);
+            setLastSeenLogCount(state.log.length);
+          }}
+          logHasUnread={state.log.length > lastSeenLogCount}
+        />
+      </div>
 
       {state.aiVsAiMode && <ShowcaseControls />}
 
@@ -1024,24 +1029,8 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 7: action feed - a real layout row (not an overlay), so it can never cover
-          the board. Shows recent moves, updating live, rather than a transient popup. */}
-      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1 flex items-center gap-2 overflow-hidden text-[10px] text-white/50">
-        <span className="uppercase tracking-widest text-white/30 shrink-0">Recent:</span>
-        <div className="flex overflow-hidden whitespace-nowrap">
-          {[...recentMoves].reverse().map((entry, i) => (
-            <span key={entry.id} className={entry.kind === 'info' ? 'text-red-300/80' : 'text-white/60'}>
-              {i > 0 && <span className="text-white/15 mr-3">·</span>}
-              {entry.message}
-            </span>
-          ))}
-          {recentMoves.length === 0 && <span className="text-white/25 italic">No moves yet.</span>}
-        </div>
-      </div>
-
-      {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5">
-        <div className="mx-auto w-full max-w-2xl flex flex-row flex-wrap items-start justify-center gap-2">
+      {/* End Turn + Engine Reconfig - right under the player's own board/Engines, not down by the hand */}
+      <div className="shrink-0 mx-auto w-full max-w-2xl flex flex-row flex-wrap items-start justify-center gap-2">
         <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
           {state.phase === 'Start' && (
             <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
@@ -1121,32 +1110,12 @@ export default function GameBoard() {
             )}
           </div>
         )}
+      </div>
 
-        {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
-          <div className="rounded-lg border border-orange-500/30 bg-[#05050a] p-1.5 text-[11px]">
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              <button type="button"
-                disabled={equipSwapDisabled || mode.kind === 'equipSwapSelectApex' || aiIsActing}
-                onClick={scrollSafeClick(() => setMode({ kind: 'equipSwapSelectApex' }))}
-                className="px-2 py-1 rounded border border-orange-400/50 hover:bg-orange-400/10 disabled:opacity-30 font-bold text-orange-200"
-              >
-                Equip Swap {activePlayer.turnFlags.equipSwapUsedThisTurn ? '(used)' : '(once/turn)'}
-              </button>
-              {mode.kind === 'equipSwapSelectApex' && (
-                <span className="text-orange-300 animate-pulse">Select an Apex above with an Equip to swap out...</span>
-              )}
-              {mode.kind === 'equipSwapSelectCard' && (
-                <span className="text-orange-300 animate-pulse">Select an Equip in your hand to swap in...</span>
-              )}
-              {(mode.kind === 'equipSwapSelectApex' || mode.kind === 'equipSwapSelectCard') && (
-                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
-                  cancel
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-        </div>
+      <div className="flex-1 min-h-0" />
+
+      {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
+      <div className="shrink-0 flex flex-col gap-1.5">
 
         {/* All mode-dependent confirmation UI below (ConfirmBar variants, the
             Overdrive prompt) needs to stay clickable above the tutorial dim
@@ -1260,7 +1229,6 @@ export default function GameBoard() {
               : undefined
           }
         />
-      </div>
       </div>
 
       {inspected && (
