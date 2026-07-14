@@ -38,7 +38,7 @@ export default function SharedStatsBar({ state, leftId, rightId, drag }: { state
 /** Same pattern as O2Stat - reacts to MOMENTUM_GAINED/MOMENTUM_SPENT for this
  *  specific player with a brief pulse (gain, energetic brighten) or drain flicker
  *  (spend), plus a floating +1/-1 popup. */
-function MomentumStat({ playerId, value, color }: { playerId: PlayerId; value: number; color: string }) {
+export function MomentumStat({ playerId, value, color }: { playerId: PlayerId; value: number; color: string }) {
   const events = usePlayerVisualEvents(playerId).filter((e) => e.type === 'MOMENTUM_GAINED' || e.type === 'MOMENTUM_SPENT');
   const gained = events.some((e) => e.type === 'MOMENTUM_GAINED');
   const spent = events.some((e) => e.type === 'MOMENTUM_SPENT');
@@ -66,7 +66,7 @@ function MomentumStat({ playerId, value, color }: { playerId: PlayerId; value: n
  *  O2_DAMAGE/OVERFLOW_DAMAGE visual events (Commit 23) for this specific player and
  *  show a brief flash + floating "-X O2" popup - purely additive on top of the
  *  existing danger-red pulse for low O2, never replacing it. */
-function O2Stat({ playerId, value, color, drag }: { playerId: PlayerId; value: number; color: string; drag?: DragState | null }) {
+export function O2Stat({ playerId, value, color, drag }: { playerId: PlayerId; value: number; color: string; drag?: DragState | null }) {
   const events = usePlayerVisualEvents(playerId).filter((e) => e.type === 'O2_DAMAGE' || e.type === 'OVERFLOW_DAMAGE');
   const danger = value <= 4;
   const hit = events.length > 0;

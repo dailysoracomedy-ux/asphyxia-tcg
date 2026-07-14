@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
-import PlayerBoard, { PlayerStatusChips } from './PlayerBoard';
+import PlayerBoard from './PlayerBoard';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
@@ -17,18 +17,16 @@ import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
 import TutorialSlideshow from '@/tutorial/TutorialSlideshow';
+import Sidebar from './Sidebar';
 import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@/tutorial/tutorialSteps';
 import { useTutorialStore } from '@/store/tutorialStore';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
 import { canPlayCardFromHand } from '@/lib/cardPlayability';
-import AudioSettingsControl from '@/audio/AudioSettingsControl';
 import { useCeremonyBusy } from '@/store/animationStore';
 import { useShowcaseStore, currentShowcaseMultiplier, SHOWCASE_SPEED_MIN, SHOWCASE_SPEED_MAX } from '@/store/showcaseStore';
 import VoidInspectModal from './VoidInspectModal';
-import SharedStatsBar from './SharedStatsBar';
 import { factionTheme } from '@/lib/theme';
-import { BUILD_VERSION } from '@/lib/version';
 import { aiPlayOneMainPhaseAction, aiPlayOneCombatAction, aiDecideControlConflict, aiChooseBinaryRiftBonus, aiChooseResponse } from '@/game/ai';
 import { useDragDrop } from '@/ui/dragDrop/DragDropLayer';
 import DragDropLayer from '@/ui/dragDrop/DragDropLayer';
@@ -879,10 +877,7 @@ export default function GameBoard() {
   const theme = factionTheme(activePlayer.faction);
 
   return (
-    <div
-      className="h-full max-h-full overflow-hidden grid gap-1.5 p-2 max-w-[1150px] mx-auto w-full"
-      style={{ gridTemplateRows: 'auto auto auto minmax(0,auto) auto minmax(0,auto) auto auto', alignContent: 'center' }}
-    >
+    <div className="h-full max-h-full overflow-hidden flex gap-2 p-2 max-w-[1350px] mx-auto w-full">
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       <TutorialOverlay />
@@ -894,38 +889,30 @@ export default function GameBoard() {
       )}
       <AudioController />
 
-      {/* Row 1: Turn/Phase/Battle Log/Reset - just table controls now, centered */}
-      <div className="shrink-0 rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-3 text-[11px] text-white/50">
-        <span>
-          Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
-          <span className="text-white/20 ml-2 font-mono hidden md:inline">{BUILD_VERSION}</span>
-        </span>
-        {phasePrompt && <span className="hidden lg:inline text-white/40 italic">{phasePrompt}</span>}
-        <label className="hidden md:flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
-          <input type="checkbox" checked={state.debugMode} onChange={() => state.toggleDebugMode()} className="accent-fuchsia-400" />
-          debug
-        </label>
-        <AudioSettingsControl compact />
-        <button
-          type="button"
-          onClick={() => {
-            setLogOpen(true);
-            setLastSeenLogCount(state.log.length);
-          }}
-          className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
-        >
-          Battle Log
-          {state.log.length > lastSeenLogCount && <span className="ml-1 text-fuchsia-300">• New</span>}
-        </button>
-        <button type="button" onClick={() => state.resetToMenu()} className="hover:text-white underline">
-          Reset
-        </button>
-      </div>
+      <Sidebar
+        state={state}
+        topId={viewerTopId}
+        bottomId={viewerBottomId}
+        drag={drag}
+        onOpenLog={() => {
+          setLogOpen(true);
+          setLastSeenLogCount(state.log.length);
+        }}
+        logHasUnread={state.log.length > lastSeenLogCount}
+      />
+
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-center">
+        {/* Row 1: Rift + Turn/Phase together, one compact bar */}
+        <div className="shrink-0 flex items-center justify-center gap-3 flex-wrap">
+          <RiftPanel rift={state.riftSpace} />
+          <div className="rounded-lg border border-white/10 bg-[#05050a] px-3 py-1 text-[11px] text-white/50 shrink-0">
+            Turn {state.turnNumber} · <span style={{ color: theme.primary }} className="font-bold">{PHASE_LABEL[state.phase]}</span>
+            {phasePrompt && <span className="hidden lg:inline text-white/40 italic ml-2">{phasePrompt}</span>}
+          </div>
+        </div>
 
       {state.aiVsAiMode && <ShowcaseControls />}
 
-      {/* Row 2: Rift - hugs its own content width and centers, no stretched empty space */}
-      <RiftPanel rift={state.riftSpace} />
 
       {/* Row 3: opponent board */}
       <div className="min-h-0 overflow-hidden">
@@ -939,16 +926,6 @@ export default function GameBoard() {
           onOpenVoid={() => setVoidInspecting(viewerTopId)}
           drag={drag}
         />
-      </div>
-
-      {/* Row 4: one unified centered band - identity+hand on each side flanking the
-          shared O2/Momentum readout. Sits between the two board rows, not up near
-          the header - the point is that it reads as "these two players, facing
-          off," not as a status line attached to the top bar. */}
-      <div className="shrink-0 flex items-center justify-center gap-4 flex-wrap">
-        <PlayerStatusChips state={state} playerId={viewerTopId} />
-        <SharedStatsBar state={state} leftId={viewerTopId} rightId={viewerBottomId} drag={drag} />
-        <PlayerStatusChips state={state} playerId={viewerBottomId} />
       </div>
 
       {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
@@ -1283,6 +1260,7 @@ export default function GameBoard() {
               : undefined
           }
         />
+      </div>
       </div>
 
       {inspected && (
