@@ -15,10 +15,10 @@ export default function RiftPanel({ rift }: { rift: RiftSpace | null }) {
       className={`rounded-lg border border-fuchsia-500/40 bg-[#05050a] px-3 py-1 text-[11px] shrink-0 w-fit max-w-full mx-auto ${pulsing ? 'vfx-rift-pulse' : ''}`}
       style={{ ['--rift-pulse-color' as string]: 'rgba(232,121,249,0.7)' }}
     >
-      <div className="flex items-center gap-2 justify-center">
+      <div className="flex items-start gap-2 justify-center flex-wrap">
         <span className="uppercase tracking-widest text-fuchsia-300/70 shrink-0">Rift:</span>
         <span className="font-bold text-fuchsia-200 shrink-0">{rift.name}</span>
-        <span className="text-white/50 whitespace-nowrap" title={rift.description}>
+        <span className="text-white/50" title={rift.description}>
           — {rift.shortDescription}
         </span>
         <button

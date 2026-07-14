@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
 import Card from './Card';
 import { canPlayCardFromHand, getCardPlayabilityReason } from '@/lib/cardPlayability';
@@ -36,6 +37,10 @@ interface HandProps {
   tutorialSpotlightInstanceId?: string | null;
 }
 
+const HAND_CARD_H = 194; // matches Card.tsx's 'hand' size preset height exactly
+const HAND_PEEK_H = 70; // how much of a tucked card's top is visible by default
+const HAND_TUCK_OFFSET = HAND_CARD_H - HAND_PEEK_H;
+
 export default function Hand({
   cards,
   selectedId,
@@ -49,44 +54,54 @@ export default function Hand({
   onCardPointerDown,
   tutorialSpotlightInstanceId,
 }: HandProps) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
   return (
-    <div
-      className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[92px] overflow-visible shrink-0 w-fit max-w-full mx-auto"
-      style={{ minWidth }}
-    >
+    <div className="shrink-0 w-fit max-w-full mx-auto px-1.5" style={{ minWidth }}>
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
-      <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
-        {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
-        {cards.map((c) => {
-          const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
-          const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
-          const tutorialHighlight: 'tutorial-target' | 'tutorial-dim' | null =
-            tutorialSpotlightInstanceId === undefined
-              ? null
-              : c.instanceId === tutorialSpotlightInstanceId
-              ? 'tutorial-target'
-              : 'tutorial-dim';
-          return (
-            <div
-              key={c.instanceId}
-              title={reason ?? undefined}
-              onMouseEnter={playable ? () => playSfx('ui.hover') : undefined}
-              className="relative shrink-0 transition-[top] duration-150 ease-out top-0 hover:top-[-165px] hover:z-40"
-            >
-              <Card
-                instance={c}
-                size="hand"
-                selected={selectedId === c.instanceId}
-                disabled={disabledIds?.has(c.instanceId)}
-                isPlayable={playable}
-                highlight={tutorialHighlight}
-                onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
-                onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
-                onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
-              />
-            </div>
-          );
-        })}
+      {/* The reserved, fixed-height track - exactly one card tall, overflow
+          cropped locally here only. Nothing above this ever needs to clip
+          or scroll because of it. */}
+      <div className="relative overflow-hidden" style={{ height: HAND_CARD_H }}>
+        <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 justify-center h-full">
+          {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
+          {cards.map((c) => {
+            const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
+            const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
+            const tutorialHighlight: 'tutorial-target' | 'tutorial-dim' | null =
+              tutorialSpotlightInstanceId === undefined
+                ? null
+                : c.instanceId === tutorialSpotlightInstanceId
+                ? 'tutorial-target'
+                : 'tutorial-dim';
+            const isHovered = hoveredId === c.instanceId;
+            return (
+              <div
+                key={c.instanceId}
+                title={reason ?? undefined}
+                onMouseEnter={() => {
+                  if (playable) playSfx('ui.hover');
+                  setHoveredId(c.instanceId);
+                }}
+                onMouseLeave={() => setHoveredId((cur) => (cur === c.instanceId ? null : cur))}
+                className="relative shrink-0 transition-[top] duration-150 ease-out"
+                style={{ top: isHovered ? 0 : HAND_TUCK_OFFSET, zIndex: isHovered ? 40 : undefined }}
+              >
+                <Card
+                  instance={c}
+                  size="hand"
+                  selected={selectedId === c.instanceId}
+                  disabled={disabledIds?.has(c.instanceId)}
+                  isPlayable={playable}
+                  highlight={tutorialHighlight}
+                  onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
+                  onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
+                  onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

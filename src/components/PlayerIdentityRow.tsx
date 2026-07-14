@@ -21,7 +21,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1 flex items-center gap-3">
+    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
       <span
         className={`font-bold tracking-wide ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
         style={{ color: theme.primary, border: `1px solid ${theme.border}`, borderRadius: 4, padding: '1px 6px' }}

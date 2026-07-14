@@ -167,35 +167,37 @@ export default function PlayerBoard({
             />
           ))}
         </div>
-        <div className="flex gap-2 items-start row-start-1 col-start-3 justify-start">
-          {flipped ? (
-            <div className="flex flex-col gap-1 items-center">
-              <div className="flex gap-1">
-                <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
-                <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
+        <div className="flex flex-col gap-1.5 row-start-1 col-start-3 items-start">
+          <div className="flex gap-2 items-start justify-start">
+            {flipped ? (
+              <div className="flex flex-col gap-1 items-center">
+                <div className="flex gap-1">
+                  <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
+                  <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
+                </div>
+                <ActionZone playerId={playerId} drag={drag} />
               </div>
-              <ActionZone playerId={playerId} drag={drag} />
-            </div>
-          ) : (
-            <div className="flex gap-1.5">
-              {player.supportSlots.map((support, i) => (
-                <SupportSlotOrGhost
-                  key={i}
-                  slotIndex={i}
-                  support={support}
-                  state={state}
-                  playerId={playerId}
-                  onClick={onSupportClick}
-                  disabled={support ? supportDisabled?.(support.instanceId) : false}
-                  selected={support ? selectedSupportId === support.instanceId : false}
-                  onInspect={onInspectCard}
-                  drag={drag}
-                />
-              ))}
-            </div>
-          )}
+            ) : (
+              <div className="flex gap-1.5">
+                {player.supportSlots.map((support, i) => (
+                  <SupportSlotOrGhost
+                    key={i}
+                    slotIndex={i}
+                    support={support}
+                    state={state}
+                    playerId={playerId}
+                    onClick={onSupportClick}
+                    disabled={support ? supportDisabled?.(support.instanceId) : false}
+                    selected={support ? selectedSupportId === support.instanceId : false}
+                    onInspect={onInspectCard}
+                    drag={drag}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          {footer && <div className="w-full flex justify-center">{footer}</div>}
         </div>
-        {footer && <div className="row-start-2 col-start-3 flex justify-center mt-1.5">{footer}</div>}
       </div>
     </div>
   );
