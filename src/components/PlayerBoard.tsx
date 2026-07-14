@@ -17,9 +17,9 @@ import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
  *  import Card's internal SIZE_MAP just for one number. */
-const APEX_BOARD_HEIGHT = 250;
+const APEX_BOARD_HEIGHT = 285;
 /** Matches Card.tsx's 'supportBoard' size preset height, same reasoning as above. */
-const SUPPORT_BOARD_HEIGHT = 163;
+const SUPPORT_BOARD_HEIGHT = 200;
 
 interface PlayerBoardProps {
   state: GameState;
@@ -112,7 +112,7 @@ export default function PlayerBoard({
       style={{
         borderColor: `${theme.border}55`,
         background: `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
-        transform: 'perspective(800px) rotateX(16deg)',
+        transform: 'perspective(1100px) rotateX(11deg)',
         transformOrigin: 'center center',
         ['--active-glow-color' as string]: `${theme.primary}99`,
       }}

@@ -347,7 +347,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             <div
               className="relative w-36 h-36"
               style={{
-                transform: `scaleX(${squashed ? 0 : 1}) scaleY(${squashed ? 1.04 : 1})`,
+                transform: `scaleY(${squashed ? 0 : 1}) scaleX(${squashed ? 1.04 : 1})`,
                 transition: 'transform 80ms ease-in-out',
                 filter: `drop-shadow(0 ${squashed ? 4 : 10}px ${squashed ? 12 : 30}px rgba(0,0,0,${squashed ? 0.35 : 0.6}))`,
               }}

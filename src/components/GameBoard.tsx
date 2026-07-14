@@ -973,9 +973,9 @@ export default function GameBoard() {
 
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
         {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
-        <div className="w-[230px] shrink-0 flex flex-col gap-2 justify-center">
+        <div className="w-[230px] shrink-0 flex flex-col gap-2 justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" draggable={false} />
+          <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" style={{ maxHeight: 90, objectFit: 'contain' }} draggable={false} />
           <RiftPanel rift={state.riftSpace} />
           <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
           <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />

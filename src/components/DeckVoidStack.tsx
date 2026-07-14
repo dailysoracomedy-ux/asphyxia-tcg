@@ -50,7 +50,7 @@ export default function DeckVoidStack({
       <span className="text-[10px] font-bold tracking-wider leading-none" style={{ color: accentColor }}>
         {label} {count}
       </span>
-      <div className="relative" style={{ width: 90, height: 126 }}>
+      <div className="relative" style={{ width: 108, height: 126 }}>
         {isEmpty ? (
           <div className="absolute inset-0 rounded border border-dashed border-white/15" />
         ) : (
@@ -61,7 +61,7 @@ export default function DeckVoidStack({
                 key={i}
                 className="absolute rounded border overflow-hidden"
                 style={{
-                  width: 90,
+                  width: 108,
                   height: 126,
                   left: i * 3,
                   top: -i * 3,
