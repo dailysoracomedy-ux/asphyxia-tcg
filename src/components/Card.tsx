@@ -191,7 +191,7 @@ export default function Card({
         onMouseLeave={handleMouseLeave}
       >
         {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
-        <div className="relative" style={{ zIndex: 1 }}>
+        <div className="relative w-full h-full" style={{ zIndex: 1 }}>
           {hoverPreview}
           {isApex && apexDef ? (
             <ApexCardRenderer
@@ -239,7 +239,7 @@ export default function Card({
   return (
     <div className="relative inline-block shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
     {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
-    <div className="relative" style={{ zIndex: 1 }}>
+    <div className="relative w-full h-full" style={{ zIndex: 1 }}>
     {hoverPreview}
     <button
       type="button"
