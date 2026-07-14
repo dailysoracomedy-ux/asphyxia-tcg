@@ -57,7 +57,7 @@ export default function Hand({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
-    <div className="shrink-0 w-fit max-w-full mx-auto px-1.5" style={{ minWidth }}>
+    <div className="shrink-0 w-fit max-w-full mx-auto px-1.5 relative z-20" style={{ minWidth }}>
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
       {/* The reserved, fixed-height track - exactly one card tall, overflow
           cropped locally here only. Nothing above this ever needs to clip

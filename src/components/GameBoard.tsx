@@ -1080,7 +1080,7 @@ export default function GameBoard() {
       </div>
 
       {/* Row 6: player board */}
-      <div className="min-h-0">
+      <div className="min-h-0" style={{ marginBottom: -110 }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}

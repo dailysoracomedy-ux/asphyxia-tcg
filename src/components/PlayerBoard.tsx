@@ -167,7 +167,7 @@ export default function PlayerBoard({
             />
           ))}
         </div>
-        <div className="flex flex-col gap-1.5 row-start-1 col-start-3 items-start">
+        <div className="flex flex-col gap-1.5 row-start-1 col-start-3 items-start relative">
           <div className="flex gap-2 items-start justify-start">
             {flipped ? (
               <div className="flex flex-col gap-1 items-center">
@@ -196,7 +196,7 @@ export default function PlayerBoard({
               </div>
             )}
           </div>
-          {footer && <div className="w-full flex justify-center">{footer}</div>}
+          {footer && <div className="absolute top-full left-0 w-full flex justify-center mt-1.5">{footer}</div>}
         </div>
       </div>
     </div>
