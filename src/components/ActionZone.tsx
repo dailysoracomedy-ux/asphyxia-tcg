@@ -24,13 +24,14 @@ export default function ActionZone({ playerId, drag }: { playerId: PlayerId; dra
   return (
     <div data-dropzone={isLegalDropTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined} className="-m-3 p-3">
       <div
-        className={`rounded-md border text-center text-[9px] uppercase tracking-widest py-1.5 transition-shadow ${
+        className={`rounded-md border flex items-center justify-center text-center text-[11px] uppercase tracking-widest transition-shadow ${
           isLegalDropTarget
             ? isHovered
               ? 'border-emerald-300 text-emerald-200 ring-4 ring-emerald-300 shadow-[0_0_30px_rgba(52,211,153,0.9)] bg-emerald-400/10'
               : 'border-emerald-400/70 text-emerald-300/80 ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.5)]'
             : 'border-white/10 text-white/25'
         }`}
+        style={{ width: 90, height: 100 }}
       >
         Action
       </div>

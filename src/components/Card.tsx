@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApexDef, CardInstance } from '@/types/game';
 import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
@@ -139,8 +140,8 @@ export default function Card({
     xl: { w: 380, h: 532, text: 'text-[18px]' },
     // Board sizes are deliberately compact - board cards are game pieces, not full
     // previews. Hand cards get a bit more room since they're the "read the card" view.
-    apexBoard: { w: 195, h: 232, text: 'text-[13px]' },
-    supportBoard: { w: 145, h: 152, text: 'text-[11px]' },
+    apexBoard: { w: 210, h: 250, text: 'text-[13.5px]' },
+    supportBoard: { w: 155, h: 163, text: 'text-[11.5px]' },
     hand: { w: 155, h: 194, text: 'text-[11.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];
@@ -363,9 +364,10 @@ export function CardHoverPreview({
     top = Math.max(MARGIN, Math.min(top, window.innerHeight - PREVIEW_H - MARGIN));
   }
 
-  return (
+  return createPortal(
     <div className="fixed z-40 pointer-events-none" style={{ left, top, filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.7))' }}>
       <Card instance={instance} size="xl" effectiveDef={effectiveDef} attackPreviews={attackPreviews} disableHoverPreview />
-    </div>
+    </div>,
+    document.body
   );
 }
