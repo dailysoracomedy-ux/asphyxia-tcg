@@ -308,10 +308,11 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 className="relative w-36 h-36"
                 style={{
                   transformStyle: 'preserve-3d',
+                  WebkitTransformStyle: 'preserve-3d',
                   transform: `rotateY(${rotation}deg)`,
                   transition: coinStage === 'flipping' ? 'transform 1.5s cubic-bezier(0.2, 0.7, 0.3, 1)' : 'none',
                   filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.6))',
-                }}
+                } as React.CSSProperties}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -319,7 +320,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                   alt="Heads"
                   draggable={false}
                   className="absolute inset-0 w-full h-full rounded-full select-none pointer-events-none"
-                  style={{ backfaceVisibility: 'hidden' }}
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' } as React.CSSProperties}
                 />
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -327,7 +328,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                   alt="Tails"
                   draggable={false}
                   className="absolute inset-0 w-full h-full rounded-full select-none pointer-events-none"
-                  style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' } as React.CSSProperties}
                 />
               </div>
             </div>
