@@ -125,7 +125,8 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
   const [coinStage, setCoinStage] = useState<CoinStage>('calling');
   const [called, setCalled] = useState<CallSide | null>(null);
   const [coinResult, setCoinResult] = useState<CallSide | null>(null);
-  const [rotation, setRotation] = useState(0);
+  const [currentFace, setCurrentFace] = useState<CallSide>('heads');
+  const [squashed, setSquashed] = useState(false);
   const [wonCall, setWonCall] = useState(false);
 
   function beginCoinFlip(opponent: Faction, isHotseat: boolean) {
@@ -134,22 +135,44 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     setCoinStage('calling');
     setCalled(null);
     setCoinResult(null);
-    setRotation(0);
+    setCurrentFace('heads');
+    setSquashed(false);
     setView('coin-flip');
   }
+
+  const FLIP_MS = 150; // one full squash-unsquash cycle (one face swap)
 
   function callCoin(side: CallSide) {
     playSfx('ui.confirm');
     const outcome: CallSide = Math.random() < 0.5 ? 'heads' : 'tails';
-    const extraSpins = 5 + Math.floor(Math.random() * 3); // 5-7 full spins, never suspiciously identical
-    const landingDeg = outcome === 'heads' ? 0 : 180;
     setCalled(side);
     setCoinResult(outcome);
     setCoinStage('flipping');
-    setRotation(extraSpins * 360 + landingDeg);
     playSfx('card.draw'); // a quick, crisp whoosh-adjacent cue - closest existing sound to a flip/toss
 
-    setTimeout(() => {
+    // The coin always starts showing 'heads'. An odd number of face-swaps is
+    // needed to land on tails, even to land back on heads - pick a flip
+    // count in a pleasant range and nudge it to the right parity rather than
+    // just trusting a random number to land right.
+    let flips = 8 + Math.floor(Math.random() * 4); // 8-11
+    const needsOdd = outcome === 'tails';
+    if ((flips % 2 === 1) !== needsOdd) flips += 1;
+
+    let i = 0;
+    function doFlip() {
+      setSquashed(true);
+      setTimeout(() => {
+        setCurrentFace((f) => (f === 'heads' ? 'tails' : 'heads'));
+        setSquashed(false);
+        i++;
+        if (i < flips) {
+          setTimeout(doFlip, FLIP_MS);
+        } else {
+          setTimeout(finishFlip, FLIP_MS + 250);
+        }
+      }, FLIP_MS / 2);
+    }
+    function finishFlip() {
       const won = side === outcome;
       setWonCall(won);
       setCoinStage('result');
@@ -160,7 +183,8 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         const randomFirst: PlayerId = Math.random() < 0.5 ? 'player1' : 'player2';
         setTimeout(() => startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, randomFirst), 1400);
       }
-    }, 1500);
+    }
+    doFlip();
   }
 
   function chooseFirst(first: PlayerId) {
@@ -303,34 +327,21 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               </div>
             </div>
 
-            <div style={{ perspective: '1200px' }}>
-              <div
-                className="relative w-36 h-36"
-                style={{
-                  transformStyle: 'preserve-3d',
-                  WebkitTransformStyle: 'preserve-3d',
-                  transform: `rotateY(${rotation}deg)`,
-                  transition: coinStage === 'flipping' ? 'transform 1.5s cubic-bezier(0.2, 0.7, 0.3, 1)' : 'none',
-                  filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.6))',
-                } as React.CSSProperties}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/images/coin-front.png"
-                  alt="Heads"
-                  draggable={false}
-                  className="absolute inset-0 w-full h-full rounded-full select-none pointer-events-none"
-                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' } as React.CSSProperties}
-                />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/images/coin-back.png"
-                  alt="Tails"
-                  draggable={false}
-                  className="absolute inset-0 w-full h-full rounded-full select-none pointer-events-none"
-                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)' } as React.CSSProperties}
-                />
-              </div>
+            <div
+              className="relative w-36 h-36"
+              style={{
+                transform: `scaleX(${squashed ? 0 : 1}) scaleY(${squashed ? 1.04 : 1})`,
+                transition: `transform ${FLIP_MS / 2}ms ease-in-out`,
+                filter: `drop-shadow(0 ${squashed ? 4 : 10}px ${squashed ? 12 : 30}px rgba(0,0,0,${squashed ? 0.35 : 0.6}))`,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentFace === 'heads' ? '/images/coin-front.png' : '/images/coin-back.png'}
+                alt={currentFace === 'heads' ? 'Heads' : 'Tails'}
+                draggable={false}
+                className="absolute inset-0 w-full h-full rounded-full select-none pointer-events-none"
+              />
             </div>
 
             {coinStage === 'calling' && (
