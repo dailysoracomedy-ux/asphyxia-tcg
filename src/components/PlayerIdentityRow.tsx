@@ -21,21 +21,23 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5 flex items-center gap-2 whitespace-nowrap">
-      <span
-        className={`font-bold tracking-wide ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
-        style={{ color: theme.primary, border: `1px solid ${theme.border}`, borderRadius: 4, padding: '1px 6px' }}
+    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5">
+      <div
+        className={`font-bold tracking-wide text-[12px] mb-1 ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
+        style={{ color: theme.primary }}
       >
-        {player.faction}
+        {player.faction.toUpperCase()}
         {isActive ? ' ◂' : ''}
-      </span>
-      <div className="flex items-center gap-2 font-mono">
-        <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
-        <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
       </div>
-      <span className="text-white/40">
-        HAND {player.hand.length} <span className="text-fuchsia-300 ml-1">SYNC {player.availableSync}</span>
-      </span>
+      <div className="flex items-center gap-1.5 font-mono text-[12px] whitespace-nowrap">
+        <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
+        <span className="text-white/20">|</span>
+        <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
+        <span className="text-white/20">|</span>
+        <span className="text-white/40">Hand {player.hand.length}</span>
+        <span className="text-white/20">|</span>
+        <span className="text-fuchsia-300">Sync {player.availableSync}</span>
+      </div>
     </div>
   );
 }

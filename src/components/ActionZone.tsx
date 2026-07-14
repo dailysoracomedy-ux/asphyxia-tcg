@@ -22,7 +22,7 @@ export default function ActionZone({ playerId, drag }: { playerId: PlayerId; dra
   const isHovered = drag?.hoveredZoneKey === key;
 
   return (
-    <div data-dropzone={isLegalDropTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined} className="-m-3 p-3">
+    <div data-dropzone={isLegalDropTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined} className="-m-8 p-8">
       <div
         className={`rounded-md border flex items-center justify-center text-center text-[11px] uppercase tracking-widest transition-shadow ${
           isLegalDropTarget

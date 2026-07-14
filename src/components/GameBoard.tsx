@@ -1107,14 +1107,14 @@ export default function GameBoard() {
       </div>
 
       {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5 relative z-30">
+      <div className="shrink-0 flex flex-col gap-1.5 relative z-30 pointer-events-none">
 
         {/* All mode-dependent confirmation UI below (ConfirmBar variants, the
             Overdrive prompt) needs to stay clickable above the tutorial dim
             overlay - it's exactly the "Confirm" surface a player needs during a
             gated tutorial step, so it can't be caught by the same blackout that
             blocks everything else. */}
-        <div className={state.tutorialMode ? 'tutorial-above-overlay flex flex-col gap-1.5' : 'contents'}>
+        <div className={state.tutorialMode ? 'tutorial-above-overlay flex flex-col gap-1.5 pointer-events-auto' : 'contents pointer-events-auto'}>
         {mode.kind === 'apexReady' && (
           <ConfirmBar
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
