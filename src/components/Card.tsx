@@ -139,8 +139,8 @@ export default function Card({
     xl: { w: 380, h: 532, text: 'text-[18px]' },
     // Board sizes are deliberately compact - board cards are game pieces, not full
     // previews. Hand cards get a bit more room since they're the "read the card" view.
-    apexBoard: { w: 175, h: 208, text: 'text-[12px]' },
-    supportBoard: { w: 130, h: 136, text: 'text-[10px]' },
+    apexBoard: { w: 195, h: 232, text: 'text-[13px]' },
+    supportBoard: { w: 145, h: 152, text: 'text-[11px]' },
     hand: { w: 155, h: 194, text: 'text-[11.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];

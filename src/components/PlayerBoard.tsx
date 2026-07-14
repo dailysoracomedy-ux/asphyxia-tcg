@@ -17,9 +17,9 @@ import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
  *  import Card's internal SIZE_MAP just for one number. */
-const APEX_BOARD_HEIGHT = 208;
+const APEX_BOARD_HEIGHT = 232;
 /** Matches Card.tsx's 'supportBoard' size preset height, same reasoning as above. */
-const SUPPORT_BOARD_HEIGHT = 136;
+const SUPPORT_BOARD_HEIGHT = 152;
 
 interface PlayerBoardProps {
   state: GameState;
@@ -51,6 +51,11 @@ interface PlayerBoardProps {
    *  GameBoard.tsx's mode === 'attackAwaitingTarget'). Only relevant for the
    *  active player's own board. */
   onApexAttackDragStart?: (e: React.PointerEvent, instanceId: string) => void;
+  /** Commit 38 - optional content rendered directly under the Support/Engine
+   *  slots column, in the board's own grid (not centered under the whole
+   *  board from outside) - used for End Turn/Engine Reconfig, so they
+   *  genuinely align under the Engines regardless of dynamic sizing. */
+  footer?: React.ReactNode;
 }
 
 /** Compact identity chip - just Faction name and Hand count now; O2/Momentum moved
@@ -92,6 +97,7 @@ export default function PlayerBoard({
   containerRef,
   drag,
   onApexAttackDragStart,
+  footer,
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
@@ -189,6 +195,7 @@ export default function PlayerBoard({
             </div>
           )}
         </div>
+        {footer && <div className="row-start-2 col-start-3 flex justify-center mt-1.5">{footer}</div>}
       </div>
     </div>
   );

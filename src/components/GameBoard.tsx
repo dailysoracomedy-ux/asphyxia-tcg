@@ -872,6 +872,90 @@ export default function GameBoard() {
       ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport')
       : [];
 
+  const endTurnFooter = (
+    <div className="flex flex-row flex-wrap items-start justify-center gap-2">
+      <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
+        {state.phase === 'Start' && (
+          <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
+        )}
+        {aiIsActing && (
+          <span className="text-[11px] text-fuchsia-300/80 italic px-1 animate-pulse">
+            {state.players.player2.faction} AI is taking its turn...
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={scrollSafeClick(() => state.endTurn())}
+          disabled={state.phase !== 'Combat' || aiIsActing || mode.kind === 'attackerChosen'}
+          className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
+            state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
+          }`}
+        >
+          End Turn
+        </button>
+      </div>
+
+      {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
+        <div className="rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <button type="button"
+              disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
+              onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
+              className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
+            >
+              Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
+            </button>
+            {mode.kind === 'reconfigureReturn' && (
+              <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
+            )}
+            {mode.kind === 'reconfigurePlay' && (
+              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+                Skip — finish Engine Reconfig
+              </button>
+            )}
+            {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
+              <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
+                cancel
+              </button>
+            )}
+          </div>
+          {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
+            <div className="mt-1 text-white/40 italic">
+              Already played a Support this turn - this Engine Reconfig can only return a card, not play one in.
+            </div>
+          )}
+          {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
+            <div className="mt-1 flex gap-2 flex-wrap">
+              {eligibleReconfigurePlays.map((c) => {
+                const def = getCardDef(c.defId);
+                return (
+                  <button type="button"
+                    key={c.instanceId}
+                    onClick={() => {
+                      if (mode.kind !== 'reconfigurePlay') return;
+                      if (c.type === 'AbilitySupport') {
+                        setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
+                      } else {
+                        state.reconfigure(mode.returnId, c.instanceId);
+                        resetMode();
+                      }
+                    }}
+                    className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
+                  >
+                    play {def.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {mode.kind === 'reconfigureChain' && (
+            <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="h-full max-h-full overflow-x-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative">
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
@@ -885,39 +969,27 @@ export default function GameBoard() {
       )}
       <AudioController />
 
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/images/asphyxia-logo.png"
-        alt="ASPHYXIA"
-        className="absolute top-1 left-2 w-[72px] select-none pointer-events-none opacity-80 z-10"
-        draggable={false}
-      />
-
-      {/* Rift, centered near the very top */}
-      <div className="shrink-0 flex justify-center">
-        <RiftPanel rift={state.riftSpace} />
-      </div>
-
-      {/* Both players' identity + O2/Momentum, one compact centered row */}
-      <div className="shrink-0 flex items-center justify-center gap-3 flex-wrap text-[11px]">
-        <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
-        <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />
-      </div>
-
-      {/* Options, compact, directly below */}
-      <div className="shrink-0 flex justify-center">
-        <OptionsInline
-          state={state}
-          onOpenLog={() => {
-            setLogOpen(true);
-            setLastSeenLogCount(state.log.length);
-          }}
-          logHasUnread={state.log.length > lastSeenLogCount}
-        />
-      </div>
-
       {state.aiVsAiMode && <ShowcaseControls />}
 
+      <div className="flex-1 min-h-0 flex gap-3">
+        {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
+        <div className="w-[190px] shrink-0 flex flex-col gap-2 overflow-y-auto justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" draggable={false} />
+          <RiftPanel rift={state.riftSpace} />
+          <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
+          <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />
+          <OptionsInline
+            state={state}
+            onOpenLog={() => {
+              setLogOpen(true);
+              setLastSeenLogCount(state.log.length);
+            }}
+            logHasUnread={state.log.length > lastSeenLogCount}
+          />
+        </div>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-center">
 
       {/* Row 3: opponent board */}
       <div className="min-h-0 overflow-hidden">
@@ -1008,7 +1080,7 @@ export default function GameBoard() {
       </div>
 
       {/* Row 6: player board */}
-      <div className="min-h-0 overflow-hidden">
+      <div className="min-h-0">
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
@@ -1026,93 +1098,13 @@ export default function GameBoard() {
           containerRef={boardRef}
           drag={drag}
           onApexAttackDragStart={undefined}
+          footer={endTurnFooter}
         />
       </div>
 
-      {/* End Turn + Engine Reconfig - right under the player's own board/Engines, not down by the hand */}
-      <div className="shrink-0 mx-auto w-full max-w-2xl flex flex-row flex-wrap items-start justify-center gap-2">
-        <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
-          {state.phase === 'Start' && (
-            <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
-          )}
-          {aiIsActing && (
-            <span className="text-[11px] text-fuchsia-300/80 italic px-1 animate-pulse">
-              {state.players.player2.faction} AI is taking its turn...
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={scrollSafeClick(() => state.endTurn())}
-            disabled={state.phase !== 'Combat' || aiIsActing || mode.kind === 'attackerChosen'}
-            className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
-              state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
-            }`}
-          >
-            End Turn
-          </button>
+
         </div>
-
-        {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
-          <div className="rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              <button type="button"
-                disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
-                onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-                className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
-              >
-                Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
-              </button>
-              {mode.kind === 'reconfigureReturn' && (
-                <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
-              )}
-              {mode.kind === 'reconfigurePlay' && (
-                <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
-                  Skip — finish Engine Reconfig
-                </button>
-              )}
-              {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-                <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
-                  cancel
-                </button>
-              )}
-            </div>
-            {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
-              <div className="mt-1 text-white/40 italic">
-                Already played a Support this turn - this Engine Reconfig can only return a card, not play one in.
-              </div>
-            )}
-            {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
-              <div className="mt-1 flex gap-2 flex-wrap">
-                {eligibleReconfigurePlays.map((c) => {
-                  const def = getCardDef(c.defId);
-                  return (
-                    <button type="button"
-                      key={c.instanceId}
-                      onClick={() => {
-                        if (mode.kind !== 'reconfigurePlay') return;
-                        if (c.type === 'AbilitySupport') {
-                          setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
-                        } else {
-                          state.reconfigure(mode.returnId, c.instanceId);
-                          resetMode();
-                        }
-                      }}
-                      className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
-                    >
-                      play {def.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {mode.kind === 'reconfigureChain' && (
-              <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
-            )}
-          </div>
-        )}
       </div>
-
-      <div className="flex-1 min-h-0" />
 
       {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
       <div className="shrink-0 flex flex-col gap-1.5">

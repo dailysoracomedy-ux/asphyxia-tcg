@@ -71,7 +71,7 @@ export default function Hand({
               key={c.instanceId}
               title={reason ?? undefined}
               onMouseEnter={playable ? () => playSfx('ui.hover') : undefined}
-              className="relative shrink-0 transition-transform duration-150 ease-out hover:-translate-y-[165px] hover:z-40"
+              className="relative shrink-0 transition-[top] duration-150 ease-out top-0 hover:top-[-165px] hover:z-40"
             >
               <Card
                 instance={c}
