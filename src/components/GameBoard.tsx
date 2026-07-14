@@ -1006,7 +1006,7 @@ export default function GameBoard() {
       </div>
 
       {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
-      <div className={`shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
+      <div className={`shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
 
         {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
 
@@ -1110,7 +1110,7 @@ export default function GameBoard() {
       </div>
 
       {/* Row 6: player board */}
-      <div className="min-h-0" style={{ marginBottom: state.aiVsAiMode ? 0 : -110 }}>
+      <div className="min-h-0">
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
