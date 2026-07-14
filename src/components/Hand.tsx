@@ -51,11 +51,11 @@ export default function Hand({
 }: HandProps) {
   return (
     <div
-      className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[168px] shrink-0 w-fit max-w-full mx-auto"
+      className="rounded-lg border border-white/10 bg-[#05050a] p-1.5 max-h-[92px] overflow-visible shrink-0 w-fit max-w-full mx-auto"
       style={{ minWidth }}
     >
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
-      <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 justify-center">
+      <div className="flex gap-2 overflow-x-auto pb-1 justify-center">
         {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
         {cards.map((c) => {
           const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
@@ -67,7 +67,12 @@ export default function Hand({
               ? 'tutorial-target'
               : 'tutorial-dim';
           return (
-            <div key={c.instanceId} title={reason ?? undefined} onMouseEnter={playable ? () => playSfx('ui.hover') : undefined}>
+            <div
+              key={c.instanceId}
+              title={reason ?? undefined}
+              onMouseEnter={playable ? () => playSfx('ui.hover') : undefined}
+              className="relative shrink-0 transition-transform duration-150 ease-out hover:-translate-y-[70px] hover:z-30"
+            >
               <Card
                 instance={c}
                 size="hand"

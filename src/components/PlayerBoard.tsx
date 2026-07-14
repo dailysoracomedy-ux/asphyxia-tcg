@@ -17,9 +17,9 @@ import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
  *  import Card's internal SIZE_MAP just for one number. */
-const APEX_BOARD_HEIGHT = 152;
+const APEX_BOARD_HEIGHT = 176;
 /** Matches Card.tsx's 'supportBoard' size preset height, same reasoning as above. */
-const SUPPORT_BOARD_HEIGHT = 100;
+const SUPPORT_BOARD_HEIGHT = 115;
 
 interface PlayerBoardProps {
   state: GameState;
@@ -106,8 +106,8 @@ export default function PlayerBoard({
       style={{
         borderColor: `${theme.border}55`,
         background: `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
-        transform: `perspective(900px) rotateX(${flipped ? '-11deg' : '11deg'})`,
-        transformOrigin: flipped ? 'top center' : 'bottom center',
+        transform: 'perspective(800px) rotateX(16deg)',
+        transformOrigin: 'bottom center',
         ['--active-glow-color' as string]: `${theme.primary}99`,
       }}
     >
@@ -135,7 +135,7 @@ export default function PlayerBoard({
             </div>
           ) : (
             <div className="flex flex-col gap-1 items-center">
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
               </div>
@@ -164,7 +164,7 @@ export default function PlayerBoard({
         <div className="flex gap-2 items-start row-start-1 col-start-3 justify-start">
           {flipped ? (
             <div className="flex flex-col gap-1 items-center">
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
               </div>

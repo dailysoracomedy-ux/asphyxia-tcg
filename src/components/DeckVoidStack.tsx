@@ -47,10 +47,10 @@ export default function DeckVoidStack({
       style={pulsing ? { ['--place-glow-color' as string]: `${accentColor}cc` } : undefined}
       title={label === 'VOID' ? (isEmpty ? 'Void is empty' : 'Click to inspect Void') : undefined}
     >
-      <span className="text-[10px] font-bold tracking-widest" style={{ color: accentColor }}>
+      <span className="text-[8px] font-bold tracking-wider leading-none" style={{ color: accentColor }}>
         {label} {count}
       </span>
-      <div className="relative" style={{ width: 46, height: 64 }}>
+      <div className="relative" style={{ width: 32, height: 45 }}>
         {isEmpty ? (
           <div className="absolute inset-0 rounded border border-dashed border-white/15" />
         ) : (
@@ -61,10 +61,10 @@ export default function DeckVoidStack({
                 key={i}
                 className="absolute rounded border overflow-hidden"
                 style={{
-                  width: 46,
-                  height: 64,
-                  left: i * 2,
-                  top: -i * 2,
+                  width: 32,
+                  height: 45,
+                  left: i * 1.5,
+                  top: -i * 1.5,
                   borderColor: `${accentColor}55`,
                   boxShadow: i === 0 ? `0 2px 6px rgba(0,0,0,0.6)` : undefined,
                 }}
