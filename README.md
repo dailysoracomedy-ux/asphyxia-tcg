@@ -68,7 +68,7 @@ src/game/rules.ts         - damage/DEF/O2/Sync math + the mutation-side engine
 src/game/rifts.ts         - Rift Space determination + descriptions
 src/store/gameStore.ts    - the Zustand store: the actual rules engine/orchestration
 src/components/*          - the board UI
-src/scripts/simulate.ts   - a headless randomized-playthrough test harness
+scripts/simulate.ts   - a headless randomized-playthrough test harness
 ```
 
 ## Pacing/cleanup patch (playtest fixes)
@@ -150,7 +150,7 @@ Relative comparisons - Riot Runner's passive ("if your O2 is lower than your
 opponent's") and the Civil War rift - were correctly left untouched, since they don't
 depend on the pool size at all. Both the game logic *and* the displayed card rules
 text were updated together so the UI stays accurate. New regression test:
-`npx tsx src/scripts/test-o2-threshold-rescale.ts` (9 checks) locks in the exact new
+`npx tsx scripts/test-o2-threshold-rescale.ts` (9 checks) locks in the exact new
 boundary for four of the five rescaled thresholds - triggering at the new value,
 not triggering one point above it.
 
@@ -3347,7 +3347,7 @@ clean, plus clean `tsc`/`eslint`/build.
 
 ## Verifying it yourself
 
-`npx tsx src/scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
+`npx tsx scripts/test-void-and-feedback-loop.ts` is a targeted test suite (41
 checks) for this commit: destroyed Apexes and their attached Equips going to Void,
 chained Supports surviving their Apex's death and becoming Unchained, resolved
 Specials/Reactions/Negates and canceled cards going to Void, Reconfigure/locked
@@ -3357,7 +3357,7 @@ both an empty-Deck draw and inside No-Apex Recovery (including the full loss
 condition when nothing is left anywhere), and the rewritten Feedback Loop (O2 loss
 instead of Apex damage, including a lethal case).
 
-`npx tsx src/scripts/test-trait-removal-and-rifts.ts` is a targeted test suite (52
+`npx tsx scripts/test-trait-removal-and-rifts.ts` is a targeted test suite (52
 checks) covering this whole patch: every removed Apex trait no longer affects
 gameplay, unchained Ability Supports provide Sync but never trigger their Sync
 Ability, and all 6 rewritten Rift Spaces work as specified - including Human Error
@@ -3367,7 +3367,7 @@ Room Collapse's new Momentum-on-Choke and end-of-turn cleanup, and Recursive
 Failure's retargeted second-voluntary-card trigger (verified to ignore forced
 No-Apex recovery, since that path never touches `cardsPlayedThisTurn` at all).
 
-`npx tsx src/scripts/test-combat-damage-patch.ts` is a targeted test suite (36 checks)
+`npx tsx scripts/test-combat-damage-patch.ts` is a targeted test suite (36 checks)
 covering this patch, most importantly the Ability Support `chainedApexId` bug fix
 verified through the *real* Sync Ability invocation path (unlike earlier tests that
 set `armedBonus` directly and so never actually exercised the broken code): the bonus
@@ -3379,7 +3379,7 @@ attack → 300, matching the exact request example), Equip+Choke stacking, the d
 floor at 0, failed attacks not punishing the attacker, and all 4 outcome-preview
 scenarios (no break / exact break with reward / overflow / no reward when O2 is dealt).
 
-`npx tsx src/scripts/test-preview-chains-momentum.ts` is a targeted test suite (19
+`npx tsx scripts/test-preview-chains-momentum.ts` is a targeted test suite (19
 checks) for this patch: the attack selector preview matching armed bonuses, Equip
 bonuses, and Choke Counter penalties; the preview matching actual resolved damage;
 both directions of the chain indicator (Support→Apex and Apex→Support); Battery
@@ -3387,7 +3387,7 @@ Supports showing no chain info; unchained Supports showing "Unchained"; and the
 Momentum cap holding at 3 from Civil War, Apex Break Reward, and direct card-effect
 gains, while spending still works normally afterward.
 
-`npx tsx src/scripts/test-apex-break-reward.ts` is a targeted test suite (33 checks)
+`npx tsx scripts/test-apex-break-reward.ts` is a targeted test suite (33 checks)
 for the 6 original required scenarios (exact-lethal grants the reward, overflow O2
 damage denies it, non-lethal damage denies it, Backup Consciousness prevention denies
 it, direct attacks never trigger it, non-attack destruction never triggers it) plus 2
@@ -3396,7 +3396,7 @@ still denies the reward, and the exact reported scenario (Riot Runner's Mob Char
 into Pale Executioner - 400 into 300 DEF, destroyed, 100 overflow, exactly 1 O2 lost,
 no reward).
 
-`npx tsx src/scripts/simulate.ts` runs 72 full randomized games across every faction
+`npx tsx scripts/simulate.ts` runs 72 full randomized games across every faction
 matchup (so every Rift Space gets exercised), driving the real store end-to-end
 including reactions, negates, reconfigure, and rift triggers, and asserts card
 conservation, sane O2/Momentum/counter values, the O2 cap, and the new 1-per-turn
@@ -3405,20 +3405,20 @@ print `Games run: 72, crashed: 0` with no errors. It resolves response windows u
 the same `getEligibleResponses` helper the real engine uses, so it can't "cheat" by
 playing a card that wouldn't actually be legal.
 
-`npx tsx src/scripts/test-response-eligibility.ts` is a targeted test suite for the
+`npx tsx scripts/test-response-eligibility.ts` is a targeted test suite for the
 Engine Tag System covering the 9 scenarios it needs to get right: no pass screen
 when nobody has an eligible instant, a window opening for each of the 6 instant
 cards in its correct situation, no window when Momentum is short, and confirming
 Specials/Equips can never be played as the non-active player.
 
-`npx tsx src/scripts/test-turn-limits.ts` is a targeted test suite (39 checks) for
+`npx tsx scripts/test-turn-limits.ts` is a targeted test suite (39 checks) for
 this pacing patch: the Special/Support/Instant 1-per-turn limits (including that a
 blocked card stays in hand unresolved), Reconfigure sharing the Support budget in
 both directions, Ability Support same-Apex chain prevention, all four steps of the
 No-Apex Recovery Rule (hand → deck → discard → loss), the O2 cap, and game-log
 persistence after game-over.
 
-`npx tsx src/scripts/test-overflow-fix.ts` is a small regression test locking in the
+`npx tsx scripts/test-overflow-fix.ts` is a small regression test locking in the
 overflow → O2 conversion math (`floor(overflow / 200)`, direct-attack cap at 2/turn).
 
 ## Known simplifications (documented in code with TODO/NOTE comments)
