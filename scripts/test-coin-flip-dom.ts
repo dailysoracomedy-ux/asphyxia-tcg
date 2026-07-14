@@ -68,10 +68,22 @@ async function main() {
   await wait(100);
   check('calling genuinely starts the flip animation state', container.innerHTML.includes('Flipping'));
 
-  await wait(1700);
+  await wait(4000);
   const afterFlip = container.innerHTML;
   const wonCall = afterFlip.includes('Go First');
   check('a real result genuinely appears after the flip resolves', afterFlip.includes('You called'));
+
+  // The actual reported bug: the coin's displayed face must genuinely match
+  // the announced result text (previously the rotation math was correct but
+  // backface-visibility unreliably left the wrong face showing on landing).
+  const coinImg = container.querySelector('img[alt="Heads"], img[alt="Tails"]') as HTMLImageElement | null;
+  const resultText = container.textContent ?? '';
+  const landedMatch = /landed on\s*(heads|tails)/i.exec(resultText);
+  check('test setup: a real result (heads or tails) is genuinely present in the text', !!landedMatch);
+  check(
+    'the coin\u2019s displayed image genuinely matches the announced result - the actual reported bug, now fixed',
+    !!coinImg && !!landedMatch && coinImg.alt.toLowerCase() === landedMatch[1].toLowerCase()
+  );
 
   if (wonCall) {
     const goFirstBtn = findButtonByText('Go First');
