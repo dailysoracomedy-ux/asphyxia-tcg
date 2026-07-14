@@ -21,7 +21,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5 flex items-center gap-2 flex-wrap">
+    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5 flex items-center gap-2 whitespace-nowrap">
       <span
         className={`font-bold tracking-wide ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
         style={{ color: theme.primary, border: `1px solid ${theme.border}`, borderRadius: 4, padding: '1px 6px' }}
@@ -34,8 +34,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
         <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
       </div>
       <span className="text-white/40">
-        HAND {player.hand.length}
-        {state.phase === 'Combat' && isActive && <span className="text-fuchsia-300 ml-2">SYNC {player.availableSync}</span>}
+        HAND {player.hand.length} <span className="text-fuchsia-300 ml-1">SYNC {player.availableSync}</span>
       </span>
     </div>
   );

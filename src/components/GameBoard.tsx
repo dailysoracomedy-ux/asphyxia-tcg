@@ -973,7 +973,7 @@ export default function GameBoard() {
 
       <div className="flex-1 min-h-0 flex gap-3">
         {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
-        <div className="w-[230px] shrink-0 flex flex-col gap-2 justify-start">
+        <div className="w-[255px] shrink-0 flex flex-col gap-2 justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" style={{ maxHeight: 90, objectFit: 'contain' }} draggable={false} />
           <RiftPanel rift={state.riftSpace} />
@@ -1107,7 +1107,7 @@ export default function GameBoard() {
       </div>
 
       {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5">
+      <div className="shrink-0 flex flex-col gap-1.5 relative z-30">
 
         {/* All mode-dependent confirmation UI below (ConfirmBar variants, the
             Overdrive prompt) needs to stay clickable above the tutorial dim
