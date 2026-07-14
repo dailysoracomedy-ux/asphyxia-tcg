@@ -141,7 +141,7 @@ export default function Card({
     // previews. Hand cards get a bit more room since they're the "read the card" view.
     apexBoard: { w: 128, h: 152, text: 'text-[9.5px]' },
     supportBoard: { w: 96, h: 100, text: 'text-[8.5px]' },
-    hand: { w: 118, h: 148, text: 'text-[9.5px]' },
+    hand: { w: 136, h: 170, text: 'text-[10.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];
   // Purely visual - isPlayable defaults to undefined everywhere except Hand.tsx, so

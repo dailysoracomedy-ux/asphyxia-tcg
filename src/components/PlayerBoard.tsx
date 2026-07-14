@@ -103,7 +103,13 @@ export default function PlayerBoard({
     <div
       ref={containerRef}
       className={`rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
-      style={{ borderColor: `${theme.border}55`, background: '#05050a', ['--active-glow-color' as string]: `${theme.primary}99` }}
+      style={{
+        borderColor: `${theme.border}55`,
+        background: `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
+        transform: `perspective(1400px) rotateX(${flipped ? '-6deg' : '6deg'})`,
+        transformOrigin: flipped ? 'top center' : 'bottom center',
+        ['--active-glow-color' as string]: `${theme.primary}99`,
+      }}
     >
       <div
         className="flex-1 min-h-0 grid gap-3 justify-center"
