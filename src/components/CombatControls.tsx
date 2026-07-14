@@ -146,27 +146,24 @@ function OutcomePreviewList({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] space-y-1 w-fit max-w-full mx-auto">
       {enemyApexes.map((apex) => {
         if (!apex) return null;
         const name = getCardDef(apex.defId).name;
         const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId, apex.instanceId);
         if (!preview) return null;
         return (
-          <div key={apex.instanceId} className="rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
-            <div className="font-bold text-yellow-200">vs {name}</div>
-            <div>
-              Final damage: {preview.finalDamage} · Target DEF: {preview.targetDef}
-            </div>
-            <div className={preview.willDestroy ? 'text-red-300' : 'text-white/50'}>
-              {preview.willDestroy ? 'Destroys Apex' : 'No break - target survives'}
-            </div>
-            {preview.willDestroy && (
-              <div className="text-cyan-300">
-                {preview.overflow > 0 ? `${preview.overflow} overflow -> ${preview.o2Loss} O2 loss` : '0 overflow · 0 O2 loss'}
-              </div>
+          <div key={apex.instanceId} className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className="text-yellow-200 font-bold">→ {name}:</span>
+            <span className="font-mono">{preview.finalDamage} dmg / {preview.targetDef} DEF</span>
+            {preview.willDestroy ? (
+              <span className="text-red-300 font-bold">
+                Destroys{preview.overflow > 0 ? ` (${preview.overflow} ovf \u2192 ${preview.o2Loss} O2)` : ''}
+              </span>
+            ) : (
+              <span className="text-white/50">Survives</span>
             )}
-            {preview.apexBreakRewardWouldTrigger && <div className="text-fuchsia-300">Apex Break Reward: +1 Momentum</div>}
+            {preview.apexBreakRewardWouldTrigger && <span className="text-fuchsia-300">+1 Mom</span>}
           </div>
         );
       })}
