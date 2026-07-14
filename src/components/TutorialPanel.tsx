@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { playSfx } from '@/audio/sfx';
 import { useGameStore } from '@/store/gameStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
@@ -103,7 +104,10 @@ export default function TutorialPanel() {
         {!isGuided && !isLastStep && (
           <button
             type="button"
-            onClick={() => setStep(step + 1)}
+            onClick={() => {
+              playSfx('ui.confirm');
+              setStep(step + 1);
+            }}
             className="px-3 py-1.5 rounded border text-[11px] font-bold border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 animate-pulse"
           >
             Continue

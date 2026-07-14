@@ -989,7 +989,7 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end">
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end" style={{ transform: 'translateX(-16px)' }}>
 
       {/* Row 3: opponent board */}
       <div className="min-h-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
@@ -1077,10 +1077,40 @@ export default function GameBoard() {
             </button>
           </div>
         )}
+
+        {mode.kind === 'overdrivePrompt' && (
+          <div className="rounded-lg border border-yellow-400/40 bg-[#05050af2] px-2 py-1 flex items-center gap-2 text-[10px] flex-wrap">
+            <span className="text-yellow-200 shrink-0">
+              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
+                lockActions();
+                resetMode();
+              }}
+              className="px-1.5 py-0.5 rounded bg-yellow-300 text-black font-bold shrink-0"
+            >
+              Spend 1 Momentum
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
+                lockActions();
+                resetMode();
+              }}
+              className="px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 text-white/60 shrink-0"
+            >
+              Skip
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Row 6: player board */}
-      <div className="min-h-0" style={{ marginBottom: -110 }}>
+      <div className="min-h-0" style={{ marginBottom: state.aiVsAiMode ? 0 : -110 }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
@@ -1139,37 +1169,6 @@ export default function GameBoard() {
         )}
         {mode.kind === 'rechainSelectApex' && (
           <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
-        )}
-        {mode.kind === 'overdrivePrompt' && (
-          <div className="rounded-lg border border-yellow-400/40 bg-yellow-400/5 p-2 flex items-center justify-between gap-2 text-xs flex-wrap">
-            <span className="text-yellow-200">
-              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
-            </span>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
-                  lockActions();
-                  resetMode();
-                }}
-                className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
-              >
-                Spend 1 Momentum
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
-                  lockActions();
-                  resetMode();
-                }}
-                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20"
-              >
-                Skip
-              </button>
-            </div>
-          </div>
         )}
         {mode.kind === 'equipReady' && (
           <ConfirmBar

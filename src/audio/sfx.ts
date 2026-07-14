@@ -35,6 +35,12 @@ export type SfxKey =
   | 'card.specialPlay'
   | 'card.reactPlay'
   | 'card.negatePlay'
+  // Commit 41.8 - a voice line layered on top of the existing negate SFX
+  // whenever a React successfully negates something. File not supplied yet -
+  // playSfx already fails safely (try/catch, and a missing audio file just
+  // never fires its play promise) so this is safe to wire up ahead of the
+  // asset arriving, with zero risk to the existing card.negatePlay sound.
+  | 'voice.negated'
   // Combat
   | 'combat.attackDeclare'
   | 'combat.hit'
@@ -71,6 +77,7 @@ const SFX_SRC: Record<SfxKey, string> = {
   'card.specialPlay': '/audio/sfx/card.specialPlay.m4a',
   'card.reactPlay': '/audio/sfx/card.reactPlay.m4a',
   'card.negatePlay': '/audio/sfx/card.negatePlay.m4a',
+  'voice.negated': '/audio/sfx/voice.negated.m4a',
 
   'combat.attackDeclare': '/audio/sfx/combat.attackDeclare.m4a',
   'combat.hit': '/audio/sfx/combat.hit.m4a',

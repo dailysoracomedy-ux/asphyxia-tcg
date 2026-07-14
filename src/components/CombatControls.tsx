@@ -146,7 +146,7 @@ function OutcomePreviewList({
   }
 
   return (
-    <div className="rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] space-y-1 w-fit max-w-full mx-auto">
+    <div className="rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] flex items-center gap-3 flex-wrap w-fit max-w-full mx-auto">
       {enemyApexes.map((apex) => {
         if (!apex) return null;
         const name = getCardDef(apex.defId).name;

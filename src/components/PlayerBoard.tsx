@@ -145,7 +145,7 @@ export default function PlayerBoard({
                 <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
               </div>
-              <ActionZone playerId={playerId} drag={drag} />
+              <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
             </div>
           )}
         </div>
@@ -175,7 +175,7 @@ export default function PlayerBoard({
                   <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
                   <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
                 </div>
-                <ActionZone playerId={playerId} drag={drag} />
+                <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
               </div>
             ) : (
               <div className="flex gap-1.5">
@@ -308,7 +308,7 @@ function ApexSlot({
     const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div
-        className="rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1"
+        className={`rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: APEX_BOARD_HEIGHT }}
       >
         empty Apex slot
@@ -534,7 +534,7 @@ function SupportSlot({
     const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
     return (
       <div
-        className="rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1"
+        className={`rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: SUPPORT_BOARD_HEIGHT }}
       >
         empty Support slot

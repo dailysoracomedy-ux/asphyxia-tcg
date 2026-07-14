@@ -90,6 +90,9 @@ export default function AudioController() {
       seenIds.current.add(e.id);
       const key = sfxForEvent(e);
       if (key) playSfx(key);
+      // Commit 41.8 - layered voice line on top of the existing negate SFX,
+      // not a replacement for it. Fails silently if the asset isn't there yet.
+      if (e.type === 'CARD_NEGATED') playSfx('voice.negated');
     }
   }, [events]);
 

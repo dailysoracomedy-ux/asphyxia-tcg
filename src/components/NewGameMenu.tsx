@@ -160,7 +160,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     // needed to land on tails, even to land back on heads - pick a flip
     // count in a pleasant range and nudge it to the right parity rather than
     // just trusting a random number to land right.
-    let flips = 9 + Math.floor(Math.random() * 3); // 9-11
+    let flips = 18 + Math.floor(Math.random() * 5); // 18-22, twice the previous 9-11 - doubles spin speed while total duration stays synced to the audio loop
     const needsOdd = outcome === 'tails';
     if ((flips % 2 === 1) !== needsOdd) flips += 1; // 9-12
 
