@@ -140,7 +140,13 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     setView('coin-flip');
   }
 
-  const FLIP_MS = 150; // one full squash-unsquash cycle (one face swap)
+  // Commit 34.3 - these three durations are the real, measured lengths of
+  // the actual sound files (ffprobe'd directly, not estimated) - the whole
+  // sequence below is built around them so the coin is never still spinning
+  // after its own sound has stopped, in either direction.
+  const START_SOUND_MS = 755;
+  const LOOP_SOUND_MS = 1785;
+  const SPIN_SAFETY_BUFFER_MS = 60; // the last flip's swap must land at or before the loop sound ends, never after
 
   function callCoin(side: CallSide) {
     playSfx('ui.confirm');
@@ -148,43 +154,54 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     setCalled(side);
     setCoinResult(outcome);
     setCoinStage('flipping');
-    playSfx('card.draw'); // a quick, crisp whoosh-adjacent cue - closest existing sound to a flip/toss
+    playSfx('coin.flipStart');
 
     // The coin always starts showing 'heads'. An odd number of face-swaps is
     // needed to land on tails, even to land back on heads - pick a flip
     // count in a pleasant range and nudge it to the right parity rather than
     // just trusting a random number to land right.
-    let flips = 8 + Math.floor(Math.random() * 4); // 8-11
+    let flips = 9 + Math.floor(Math.random() * 3); // 9-11
     const needsOdd = outcome === 'tails';
-    if ((flips % 2 === 1) !== needsOdd) flips += 1;
+    if ((flips % 2 === 1) !== needsOdd) flips += 1; // 9-12
 
-    let i = 0;
-    function doFlip() {
-      setSquashed(true);
-      setTimeout(() => {
-        setCurrentFace((f) => (f === 'heads' ? 'tails' : 'heads'));
-        setSquashed(false);
-        i++;
-        if (i < flips) {
-          setTimeout(doFlip, FLIP_MS);
-        } else {
-          setTimeout(finishFlip, FLIP_MS + 250);
-        }
-      }, FLIP_MS / 2);
-    }
-    function finishFlip() {
-      const won = side === outcome;
-      setWonCall(won);
-      setCoinStage('result');
-      playSfx(won ? 'match.victory' : 'ui.invalid');
-      if (!won) {
-        // The opponent won the call - their choice of who goes first is
-        // random, since there's no one to meaningfully make it for them.
-        const randomFirst: PlayerId = Math.random() < 0.5 ? 'player1' : 'player2';
-        setTimeout(() => startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, randomFirst), 1400);
+    // Per-flip duration is derived from the flip count, not the other way
+    // around - this guarantees flips * flipMs always exactly fits the
+    // available spin budget, regardless of how many flips this particular
+    // call happens to land on.
+    const spinBudgetMs = LOOP_SOUND_MS - SPIN_SAFETY_BUFFER_MS;
+    const flipMs = spinBudgetMs / flips;
+
+    setTimeout(() => {
+      playSfx('coin.flipLoop');
+      let i = 0;
+      function doFlip() {
+        setSquashed(true);
+        setTimeout(() => {
+          setCurrentFace((f) => (f === 'heads' ? 'tails' : 'heads'));
+          setSquashed(false);
+          i++;
+          if (i < flips) {
+            setTimeout(doFlip, flipMs);
+          } else {
+            finishFlip();
+          }
+        }, flipMs / 2);
       }
-    }
-    doFlip();
+      function finishFlip() {
+        playSfx('coin.flipLand');
+        const won = side === outcome;
+        setWonCall(won);
+        setCoinStage('result');
+        setTimeout(() => playSfx(won ? 'match.victory' : 'ui.invalid'), 250);
+        if (!won) {
+          // The opponent won the call - their choice of who goes first is
+          // random, since there's no one to meaningfully make it for them.
+          const randomFirst: PlayerId = Math.random() < 0.5 ? 'player1' : 'player2';
+          setTimeout(() => startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, randomFirst), 1400);
+        }
+      }
+      doFlip();
+    }, START_SOUND_MS);
   }
 
   function chooseFirst(first: PlayerId) {
@@ -331,7 +348,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               className="relative w-36 h-36"
               style={{
                 transform: `scaleX(${squashed ? 0 : 1}) scaleY(${squashed ? 1.04 : 1})`,
-                transition: `transform ${FLIP_MS / 2}ms ease-in-out`,
+                transition: 'transform 80ms ease-in-out',
                 filter: `drop-shadow(0 ${squashed ? 4 : 10}px ${squashed ? 12 : 30}px rgba(0,0,0,${squashed ? 0.35 : 0.6}))`,
               }}
             >

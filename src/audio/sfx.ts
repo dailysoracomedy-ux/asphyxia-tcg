@@ -51,7 +51,11 @@ export type SfxKey =
   | 'rift.trigger'
   // End
   | 'match.victory'
-  | 'match.defeat';
+  | 'match.defeat'
+  // Coin flip (Commit 34.3)
+  | 'coin.flipStart'
+  | 'coin.flipLoop'
+  | 'coin.flipLand';
 
 const SFX_SRC: Record<SfxKey, string> = {
   'ui.click': '/audio/sfx/ui.click.m4a',
@@ -84,6 +88,15 @@ const SFX_SRC: Record<SfxKey, string> = {
 
   'match.victory': '/audio/sfx/match.victory.m4a',
   'match.defeat': '/audio/sfx/match.defeat.m4a',
+
+  // Commit 34.3 - exact real durations (measured directly, not guessed):
+  // flipStart 0.755s, flipLoop 1.785s, flipLand 2.280s (trimmed from a
+  // 4s source file that had 1.8s of trailing silence padding). The coin
+  // flip's own animation timing in NewGameMenu.tsx is built around these
+  // real numbers so the visual spin never runs longer than its sound.
+  'coin.flipStart': '/audio/sfx/coin.flipStart.m4a',
+  'coin.flipLoop': '/audio/sfx/coin.flipLoop.m4a',
+  'coin.flipLand': '/audio/sfx/coin.flipLand.m4a',
 };
 
 const POOL_SIZE = 3;
