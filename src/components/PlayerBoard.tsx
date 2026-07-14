@@ -113,7 +113,7 @@ export default function PlayerBoard({
         borderColor: `${theme.border}55`,
         background: `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
         transform: 'perspective(800px) rotateX(16deg)',
-        transformOrigin: 'bottom center',
+        transformOrigin: 'center center',
         ['--active-glow-color' as string]: `${theme.primary}99`,
       }}
     >

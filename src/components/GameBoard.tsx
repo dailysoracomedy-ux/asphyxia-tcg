@@ -971,7 +971,7 @@ export default function GameBoard() {
 
       {state.aiVsAiMode && <ShowcaseControls />}
 
-      <div className="flex-1 min-h-0 flex gap-3">
+      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
         {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
         <div className="w-[230px] shrink-0 flex flex-col gap-2 justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
