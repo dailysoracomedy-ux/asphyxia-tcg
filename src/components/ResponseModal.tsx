@@ -2,11 +2,12 @@
 
 import { createPortal } from 'react-dom';
 
-import type { GameState, ReactionDef } from '@/types/game';
+import type { CardInstance, GameState, ReactionDef } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { useGameStore, type ResponseChoice } from '@/store/gameStore';
 import { useTutorialStore } from '@/store/tutorialStore';
 import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
+import HubPrompt, { type HubPromptOption } from './HubPrompt';
 
 function describeTrigger(state: GameState, item: GameState['pendingResponseQueue'][number]): string {
   if (item.stage !== 'reactionChoice') return '';
@@ -16,10 +17,10 @@ function describeTrigger(state: GameState, item: GameState['pendingResponseQueue
       (state.players[t.attackerId].apexSlots.find((a) => a?.instanceId === t.attackerInstanceId) ?? { defId: '' }).defId ||
         'unknown'
     )?.name;
-    return `Incoming attack from ${attackerName ?? 'enemy Apex'} for ${t.totalDamage} damage.`;
+    return `${attackerName ?? 'Opponent'} is attacking for ${t.totalDamage} damage. Play a React card?`;
   }
   if (t.kind === 'opponentAttackDealsO2Damage') {
-    return `This attack would deal ${t.amount} O2 damage${t.isOverflow ? ' (overflow)' : ' (direct)'}.`;
+    return `This attack would deal ${t.amount} O2 damage. Play a React card?`;
   }
   if (t.kind === 'ownApexWouldBeDestroyed') {
     const name = getCardDef(
@@ -28,9 +29,9 @@ function describeTrigger(state: GameState, item: GameState['pendingResponseQueue
         .find((a) => a?.instanceId === t.apexInstanceId) ?? { defId: '' }
       ).defId || 'unknown'
     )?.name;
-    return `${name ?? 'Your Apex'} is about to be destroyed!`;
+    return `${name ?? 'Your Apex'} is about to be destroyed! Play a React card?`;
   }
-  return '';
+  return 'Play a React card?';
 }
 
 interface ResponseModalProps {
@@ -50,35 +51,27 @@ export default function ResponseModal({ state, onAfterChoose }: ResponseModalPro
   };
 
   const content = (
-    <div className="rounded-lg border-2 border-pink-400/70 bg-[#0a0512f5] p-3 shadow-[0_0_30px_rgba(244,114,182,0.3)] w-fit max-w-lg mx-auto">
-      {item.stage === 'reactionChoice' && (
-        <ReactionPrompt state={state} item={item} onChoose={resolveResponse} />
-      )}
+    <>
+      {item.stage === 'reactionChoice' && <ReactionPrompt state={state} item={item} onChoose={resolveResponse} />}
       {item.stage === 'negateWindow' && <NegatePrompt state={state} item={item} onChoose={resolveResponse} />}
       {item.stage === 'humanErrorChoice' && <HumanErrorPrompt item={item} onChoose={resolveResponse} />}
       {item.stage === 'civilWarChoice' && <CivilWarPrompt item={item} onChoose={resolveResponse} />}
-    </div>
+    </>
   );
 
   // Commit 41.11 - renders into the shared center hub (Row 5, between the two
   // boards) via a portal, instead of a full-screen takeover. The portal
   // target lives inside a transformed ancestor, so this can't just nest
   // normally - same reasoning as the card hover preview fix earlier. Falls
-  // back to the previous full-screen style only if that target isn't
-  // mounted for some reason, so this never silently renders nothing.
+  // back to a simple centered overlay only if that target isn't mounted for
+  // some reason, so this never silently renders nothing.
   const hubTarget = typeof document !== 'undefined' ? document.getElementById('response-hub-target') : null;
   if (hubTarget) return createPortal(content, hubTarget);
-  return (
-    <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
-      <div className="max-w-md w-full rounded-xl border-2 border-pink-400 bg-[#0a0512] p-5 shadow-[0_0_40px_rgba(244,114,182,0.35)]">
-        {item.stage === 'reactionChoice' && (
-          <ReactionPrompt state={state} item={item} onChoose={resolveResponse} />
-        )}
-        {item.stage === 'negateWindow' && <NegatePrompt state={state} item={item} onChoose={resolveResponse} />}
-        {item.stage === 'humanErrorChoice' && <HumanErrorPrompt item={item} onChoose={resolveResponse} />}
-        {item.stage === 'civilWarChoice' && <CivilWarPrompt item={item} onChoose={resolveResponse} />}
-      </div>
-    </div>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+      <div className="w-full max-w-2xl pointer-events-auto">{content}</div>
+    </div>,
+    document.body
   );
 }
 
@@ -124,48 +117,27 @@ function ReactionPrompt({
     }
   }
 
-  return (
-    <>
-      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">
-        Response Window: {item.respondingPlayerId} may respond.
-      </div>
-      <div className="text-sm text-white/80 mb-4">{describeTrigger(state, item)}</div>
-      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible Reactions</div>
-      <div className="space-y-2 mb-4">
-        {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible Reactions in hand.</div>}
-        {eligible.map((c) => {
-          const def = getCardDef(c.defId) as ReactionDef;
-          const isTutorialTarget = tutorialTargetDefId === c.defId;
-          const dimmed = tutorialTargetDefId !== null && !isTutorialTarget;
-          return (
-            <button type="button"
-              key={c.instanceId}
-              onClick={() => tryChoose({ type: 'reaction', cardInstanceId: c.instanceId }, c.defId)}
-              className={`w-full text-left px-3 py-2 rounded border text-xs transition-all ${
-                isTutorialTarget
-                  ? 'border-emerald-300 bg-emerald-400/20 ring-2 ring-emerald-300 animate-pulse'
-                  : dimmed
-                  ? 'border-pink-400/20 opacity-40'
-                  : 'border-pink-400/50 hover:bg-pink-400/10'
-              }`}
-            >
-              <div className="font-bold text-pink-200">
-                {def.name} ({def.cost} Momentum)
-              </div>
-              <div className="text-white/60">{def.rulesText}</div>
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        onClick={() => tryChoose({ type: 'pass' })}
-        className={`w-full py-2 rounded text-xs font-bold ${tutorialTargetDefId ? 'bg-white/5 text-white/25 cursor-not-allowed' : 'bg-white/10 hover:bg-white/20'}`}
-      >
-        Pass
-      </button>
-    </>
-  );
+  const options: HubPromptOption[] = eligible.map((c) => {
+    const def = getCardDef(c.defId) as ReactionDef;
+    const isTutorialTarget = tutorialTargetDefId === c.defId;
+    return {
+      key: c.instanceId,
+      label: `${def.name} (${def.cost} Mom)`,
+      cardInstance: c,
+      highlighted: isTutorialTarget,
+      dimmed: tutorialTargetDefId !== null && !isTutorialTarget,
+      onClick: () => tryChoose({ type: 'reaction', cardInstanceId: c.instanceId }, c.defId),
+    };
+  });
+  options.push({
+    key: 'pass',
+    label: 'Pass',
+    muted: true,
+    disabled: !!tutorialTargetDefId,
+    onClick: () => tryChoose({ type: 'pass' }),
+  });
+
+  return <HubPrompt text={describeTrigger(state, item)} options={options} />;
 }
 
 function NegatePrompt({
@@ -179,46 +151,25 @@ function NegatePrompt({
 }) {
   const player = state.players[item.negatingPlayerId];
   const targetDef = getCardDef(item.cardDefId);
-  const eligible = player.hand.filter((c) => {
+  const eligible = player.hand.filter((c): c is CardInstance => {
     if (c.type !== 'Reaction') return false;
     const def = getCardDef(c.defId);
     if (def.type !== 'Reaction' || typeof def.canCancel !== 'function') return false;
     return player.momentum >= def.cost && def.canCancel(item.cardType, item.cardFaction);
   });
 
-  return (
-    <>
-      <div className="text-[10px] uppercase tracking-widest text-pink-300/70 mb-1">
-        Response Window: {item.negatingPlayerId} may respond.
-      </div>
-      <div className="text-sm text-white/80 mb-4">
-        {item.cardOwnerId} plays <b>{targetDef.name}</b> ({item.cardType}). Cancel it?
-      </div>
-      <div className="text-[10px] uppercase tracking-widest text-white/30 mb-1">Eligible React — Negate cards</div>
-      <div className="space-y-2 mb-4">
-        {eligible.length === 0 && <div className="text-xs text-white/40 italic">No eligible React — Negate in hand.</div>}
-        {eligible.map((c) => {
-          const def = getCardDef(c.defId);
-          if (def.type !== 'Reaction' || typeof def.canCancel !== 'function') return null;
-          return (
-            <button type="button"
-              key={c.instanceId}
-              onClick={() => onChoose({ type: 'negate', cardInstanceId: c.instanceId })}
-              className="w-full text-left px-3 py-2 rounded border border-pink-400/50 hover:bg-pink-400/10 text-xs"
-            >
-              <div className="font-bold text-pink-200">
-                {def.name} ({def.cost} Momentum)
-              </div>
-              <div className="text-white/60">{def.rulesText}</div>
-            </button>
-          );
-        })}
-      </div>
-      <button type="button" onClick={() => onChoose({ type: 'pass' })} className="w-full py-2 rounded bg-white/10 hover:bg-white/20 text-xs font-bold">
-        Pass
-      </button>
-    </>
-  );
+  const options: HubPromptOption[] = eligible.map((c) => {
+    const def = getCardDef(c.defId) as ReactionDef;
+    return {
+      key: c.instanceId,
+      label: `${def.name} (${def.cost} Mom)`,
+      cardInstance: c,
+      onClick: () => onChoose({ type: 'negate', cardInstanceId: c.instanceId }),
+    };
+  });
+  options.push({ key: 'pass', label: 'Pass', muted: true, onClick: () => onChoose({ type: 'pass' }) });
+
+  return <HubPrompt text={`${item.cardOwnerId} plays ${targetDef.name} (${item.cardType}). Cancel it?`} options={options} />;
 }
 
 function HumanErrorPrompt({
@@ -229,24 +180,13 @@ function HumanErrorPrompt({
   onChoose: (choice: ResponseChoice) => void;
 }) {
   return (
-    <>
-      <div className="text-[10px] uppercase tracking-widest text-fuchsia-300/70 mb-1">Human Error · {item.playerId}</div>
-      <div className="text-sm text-white/80 mb-4">First Special this turn. Choose one:</div>
-      <div className="space-y-2">
-        <button type="button"
-          onClick={() => onChoose({ type: 'humanError', pick: 'momentum' })}
-          className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
-        >
-          Gain 1 Momentum
-        </button>
-        <button type="button"
-          onClick={() => onChoose({ type: 'humanError', pick: 'damage' })}
-          className="w-full text-left px-3 py-2 rounded border border-fuchsia-400/50 hover:bg-fuchsia-400/10 text-xs font-bold"
-        >
-          Next Apex attack this turn deals +100 damage
-        </button>
-      </div>
-    </>
+    <HubPrompt
+      text={`Human Error \u00b7 ${item.playerId} \u2014 First Special this turn. Choose one:`}
+      options={[
+        { key: 'momentum', label: 'Gain 1 Momentum', onClick: () => onChoose({ type: 'humanError', pick: 'momentum' }) },
+        { key: 'damage', label: 'Next attack +100 damage', onClick: () => onChoose({ type: 'humanError', pick: 'damage' }) },
+      ]}
+    />
   );
 }
 
@@ -275,31 +215,24 @@ function CivilWarPrompt({
   }
 
   return (
-    <>
-      <div className="text-[10px] uppercase tracking-widest text-orange-300/70 mb-1">Civil War · {item.playerId}</div>
-      <div className="text-sm text-white/80 mb-4">You are behind on O2. Choose your uprising bonus:</div>
-      <div className="space-y-2">
-        <button type="button"
-          onClick={() => tryChoose('momentum')}
-          className={`w-full text-left px-3 py-2 rounded border text-xs font-bold transition-all ${
-            requiredPick === 'momentum'
-              ? 'border-emerald-300 bg-emerald-400/20 ring-2 ring-emerald-300 animate-pulse'
-              : requiredPick
-              ? 'border-orange-400/20 opacity-40'
-              : 'border-orange-400/50 hover:bg-orange-400/10'
-          }`}
-        >
-          Gain 1 Momentum
-        </button>
-        <button type="button"
-          onClick={() => tryChoose('damage')}
-          className={`w-full text-left px-3 py-2 rounded border text-xs font-bold transition-all ${
-            requiredPick && requiredPick !== 'damage' ? 'border-orange-400/20 opacity-40' : 'border-orange-400/50 hover:bg-orange-400/10'
-          }`}
-        >
-          First Apex attack this turn deals +100 damage
-        </button>
-      </div>
-    </>
+    <HubPrompt
+      text={`Rift Space Activates: Civil War \u00b7 ${item.playerId} \u2014 you're behind on O2. Choose:`}
+      options={[
+        {
+          key: 'momentum',
+          label: '+1 Momentum',
+          highlighted: requiredPick === 'momentum',
+          dimmed: !!requiredPick && requiredPick !== 'momentum',
+          onClick: () => tryChoose('momentum'),
+        },
+        {
+          key: 'damage',
+          label: '+100 ATK Next Turn',
+          highlighted: requiredPick === 'damage',
+          dimmed: !!requiredPick && requiredPick !== 'damage',
+          onClick: () => tryChoose('damage'),
+        },
+      ]}
+    />
   );
 }

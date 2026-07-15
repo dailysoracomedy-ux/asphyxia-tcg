@@ -31,7 +31,7 @@ export default function ActionZone({ playerId, drag, tutorialMode }: { playerId:
             : 'border-emerald-400/70 text-emerald-300/80 ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.5)]'
           : 'border-white/10 text-white/25'
       }`}
-      style={{ width: 68, height: 72, zIndex: isLegalDropTarget ? 25 : undefined }}
+      style={{ width: 95, height: 100, zIndex: isLegalDropTarget ? 25 : undefined }}
     >
       Action
     </div>

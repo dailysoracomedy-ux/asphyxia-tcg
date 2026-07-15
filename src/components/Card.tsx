@@ -140,8 +140,8 @@ export default function Card({
     xl: { w: 380, h: 532, text: 'text-[18px]' },
     // Board sizes are deliberately compact - board cards are game pieces, not full
     // previews. Hand cards get a bit more room since they're the "read the card" view.
-    apexBoard: { w: 125, h: 172, text: 'text-[11px]' },
-    supportBoard: { w: 86, h: 120, text: 'text-[9.5px]' },
+    apexBoard: { w: 172, h: 238, text: 'text-[13px]' },
+    supportBoard: { w: 120, h: 168, text: 'text-[11px]' },
     hand: { w: 155, h: 194, text: 'text-[11.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];
@@ -361,6 +361,35 @@ export default function Card({
  *  viewport regardless of where on screen the source card sits. Reuses Card's own
  *  'lg' rendering (same one Card Inspect and the Developer gallery use) rather than
  *  duplicating any layout, so art cards show their real art here too. */
+export function useButtonCardHoverPreview(instance: CardInstance | null) {
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearHoverTimer() {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+  }
+  useEffect(() => clearHoverTimer, []);
+
+  function onMouseEnter(e: React.MouseEvent) {
+    if (!instance) return;
+    if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const x = e.clientX;
+    const y = e.clientY;
+    clearHoverTimer();
+    hoverTimer.current = setTimeout(() => setHoverPos({ x, y }), 350);
+  }
+  function onMouseLeave() {
+    clearHoverTimer();
+    setHoverPos(null);
+  }
+
+  const preview = hoverPos && instance ? <CardHoverPreview x={hoverPos.x} y={hoverPos.y} instance={instance} /> : null;
+  return { onMouseEnter, onMouseLeave, preview };
+}
+
 export function CardHoverPreview({
   x,
   y,

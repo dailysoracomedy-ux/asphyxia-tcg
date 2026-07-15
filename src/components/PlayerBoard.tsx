@@ -17,9 +17,9 @@ import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
 /** Matches Card.tsx's 'apexBoard' size preset height - the Equip flap needs this to
  *  compute a matching width, and it's cheaper to name the constant once here than
  *  import Card's internal SIZE_MAP just for one number. */
-const APEX_BOARD_HEIGHT = 172;
+const APEX_BOARD_HEIGHT = 238;
 /** Matches Card.tsx's 'supportBoard' size preset height, same reasoning as above. */
-const SUPPORT_BOARD_HEIGHT = 120;
+const SUPPORT_BOARD_HEIGHT = 168;
 
 interface PlayerBoardProps {
   state: GameState;

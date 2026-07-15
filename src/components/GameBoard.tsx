@@ -9,6 +9,7 @@ import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
 import CombatControls from './CombatControls';
+import HubPrompt from './HubPrompt';
 import AttackSelectorModal from './AttackSelectorModal';
 import HotseatResponseGate from './HotseatResponseGate';
 import Card from './Card';
@@ -1004,7 +1005,7 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end" style={{ transform: 'translateX(-16px)' }}>
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5" style={{ transform: 'translateX(-16px)' }}>
 
       {/* Row 3: opponent board */}
       <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
@@ -1029,25 +1030,18 @@ export default function GameBoard() {
         {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
-          <div className="rounded-lg border border-blue-400/30 bg-[#05050a] px-2 py-1 flex items-center gap-1 flex-wrap text-[10px]">
-            <span className="text-blue-300 shrink-0">Control Conflict - lock a Support for +1 Momentum?</span>
-            {activePlayer.supportSlots.filter(Boolean).map((s) => (
-              <button type="button"
-                key={s!.instanceId}
-                disabled={!!activePlayer.lockedSupportInstanceId}
-                onClick={scrollSafeClick(() => state.lockSupportControlConflict(s!.instanceId))}
-                className="px-1.5 py-0.5 rounded border border-blue-400/50 hover:bg-blue-400/10 disabled:opacity-30"
-              >
-                lock {getCardDef(s!.defId).name}
-              </button>
-            ))}
-            <button type="button"
-              onClick={scrollSafeClick(() => state.advancePhase('Main'))}
-              className="px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 text-white/60 ml-auto"
-            >
-              Continue to Main Phase
-            </button>
-          </div>
+          <HubPrompt
+            text="Control Conflict - lock a Support for +1 Momentum?"
+            options={[
+              ...activePlayer.supportSlots.filter(Boolean).map((s) => ({
+                key: s!.instanceId,
+                label: `Lock ${getCardDef(s!.defId).name}`,
+                disabled: !!activePlayer.lockedSupportInstanceId,
+                onClick: () => state.lockSupportControlConflict(s!.instanceId),
+              })),
+              { key: 'continue', label: 'Continue', muted: true, onClick: () => state.advancePhase('Main') },
+            ]}
+          />
         )}
 
         {state.phase === 'Combat' && mode.kind !== 'attackerChosen' && (
@@ -1075,55 +1069,44 @@ export default function GameBoard() {
         )}
 
         {mode.kind === 'attackChoicePending' && attackChoiceAttacker && (
-          <div className="rounded-lg border border-emerald-400/40 bg-[#05050a] px-2 py-1.5 flex items-center gap-1.5 flex-wrap text-[10px]">
-            <span className="text-emerald-300 shrink-0">Choose an attack:</span>
-            {attackChoiceOptions.map((atk) => (
-              <button
-                type="button"
-                key={atk.id}
-                onClick={() => {
-                  playSfx('ui.click');
-                  resolveChosenAttack(atk.id);
-                }}
-                className="px-1.5 py-0.5 rounded border border-emerald-400/50 hover:bg-emerald-400/10"
-              >
-                {atk.name} ({atk.syncCost} Sync, {atk.baseDamage} dmg)
-              </button>
-            ))}
-            <button type="button" onClick={scrollSafeClick(resetMode)} className="px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 text-white/60 ml-auto">
-              Cancel
-            </button>
-          </div>
+          <HubPrompt
+            text="Choose an attack:"
+            options={[
+              ...attackChoiceOptions.map((atk) => ({
+                key: atk.id,
+                label: `${atk.name} (${atk.syncCost} Sync, ${atk.baseDamage} dmg)`,
+                onClick: () => resolveChosenAttack(atk.id),
+              })),
+              { key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode },
+            ]}
+          />
         )}
 
         {mode.kind === 'overdrivePrompt' && (
-          <div className="rounded-lg border border-yellow-400/40 bg-[#05050af2] px-2 py-1 flex items-center gap-2 text-[10px] flex-wrap">
-            <span className="text-yellow-200 shrink-0">
-              Spend 1 Momentum for {mode.supportName} Overdrive? (+100 {mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
-                lockActions();
-                resetMode();
-              }}
-              className="px-1.5 py-0.5 rounded bg-yellow-300 text-black font-bold shrink-0"
-            >
-              Spend 1 Momentum
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
-                lockActions();
-                resetMode();
-              }}
-              className="px-1.5 py-0.5 rounded border border-white/20 hover:bg-white/10 text-white/60 shrink-0"
-            >
-              Skip
-            </button>
-          </div>
+          <HubPrompt
+            text={`Activate Overdrive for -1 Momentum? (+100 ${mode.supportName === 'Juice-Box' ? 'DEF' : 'damage'})`}
+            options={[
+              {
+                key: 'confirm',
+                label: 'Confirm',
+                onClick: () => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, true);
+                  lockActions();
+                  resetMode();
+                },
+              },
+              {
+                key: 'pass',
+                label: 'Pass',
+                muted: true,
+                onClick: () => {
+                  state.declareAttack(mode.attackerId, mode.attackId, mode.targetId, false);
+                  lockActions();
+                  resetMode();
+                },
+              },
+            ]}
+          />
         )}
 
         {/* Portal target for the React window (ResponseModal) - it renders
@@ -1142,7 +1125,7 @@ export default function GameBoard() {
           simply and naturally sized, none of them able to shrink below or
           spill into each other. Its own position (baseline gap vs shifted
           down toward the hand while a decision is pending) is handled below. */}
-      <div className="shrink-0" style={{ marginBottom: decisionPending ? -230 : 12, transition: 'margin-bottom 200ms ease-out' }}>
+      <div className="shrink-0" style={{ marginTop: 'auto', marginBottom: decisionPending ? -230 : 12, transition: 'margin-bottom 200ms ease-out' }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
@@ -1178,47 +1161,57 @@ export default function GameBoard() {
             blocks everything else. */}
         <div className={state.tutorialMode ? 'tutorial-above-overlay flex flex-col gap-1.5 pointer-events-auto' : 'contents pointer-events-auto'}>
         {mode.kind === 'apexReady' && (
-          <ConfirmBar
+          <HubPrompt
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Apex'} — play into an empty Front Line slot?`}
-            onConfirm={() => { state.playApexCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
+            options={[
+              { key: 'confirm', label: 'Confirm', onClick: () => { state.playApexCard(mode.cardId); resetMode(); } },
+              { key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode },
+            ]}
           />
         )}
         {mode.kind === 'supportReady' && (
-          <ConfirmBar
+          <HubPrompt
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — play into an empty Support slot?`}
-            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
+            options={[
+              { key: 'confirm', label: 'Confirm', onClick: () => { state.playSupportCard(mode.cardId); resetMode(); } },
+              { key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode },
+            ]}
           />
         )}
         {mode.kind === 'supportChooseChain' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — click one of your Apexes above to chain it, or play it unchained as a vanilla Sync source.`}
-            confirmLabel="Play Unchained"
-            onConfirm={() => { state.playSupportCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
+          <HubPrompt
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Support'} — click an Apex above to chain it, or play unchained.`}
+            options={[
+              { key: 'confirm', label: 'Play Unchained', onClick: () => { state.playSupportCard(mode.cardId); resetMode(); } },
+              { key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode },
+            ]}
           />
         )}
         {mode.kind === 'rechainSelectApex' && (
-          <ConfirmBar text="Click one of your Apexes above to chain this Support to it." onCancel={resetMode} />
+          <HubPrompt
+            text="Click one of your Apexes above to chain this Support to it."
+            options={[{ key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode }]}
+          />
         )}
         {mode.kind === 'equipReady' && (
-          <ConfirmBar
-            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Equip'} — click one of your Apexes above (without an Equip) to attach this.`}
-            onCancel={resetMode}
+          <HubPrompt
+            text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Equip'} — click an Apex above (without an Equip) to attach.`}
+            options={[{ key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode }]}
           />
         )}
         {mode.kind === 'specialReady' && !mode.requiresTarget && (
-          <ConfirmBar
+          <HubPrompt
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — play it now?`}
-            onConfirm={() => { state.playSpecialCard(mode.cardId); resetMode(); }}
-            onCancel={resetMode}
+            options={[
+              { key: 'confirm', label: 'Confirm', onClick: () => { state.playSpecialCard(mode.cardId); resetMode(); } },
+              { key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode },
+            ]}
           />
         )}
         {mode.kind === 'specialReady' && mode.requiresTarget && (
-          <ConfirmBar
+          <HubPrompt
             text={`Selected: ${selectedCard ? getCardDef(selectedCard.defId).name : 'Special'} — click a valid target (${mode.requiresTarget}) above.`}
-            onCancel={resetMode}
+            options={[{ key: 'cancel', label: 'Cancel', muted: true, onClick: resetMode }]}
           />
         )}
         </div>
@@ -1456,40 +1449,6 @@ function AttackOutcomePreview({ state, mode }: { state: GameState; mode: Extract
   );
 }
 
-function ConfirmBar({
-  text,
-  onConfirm,
-  onCancel,
-  confirmLabel = 'Confirm',
-}: {
-  text: string;
-  onConfirm?: () => void;
-  onCancel: () => void;
-  confirmLabel?: string;
-}) {
-  return (
-    <div className="rounded-lg border border-yellow-400/40 bg-[#05050af2] p-2 flex items-center gap-4 text-xs w-fit max-w-full mx-auto">
-      <span className="text-yellow-200">{text}</span>
-      <div className="flex gap-2 shrink-0">
-        {onConfirm && (
-          <button
-            type="button"
-            onClick={() => {
-              playSfx('ui.confirm');
-              onConfirm();
-            }}
-            className="px-2 py-1 rounded bg-yellow-300 text-black font-bold"
-          >
-            {confirmLabel}
-          </button>
-        )}
-        <button type="button" onClick={onCancel} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function OpeningApexScreen() {
   const state = useGameStore();
