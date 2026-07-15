@@ -25,7 +25,7 @@ function FactionPicker({
   onChange: (f: Faction) => void;
 }) {
   return (
-    <div className="flex-1 min-w-[220px]">
+    <div className="flex-1 min-w-[150px]">
       <div className="text-xs uppercase tracking-widest text-white/40 mb-2">{label}</div>
       <div className="flex flex-col gap-2">
         {FACTIONS.map((f) => {
@@ -211,7 +211,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
-    <div className="max-w-md w-full mx-4 max-h-[92vh] overflow-y-auto rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+      <div className="max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
         {/* Commit 33 - the real Asphyxia logo, replacing the plain text header.
             Transparent PNG built for a dark background - fits the card's own
             black backdrop with no extra framing needed. */}

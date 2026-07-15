@@ -989,7 +989,14 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end" style={{ transform: 'translateX(-16px)' }}>
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5" style={{ transform: 'translateX(-16px)' }}>
+
+      {/* Opponent board + prompt area share their own flexible region, hugging
+          its own bottom edge. If content here is ever taller than available
+          space, it shrinks/overflows upward only - it can never push into or
+          overlap Player 1's board below, since that's now a separate, fixed
+          sibling rather than sharing this same flexible space. */}
+      <div className="flex-1 min-h-0 flex flex-col gap-1.5 justify-end">
 
       {/* Row 3: opponent board */}
       <div className="min-h-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
@@ -1108,9 +1115,12 @@ export default function GameBoard() {
           </div>
         )}
       </div>
+      </div>
 
-      {/* Row 6: player board */}
-      <div className="min-h-0">
+      {/* Row 6: player board - a fixed sibling now, not sharing the flexible
+          region above with the opponent board, so it can never overlap it
+          regardless of how tall that content gets. */}
+      <div className="min-h-0 shrink-0">
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
