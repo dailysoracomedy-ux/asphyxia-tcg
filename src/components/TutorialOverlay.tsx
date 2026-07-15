@@ -1,7 +1,5 @@
 'use client';
 
-import { useGameStore } from '@/store/gameStore';
-
 /**
  * Full-screen dim overlay for tutorial mode (Commit 29.4). Originally also
  * the primary click-blocking mechanism (a single pointer-events:auto layer
@@ -24,8 +22,11 @@ import { useGameStore } from '@/store/gameStore';
  * visual dimming, never in the way of a real drag or drop again.
  */
 export default function TutorialOverlay() {
-  const tutorialMode = useGameStore((s) => s.tutorialMode);
-  if (!tutorialMode) return null;
-
-  return <div className="fixed inset-0 z-30 bg-black/70 pointer-events-none" />;
+  // Commit 41.16 - the dim overlay itself removed per direct request ("take
+  // out all the darkness"). It was purely visual by this point (see history
+  // above) - the tutorial-spotlight/tutorial-stay-bright classes elsewhere
+  // remain harmless no-ops without anything dark to contrast against, and
+  // gating is still fully handled by tutorialGate in GameBoard.tsx, so
+  // nothing about actual tutorial behavior changes here.
+  return null;
 }

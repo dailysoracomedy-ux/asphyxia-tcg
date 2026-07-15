@@ -64,7 +64,11 @@ export default function AttackSelectorModal({
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 p-4"
-      style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.75) 100%)', backdropFilter: 'blur(1.5px)' }}
+      style={
+        state.tutorialMode
+          ? undefined
+          : { background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.75) 100%)', backdropFilter: 'blur(1.5px)' }
+      }
       onClick={onCancel}
     >
       <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
