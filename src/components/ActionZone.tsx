@@ -24,14 +24,14 @@ export default function ActionZone({ playerId, drag, tutorialMode }: { playerId:
   return (
     <div
       data-dropzone={isLegalDropTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined}
-      className={`rounded-md border flex items-center justify-center text-center text-[11px] uppercase tracking-widest transition-shadow box-content -m-8 p-8 relative ${tutorialMode ? 'tutorial-stay-bright' : ''} ${
+      className={`rounded-md border flex items-center justify-center text-center text-[11px] uppercase tracking-widest transition-shadow box-content -mx-2 -mb-2 px-2 pb-2 relative ${tutorialMode ? 'tutorial-stay-bright' : ''} ${
         isLegalDropTarget
           ? isHovered
             ? 'border-emerald-300 text-emerald-200 ring-4 ring-emerald-300 shadow-[0_0_30px_rgba(52,211,153,0.9)] bg-emerald-400/10'
             : 'border-emerald-400/70 text-emerald-300/80 ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.5)]'
           : 'border-white/10 text-white/25'
       }`}
-      style={{ width: 90, height: 100, zIndex: isLegalDropTarget ? 25 : undefined }}
+      style={{ width: 68, height: 72, zIndex: isLegalDropTarget ? 25 : undefined }}
     >
       Action
     </div>

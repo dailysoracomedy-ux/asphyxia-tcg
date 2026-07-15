@@ -1024,7 +1024,7 @@ export default function GameBoard() {
           naturally with its content; since it's a simple sibling (not sharing
           a flexible region with either board), it can never cause either
           board to shrink or spill into the other. */}
-      <div className={`shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
+      <div className={`shrink-0 flex flex-col gap-1 max-h-[104px] overflow-y-auto relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
 
         {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
 
