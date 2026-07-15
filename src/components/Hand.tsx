@@ -38,7 +38,7 @@ interface HandProps {
 }
 
 const HAND_CARD_H = 194; // matches Card.tsx's 'hand' size preset height exactly
-const HAND_PEEK_H = 70; // how much of a tucked card's top is visible by default
+const HAND_PEEK_H = 150; // how much of a tucked card's top is visible by default
 const HAND_TUCK_OFFSET = HAND_CARD_H - HAND_PEEK_H;
 
 export default function Hand({
