@@ -1125,7 +1125,7 @@ export default function GameBoard() {
           simply and naturally sized, none of them able to shrink below or
           spill into each other. Its own position (baseline gap vs shifted
           down toward the hand while a decision is pending) is handled below. */}
-      <div className="shrink-0" style={{ marginTop: 'auto', marginBottom: decisionPending ? -230 : 12, transition: 'margin-bottom 200ms ease-out' }}>
+      <div className="shrink-0" style={{ marginTop: decisionPending ? 10 : 'auto', marginBottom: decisionPending ? 0 : 12, transition: 'margin-top 200ms ease-out, margin-bottom 200ms ease-out' }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}

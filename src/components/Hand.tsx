@@ -59,11 +59,15 @@ export default function Hand({
   return (
     <div className="shrink-0 w-fit max-w-full mx-auto px-1.5 relative z-20 pointer-events-auto" style={{ minWidth }}>
       <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
-      {/* The reserved, fixed-height track - exactly one card tall, overflow
-          cropped locally here only. Nothing above this ever needs to clip
-          or scroll because of it. */}
-      <div className="relative overflow-hidden" style={{ height: HAND_CARD_H }}>
-        <div className="flex gap-2 overflow-x-auto overflow-y-hidden pb-1 justify-center h-full">
+      {/* The reserved track - sized to exactly the tucked peek height, not the
+          full card height, so there's no empty reserved space above the
+          peeking cards. Overflow switches to visible only while a card is
+          actually hovered, letting just that card escape upward to show its
+          full height - safe since nothing above this in the page clips
+          anymore (confirmed in earlier work), while every other card stays
+          cropped to its normal peek. */}
+      <div className="relative" style={{ height: HAND_PEEK_H, overflow: hoveredId ? 'visible' : 'hidden' }}>
+        <div className="flex gap-2 pb-1 justify-center h-full">
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
           {cards.map((c) => {
             const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
@@ -85,7 +89,7 @@ export default function Hand({
                 }}
                 onMouseLeave={() => setHoveredId((cur) => (cur === c.instanceId ? null : cur))}
                 className="relative shrink-0 transition-[top] duration-150 ease-out"
-                style={{ top: isHovered ? 0 : HAND_TUCK_OFFSET, zIndex: isHovered ? 40 : undefined }}
+                style={{ top: isHovered ? -HAND_TUCK_OFFSET : 0, zIndex: isHovered ? 40 : undefined }}
               >
                 <Card
                   instance={c}
