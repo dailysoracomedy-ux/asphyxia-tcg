@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Card from '@/components/Card';
 import { createInstance } from '@/data/decks';
 import { useTutorialStore } from '@/store/tutorialStore';
+import { playSfx } from '@/audio/sfx';
 
 /**
  * Commit 31 - "Learn the Essentials," shown before the tutorial match board
@@ -125,7 +126,10 @@ export default function TutorialSlideshow({ onComplete }: { onComplete: () => vo
 
       <button
         type="button"
-        onClick={next}
+        onClick={() => {
+          playSfx('ui.confirm');
+          next();
+        }}
         className="px-5 py-2 rounded-lg bg-emerald-400 text-black font-bold text-sm hover:bg-emerald-300 transition-colors"
       >
         {isLast ? 'Start Tutorial Match' : 'Continue'}
