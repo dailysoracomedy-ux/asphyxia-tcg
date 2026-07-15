@@ -872,6 +872,21 @@ export default function GameBoard() {
       ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport')
       : [];
 
+  // A single shared condition driving both the hand's hide/disable and
+  // Player 1's board shifting down to make room for the center hub. True for
+  // every Row-5 decision (attack targeting, Overdrive spend, Control
+  // Conflict lock) and every React-window prompt - ReactionPrompt lists its
+  // own eligible cards as buttons rather than requiring a click on the real
+  // hand card, so the hand genuinely isn't needed for any of the 4 stages.
+  const pendingResponseItem = state.pendingResponseQueue[0] ?? null;
+  const decisionPending =
+    mode.kind === 'attackAwaitingTarget' ||
+    mode.kind === 'attackerChosen' ||
+    mode.kind === 'attackChoicePending' ||
+    mode.kind === 'overdrivePrompt' ||
+    (state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing) ||
+    !!pendingResponseItem;
+
   const endTurnFooter = (
     <div className="flex flex-row flex-wrap items-start justify-center gap-2">
       <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
@@ -989,17 +1004,10 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5" style={{ transform: 'translateX(-16px)' }}>
-
-      {/* Opponent board + prompt area share their own flexible region, hugging
-          its own bottom edge. If content here is ever taller than available
-          space, it shrinks/overflows upward only - it can never push into or
-          overlap Player 1's board below, since that's now a separate, fixed
-          sibling rather than sharing this same flexible space. */}
-      <div className="flex-1 min-h-0 flex flex-col gap-1.5 justify-end">
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5 justify-end" style={{ transform: 'translateX(-16px)' }}>
 
       {/* Row 3: opponent board */}
-      <div className="min-h-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
+      <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
         <PlayerBoard
           state={state}
           playerId={viewerTopId}
@@ -1012,7 +1020,10 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Row 5: prompt / action-context area - compact, only as tall as its content needs */}
+      {/* Row 5: prompt / action-context area - the shared decision hub. Grows
+          naturally with its content; since it's a simple sibling (not sharing
+          a flexible region with either board), it can never cause either
+          board to shrink or spill into the other. */}
       <div className={`shrink-0 flex flex-col gap-1.5 max-h-[40vh] overflow-y-auto relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
 
         {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
@@ -1114,13 +1125,24 @@ export default function GameBoard() {
             </button>
           </div>
         )}
-      </div>
+
+        {/* Portal target for the React window (ResponseModal) - it renders
+            through a portal into this specific spot rather than being a real
+            child here, since this row sits inside a translateX-transformed
+            ancestor and a naively-nested fixed-position element would get
+            trapped relative to that transform instead of the real viewport
+            (the same category of bug fixed for the card hover preview
+            earlier). The hotseat privacy pass-screen is a fully separate
+            component that stays mounted at the top level, so it's
+            unaffected by any of this and keeps working exactly as before. */}
+        <div id="response-hub-target" />
       </div>
 
-      {/* Row 6: player board - a fixed sibling now, not sharing the flexible
-          region above with the opponent board, so it can never overlap it
-          regardless of how tall that content gets. */}
-      <div className="min-h-0 shrink-0">
+      {/* Row 6: player board - a fixed sibling of Row 3 and Row 5 now, all
+          simply and naturally sized, none of them able to shrink below or
+          spill into each other. Its own position (baseline gap vs shifted
+          down toward the hand while a decision is pending) is handled below. */}
+      <div className="shrink-0" style={{ marginBottom: decisionPending ? -230 : 12, transition: 'margin-bottom 200ms ease-out' }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}
@@ -1201,6 +1223,7 @@ export default function GameBoard() {
         )}
         </div>
 
+        <div style={{ opacity: decisionPending ? 0 : 1, pointerEvents: decisionPending ? 'none' : 'auto', transition: 'opacity 150ms ease-out' }}>
         <Hand
           cards={state.players[viewerBottomId].hand}
           selectedId={selectedCard?.instanceId ?? null}
@@ -1230,6 +1253,7 @@ export default function GameBoard() {
               : undefined
           }
         />
+        </div>
       </div>
 
       {inspected && (

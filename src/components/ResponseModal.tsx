@@ -1,5 +1,7 @@
 'use client';
 
+import { createPortal } from 'react-dom';
+
 import type { GameState, ReactionDef } from '@/types/game';
 import { getCardDef } from '@/data/cards';
 import { useGameStore, type ResponseChoice } from '@/store/gameStore';
@@ -47,6 +49,25 @@ export default function ResponseModal({ state, onAfterChoose }: ResponseModalPro
     onAfterChoose?.();
   };
 
+  const content = (
+    <div className="rounded-lg border-2 border-pink-400/70 bg-[#0a0512f5] p-3 shadow-[0_0_30px_rgba(244,114,182,0.3)] w-fit max-w-lg mx-auto">
+      {item.stage === 'reactionChoice' && (
+        <ReactionPrompt state={state} item={item} onChoose={resolveResponse} />
+      )}
+      {item.stage === 'negateWindow' && <NegatePrompt state={state} item={item} onChoose={resolveResponse} />}
+      {item.stage === 'humanErrorChoice' && <HumanErrorPrompt item={item} onChoose={resolveResponse} />}
+      {item.stage === 'civilWarChoice' && <CivilWarPrompt item={item} onChoose={resolveResponse} />}
+    </div>
+  );
+
+  // Commit 41.11 - renders into the shared center hub (Row 5, between the two
+  // boards) via a portal, instead of a full-screen takeover. The portal
+  // target lives inside a transformed ancestor, so this can't just nest
+  // normally - same reasoning as the card hover preview fix earlier. Falls
+  // back to the previous full-screen style only if that target isn't
+  // mounted for some reason, so this never silently renders nothing.
+  const hubTarget = typeof document !== 'undefined' ? document.getElementById('response-hub-target') : null;
+  if (hubTarget) return createPortal(content, hubTarget);
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4">
       <div className="max-w-md w-full rounded-xl border-2 border-pink-400 bg-[#0a0512] p-5 shadow-[0_0_40px_rgba(244,114,182,0.35)]">
