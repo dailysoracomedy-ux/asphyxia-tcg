@@ -141,12 +141,14 @@ async function main() {
 
   await new Promise((r) => setTimeout(r, 20));
   const html = container.innerHTML;
-  const shakeCount = (html.match(/vfx-destroy-shake/g) ?? []).length;
-  check('both the Apex and its Engine show a destroy-shake ghost simultaneously (not just one)', shakeCount >= 2);
+  // Commit 43 renamed the destroy animation (shake -> shatter); match either so
+  // this test tracks the behavior (a destroy-animation ghost) not one class name.
+  const shakeCount = (html.match(/vfx-destroy-\w+/g) ?? []).length;
+  check('both the Apex and its Engine show a destroy-animation ghost simultaneously (not just one)', shakeCount >= 2);
 
   await new Promise((r) => setTimeout(r, 1000));
   const htmlAfter = container.innerHTML;
-  check('both ghosts are gone once their animation window elapses', !htmlAfter.includes('vfx-destroy-shake'));
+  check('both ghosts are gone once their animation window elapses', !/vfx-destroy-\w+/.test(htmlAfter));
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);

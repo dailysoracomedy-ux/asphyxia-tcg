@@ -128,11 +128,12 @@ async function main() {
 
   await new Promise((r) => setTimeout(r, 80));
   const htmlRightAfter = container.innerHTML;
-  check('destroy-shake class renders in the vacated slot immediately after destruction', htmlRightAfter.includes('vfx-destroy-shake'));
+  // Commit 43 renamed the destroy animation (shake -> shatter); match either.
+  check('a destroy-animation class renders in the vacated slot immediately after destruction', /vfx-destroy-\w+/.test(htmlRightAfter));
 
   await new Promise((r) => setTimeout(r, 1000));
   const htmlAfterGhostExpires = container.innerHTML;
-  check('the ghost animation class is gone once its duration elapses', !htmlAfterGhostExpires.includes('vfx-destroy-shake'));
+  check('the ghost animation class is gone once its duration elapses', !/vfx-destroy-\w+/.test(htmlAfterGhostExpires));
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
