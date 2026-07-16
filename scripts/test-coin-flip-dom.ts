@@ -6,6 +6,11 @@
  * verifies the first-turn-attack rejection: clicking the Apex on the coin
  * flip winner's very first turn gives a real, audible rejection instead of
  * silently doing nothing.
+ *
+ * Commit 42 - the coin is now CoinFlip3D (real WebGL). jsdom has no WebGL,
+ * so this test exercises the component's documented no-GPU fallback, which
+ * shares the same flow, result reporting (img alt = landed face) and timing
+ * contract as the 3D path - the assertions below are unchanged on purpose.
  */
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/' });

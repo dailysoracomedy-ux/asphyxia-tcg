@@ -45,7 +45,19 @@ async function main() {
   check('the board is genuinely shifted left', /translateX\(-16px\)/.test(gbSrc));
 
   const menuSrc = fs.readFileSync('src/components/NewGameMenu.tsx', 'utf-8');
-  check('the coin flip count genuinely doubled (18-22, was 9-11)', /let flips = 18 \+ Math\.floor\(Math\.random\(\) \* 5\)/.test(menuSrc));
+  // Commit 42 - the 41.8 spin-speed doubling (18-22 face swaps) lived inside
+  // the 2D face-swap coin, which is now retired entirely in favor of the real
+  // 3D CoinFlip3D toss (which supersedes 41.8's goal: the whole flip is now
+  // ~half the old length). The historical check is updated to assert its
+  // replacement is genuinely in place rather than grepping for deleted code.
+  check(
+    'the 2D face-swap coin is genuinely gone from the menu (no flip-count spin loop remains)',
+    !/let flips = /.test(menuSrc)
+  );
+  check(
+    'the menu genuinely hands the toss to the real 3D coin (CoinFlip3D wired with a flip trigger)',
+    /CoinFlip3D/.test(menuSrc) && /flipId/.test(menuSrc)
+  );
 
   const riftSrc = fs.readFileSync('src/components/RiftPanel.tsx', 'utf-8');
   check('the Rift "i" button is genuinely an inline flex item now, not absolutely positioned', !riftSrc.includes('absolute top-1 right-1') && /Rift:[\s\S]{0,600}title="Full Rift text"/.test(riftSrc));

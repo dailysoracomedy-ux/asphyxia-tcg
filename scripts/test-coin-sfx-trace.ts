@@ -1,9 +1,13 @@
 /**
  * Diagnostic: traces every playSfx() call during a real coin flip to verify
- * coin.flipStart/coin.flipLoop/coin.flipLand are genuinely being triggered,
- * with real Audio.play() actually being called - to distinguish a real code
- * bug from a deployment/asset issue (files not actually present on the
- * live site).
+ * the Commit 42 audio contract: coin.flipStart fires at the toss and
+ * coin.flipLand at touchdown, with real Audio.play() actually being called.
+ * coin.flipLoop is deliberately RETIRED as of Commit 42 - the 3D coin's
+ * ~1.1s toss has no room for the old 1.785s spin loop - so this test now
+ * asserts the loop genuinely does NOT play, and that land follows start by
+ * roughly the toss duration (real sequencing, not simultaneous). In jsdom
+ * (no WebGL) this exercises CoinFlip3D's documented fallback path, which
+ * shares the exact same sound/timing contract as the WebGL path.
  */
 import { JSDOM } from 'jsdom';
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/' });
@@ -83,19 +87,21 @@ async function main() {
   console.log('  play() calls on coin sources:', playLog.filter((p) => p.key.includes('coin')));
 
   check('a real Audio() element was genuinely constructed for coin.flipStart', constructedSrcs.some((s) => s.includes('coin.flipStart')));
-  check('a real Audio() element was genuinely constructed for coin.flipLoop', constructedSrcs.some((s) => s.includes('coin.flipLoop')));
   check('a real Audio() element was genuinely constructed for coin.flipLand', constructedSrcs.some((s) => s.includes('coin.flipLand')));
   check('play() was genuinely called for coin.flipStart', playLog.some((p) => p.key.includes('coin.flipStart')));
-  check('play() was genuinely called for coin.flipLoop', playLog.some((p) => p.key.includes('coin.flipLoop')));
   check('play() was genuinely called for coin.flipLand', playLog.some((p) => p.key.includes('coin.flipLand')));
+  check(
+    'coin.flipLoop genuinely does NOT play anymore - retired by Commit 42, the 1.1s toss has no room for the 1.785s loop',
+    !playLog.some((p) => p.key.includes('coin.flipLoop'))
+  );
 
   const startPlay = playLog.find((p) => p.key.includes('coin.flipStart'));
-  const loopPlay = playLog.find((p) => p.key.includes('coin.flipLoop'));
   const landPlay = playLog.find((p) => p.key.includes('coin.flipLand'));
-  if (startPlay && loopPlay && landPlay) {
-    console.log(`  Timing: start@${startPlay.atMs}ms, loop@${loopPlay.atMs}ms, land@${landPlay.atMs}ms`);
-    check('loop played genuinely after start (real sequencing, not simultaneous/reordered)', loopPlay.atMs > startPlay.atMs);
-    check('land played genuinely after loop (real sequencing)', landPlay.atMs > loopPlay.atMs);
+  if (startPlay && landPlay) {
+    const gap = landPlay.atMs - startPlay.atMs;
+    console.log(`  Timing: start@${startPlay.atMs}ms, land@${landPlay.atMs}ms (gap ${gap}ms)`);
+    check('land played genuinely after start (real sequencing, not simultaneous)', gap > 0);
+    check('the start->land gap genuinely matches the ~1.1s toss (900-1600ms window), i.e. the flip really is half the old length', gap >= 900 && gap <= 1600);
   }
 
   root.unmount();
