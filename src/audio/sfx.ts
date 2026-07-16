@@ -106,6 +106,38 @@ const SFX_SRC: Record<SfxKey, string> = {
   'coin.flipLand': '/audio/sfx/coin.flipLand.m4a',
 };
 
+/**
+ * Commit 42 - per-key playback tuning. `vary` is random playbackRate jitter
+ * (+/- that fraction, pitch shifting with it via preservesPitch=false) so
+ * rapid repeats of the same event - a flurry of hits, a three-card draw -
+ * read as distinct physical moments instead of the same sample stuttering.
+ * `gain` scales the key under the global SFX volume (hover ticks fire
+ * constantly and were mixed too hot relative to one-shot events).
+ * Keys not listed play exactly as before - vary 0, gain 1.
+ */
+const SFX_TUNING: Partial<Record<SfxKey, { vary?: number; gain?: number }>> = {
+  'ui.hover': { gain: 0.5, vary: 0.03 },
+  'ui.click': { vary: 0.04 },
+
+  'card.draw': { vary: 0.07 },
+  'card.enginePlay': { vary: 0.05 },
+  'card.equipAttach': { vary: 0.05 },
+  'card.equipSwap': { vary: 0.05 },
+  'card.specialPlay': { vary: 0.04 },
+  'card.reactPlay': { vary: 0.04 },
+
+  'combat.hit': { vary: 0.08 },
+  'combat.heavyHit': { vary: 0.05 },
+  'combat.destroy': { vary: 0.05 },
+  'combat.attackDeclare': { vary: 0.04 },
+
+  'resource.momentumGain': { vary: 0.06 },
+  'resource.momentumSpend': { vary: 0.05 },
+  'resource.o2Loss': { vary: 0.04 },
+
+  'engine.trigger': { vary: 0.05 },
+};
+
 const POOL_SIZE = 3;
 const pools = new Map<SfxKey, HTMLAudioElement[]>();
 const poolCursor = new Map<SfxKey, number>();
@@ -133,7 +165,20 @@ export function playSfx(key: SfxKey) {
     const el = pool[i];
     poolCursor.set(key, (i + 1) % pool.length);
     el.currentTime = 0;
-    el.volume = Math.max(0, Math.min(1, sfxVolume));
+    const tune = SFX_TUNING[key];
+    el.volume = Math.max(0, Math.min(1, sfxVolume * (tune?.gain ?? 1)));
+    const vary = tune?.vary ?? 0;
+    if (vary > 0) {
+      // Let the pitch follow the rate - that's the point of the jitter.
+      // preservesPitch is widely supported; guarded anyway since this whole
+      // function promises to never throw into game logic.
+      try {
+        (el as HTMLAudioElement & { preservesPitch?: boolean }).preservesPitch = false;
+      } catch {}
+      el.playbackRate = 1 + (Math.random() * 2 - 1) * vary;
+    } else {
+      el.playbackRate = 1;
+    }
     el.play().catch(() => {});
   } catch {
     // Audio is enhancement-only - never let a playback failure affect anything else.

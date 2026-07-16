@@ -15,6 +15,25 @@ Then open http://localhost:3000. Two players share one browser tab/window (hotse
 
 ## What's implemented
 
+**Commit 42 — cosmetics & the 3D coin.** Highlights of the latest pass:
+
+- **CoinFlip3D** (`src/components/CoinFlip3D.tsx`): the pre-game coin is now a real
+  three.js cylinder — your coin art on the caps, a reeded machined edge, neon scene
+  lights and a cast shadow — with a ~1.1s toss + 0.55s landing wobble (about half
+  the old 2D spin's length). Includes a documented no-WebGL fallback sharing the
+  same flow/sound/timing contract, which is also what the jsdom tests exercise.
+  The coin-flip screen itself was decluttered: logo/version/audio step aside there.
+- **The Locker** (main menu): pick your **playmat, card sleeves, deck box and coin**,
+  per seat (Player 2's gear shows in hotseat). Selections persist in localStorage
+  (`src/store/cosmeticsStore.ts`); all skins live in `src/lib/cosmetics.ts` as pure
+  CSS/filter recipes over existing art — zero new image assets, append-only to extend.
+  Playmats render as each board's surface, sleeves re-tint every card back, deck
+  boxes case the deck pile, and the equipped coin skin is baked into the WebGL coin
+  textures.
+- **Card feel**: pointer-tracked 3D tilt + moving light glare on cards (hover-fine
+  devices only, reduced-motion respected), and per-key SFX pitch/volume jitter in
+  `src/audio/sfx.ts` so rapid repeats of the same sound read as distinct events.
+
 - Full turn structure: Start / Main / Combat / End phases with explicit phase buttons
 - All 3 starter decks (Neon Underground, Dark White, Synth Ascendancy), 30 cards each,
   every card from the v0.2.1 spec with its actual rules text and effects

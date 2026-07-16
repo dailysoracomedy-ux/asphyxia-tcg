@@ -52,6 +52,69 @@ interface CardProps {
   isPlayable?: boolean;
 }
 
+/**
+ * Commit 42 - physical card feel: a subtle pointer-tracked 3D tilt plus a
+ * moving light glare, applied to the card's inner content wrapper. Purely
+ * visual: no layout shift (transform only), no pointer interception (the
+ * glare is pointer-events-none), and it never runs on touch devices or when
+ * the user prefers reduced motion. Max tilt is deliberately small (6deg) so
+ * the board keeps its tabletop read - cards should feel like coated
+ * cardstock catching the light, not spinning UI panels.
+ */
+const TILT_MAX_DEG = 6;
+function useCardTilt(enabled: boolean) {
+  const [tilt, setTilt] = useState<{ rx: number; ry: number; gx: number; gy: number } | null>(null);
+
+  // Evaluated lazily inside the handler, never during render: matchMedia
+  // doesn't exist in jsdom (the /scripts test harness), and a mousemove can
+  // only ever fire in a real browser anyway. The 'function' check keeps the
+  // whole hook inert rather than crashing anywhere matchMedia is absent.
+  function tiltActive(): boolean {
+    if (!enabled || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return (
+      window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+  }
+
+  function onTiltMove(e: React.MouseEvent<HTMLDivElement>) {
+    if (!tiltActive()) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width; // 0..1
+    const py = (e.clientY - r.top) / r.height;
+    setTilt({
+      rx: (0.5 - py) * TILT_MAX_DEG * 2,
+      ry: (px - 0.5) * TILT_MAX_DEG * 2,
+      gx: px * 100,
+      gy: py * 100,
+    });
+  }
+  function onTiltEnd() {
+    setTilt(null);
+  }
+
+  const tiltStyle: React.CSSProperties = tilt
+    ? {
+        transform: `perspective(700px) rotateX(${tilt.rx.toFixed(2)}deg) rotateY(${tilt.ry.toFixed(2)}deg) scale(1.02)`,
+        transition: 'transform 60ms linear',
+        willChange: 'transform',
+      }
+    : { transform: 'perspective(700px)', transition: 'transform 220ms ease-out' };
+
+  const glare = tilt ? (
+    <div
+      className="absolute inset-0 rounded-md pointer-events-none"
+      style={{
+        background: `radial-gradient(circle at ${tilt.gx.toFixed(1)}% ${tilt.gy.toFixed(1)}%, rgba(255,255,255,0.16), rgba(255,255,255,0.05) 35%, transparent 62%)`,
+        mixBlendMode: 'overlay',
+        zIndex: 3,
+      }}
+    />
+  ) : null;
+
+  return { tiltStyle, glare, onTiltMove, onTiltEnd };
+}
+
 const BOOST_GREEN = '#4ade80';
 const NERF_RED = '#f87171';
 
@@ -78,6 +141,9 @@ export default function Card({
 }: CardProps) {
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tilt everywhere except the giant hover-preview copy ('xl'), which floats
+  // free of the pointer and would just wobble confusingly.
+  const { tiltStyle, glare, onTiltMove, onTiltEnd } = useCardTilt(!disableHoverPreview && size !== 'xl');
 
   function clearHoverTimer() {
     if (hoverTimer.current) {
@@ -191,7 +257,8 @@ export default function Card({
         onMouseLeave={handleMouseLeave}
       >
         {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
-        <div className="relative w-full h-full" style={{ zIndex: 1 }}>
+        <div className="relative w-full h-full" style={{ zIndex: 1, ...tiltStyle }} onMouseMove={onTiltMove} onMouseLeave={onTiltEnd}>
+          {glare}
           {hoverPreview}
           {isApex && apexDef ? (
             <ApexCardRenderer
@@ -239,7 +306,8 @@ export default function Card({
   return (
     <div className="relative inline-block shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
     {isDisabledVisual && <div className="absolute inset-0 rounded-md" style={{ background: '#020004', zIndex: 0 }} />}
-    <div className="relative w-full h-full" style={{ zIndex: 1 }}>
+    <div className="relative w-full h-full" style={{ zIndex: 1, ...tiltStyle }} onMouseMove={onTiltMove} onMouseLeave={onTiltEnd}>
+          {glare}
     {hoverPreview}
     <button
       type="button"

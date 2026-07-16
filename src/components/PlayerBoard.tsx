@@ -9,6 +9,8 @@ import EquipFlap from './EquipFlap';
 import DeckVoidStack from './DeckVoidStack';
 import ActionZone from './ActionZone';
 import { factionTheme } from '@/lib/theme';
+import { getPlaymat } from '@/lib/cosmetics';
+import { useCosmeticsStore } from '@/store/cosmeticsStore';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
 import { useApexVisualEvents, usePlayerVisualEvents, useSlotGhost } from '@/store/animationStore';
 import type { DragState } from '@/ui/dragDrop/dragDropTypes';
@@ -101,6 +103,9 @@ export default function PlayerBoard({
 }: PlayerBoardProps) {
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
+  // Commit 42 - this seat's equipped playmat (cosmeticsStore). 'faction'
+  // means the original per-faction radial, so default behavior is unchanged.
+  const playmat = useCosmeticsStore((s) => getPlaymat(s.loadouts[playerId].playmat));
   const isActiveTurn = state.status === 'playing' && state.activePlayerId === playerId;
   const reactEvents = usePlayerVisualEvents(playerId).filter((e) => e.type === 'REACT_PLAYED' || e.type === 'CARD_NEGATED');
   const reactVfxClass = reactEvents.length > 0 ? (reactEvents.some((e) => e.type === 'CARD_NEGATED') ? 'vfx-negate-glitch' : 'vfx-react-highlight') : '';
@@ -110,8 +115,10 @@ export default function PlayerBoard({
       ref={containerRef}
       className={`rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
       style={{
-        borderColor: `${theme.border}55`,
-        background: `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
+        borderColor: playmat.edge ? `${playmat.edge}66` : `${theme.border}55`,
+        background:
+          playmat.background ??
+          `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
         transform: 'perspective(1100px) rotateX(11deg)',
         transformOrigin: 'center center',
         ['--active-glow-color' as string]: `${theme.primary}99`,
@@ -142,7 +149,7 @@ export default function PlayerBoard({
           ) : (
             <div className="flex flex-col gap-1 items-center">
               <div className="flex gap-1">
-                <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
+                <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
               </div>
               <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
@@ -172,7 +179,7 @@ export default function PlayerBoard({
             {flipped ? (
               <div className="flex flex-col gap-1 items-center">
                 <div className="flex gap-1">
-                  <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} />
+                  <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                   <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
                 </div>
                 <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
