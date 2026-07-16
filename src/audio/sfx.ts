@@ -61,7 +61,14 @@ export type SfxKey =
   // Coin flip (Commit 34.3)
   | 'coin.flipStart'
   | 'coin.flipLoop'
-  | 'coin.flipLand';
+  | 'coin.flipLand'
+  // Commit 43 - the synthesized impact layer (scripts/generate-impact-sfx.py).
+  // These are never triggered directly by game events; they play as LAYERS
+  // under existing keys via SFX_LAYERS below, adding physical weight the
+  // original one-shot samples don't carry on their own.
+  | 'combat.whoosh'
+  | 'combat.subBoom'
+  | 'vfx.shatter';
 
 const SFX_SRC: Record<SfxKey, string> = {
   'ui.click': '/audio/sfx/ui.click.m4a',
@@ -104,6 +111,29 @@ const SFX_SRC: Record<SfxKey, string> = {
   'coin.flipStart': '/audio/sfx/coin.flipStart.m4a',
   'coin.flipLoop': '/audio/sfx/coin.flipLoop.m4a',
   'coin.flipLand': '/audio/sfx/coin.flipLand.m4a',
+
+  'combat.whoosh': '/audio/sfx/combat.whoosh.m4a',
+  'combat.subBoom': '/audio/sfx/combat.subBoom.m4a',
+  'vfx.shatter': '/audio/sfx/vfx.shatter.m4a',
+};
+
+/**
+ * Commit 43 - sounds that automatically ride along when their parent key
+ * plays, at an optional delay. This is what turns "a hit sample" into "an
+ * impact": the whoosh syncs to the lunge animation's wind-up, the subBoom
+ * gives heavy hits and destroys a chest-thump the samples lack, and the
+ * shatter matches the destroy animation's glitch-tear. Layers never trigger
+ * their own layers (enforced in playSfx) - this stays a flat, one-level map
+ * by construction, not by hoping nobody adds a cycle.
+ */
+const SFX_LAYERS: Partial<Record<SfxKey, { key: SfxKey; delayMs: number }[]>> = {
+  'combat.attackDeclare': [{ key: 'combat.whoosh', delayMs: 110 }],
+  'combat.heavyHit': [{ key: 'combat.subBoom', delayMs: 0 }],
+  'combat.destroy': [
+    { key: 'vfx.shatter', delayMs: 0 },
+    { key: 'combat.subBoom', delayMs: 40 },
+  ],
+  'combat.directO2': [{ key: 'combat.subBoom', delayMs: 30 }],
 };
 
 /**
@@ -136,6 +166,10 @@ const SFX_TUNING: Partial<Record<SfxKey, { vary?: number; gain?: number }>> = {
   'resource.o2Loss': { vary: 0.04 },
 
   'engine.trigger': { vary: 0.05 },
+
+  'combat.whoosh': { vary: 0.09, gain: 0.75 },
+  'combat.subBoom': { vary: 0.06, gain: 0.95 },
+  'vfx.shatter': { vary: 0.07, gain: 0.8 },
 };
 
 const POOL_SIZE = 3;
@@ -156,10 +190,21 @@ function getPool(key: SfxKey): HTMLAudioElement[] {
   return pool;
 }
 
-export function playSfx(key: SfxKey) {
+export function playSfx(key: SfxKey, isLayer = false) {
   try {
     const { sfxMuted, sfxVolume } = useAudioStore.getState();
     if (sfxMuted || sfxVolume <= 0) return;
+    // Fire this key's layers (Commit 43). isLayer guards against chains: a
+    // layer plays exactly itself, never its own layers.
+    if (!isLayer) {
+      const layers = SFX_LAYERS[key];
+      if (layers) {
+        for (const layer of layers) {
+          if (layer.delayMs > 0) setTimeout(() => playSfx(layer.key, true), layer.delayMs);
+          else playSfx(layer.key, true);
+        }
+      }
+    }
     const pool = getPool(key);
     const i = poolCursor.get(key) ?? 0;
     const el = pool[i];

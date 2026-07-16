@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/gameStore';
 import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
 import PlayerBoard from './PlayerBoard';
+import { useScreenShakeClass, O2Vignette } from './vfx/BattleFeedback';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
@@ -76,6 +77,8 @@ type Mode =
   | { kind: 'overdrivePrompt'; attackerId: string; attackId: string; targetId?: string; supportName: string };
 
 export default function GameBoard() {
+  // Commit 43 - whole-screen impact feedback (shake class goes on the root div below).
+  const screenShakeClass = useScreenShakeClass();
   const state = useGameStore();
   const [mode, setMode] = useState<Mode>({ kind: 'idle' });
   const { drag, beginPotentialDrag } = useDragDrop(handleDragDrop);
@@ -971,7 +974,8 @@ export default function GameBoard() {
   );
 
   return (
-    <div className="h-full max-h-full overflow-x-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative">
+    <div className={`h-full max-h-full overflow-x-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative ${screenShakeClass}`}>
+      <O2Vignette />
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       <TutorialOverlay />

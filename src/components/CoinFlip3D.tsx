@@ -31,8 +31,10 @@ import { playSfx } from '@/audio/sfx';
 export type CoinFace = 'heads' | 'tails';
 
 interface CoinFlip3DProps {
-  /** Square canvas size in px. */
-  size?: number;
+  /** Canvas size in px. Portrait by default (Commit 43): the toss arc is tall,
+   *  and a square canvas was cropping the coin at the apex of its throw. */
+  width?: number;
+  height?: number;
   /** CSS filter baked into the coin textures (from the selected CoinSkin). */
   skinFilter?: string;
   /** Bump this to a new positive value to launch a flip to `flipTo`. */
@@ -88,7 +90,7 @@ function reededEdgeTexture(): THREE.Texture {
   return t;
 }
 
-export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, flipTo, onLanded }: CoinFlip3DProps) {
+export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'none', flipId, flipTo, onLanded }: CoinFlip3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   /** Imperative bridge into the render loop - re-renders never rebuild the scene. */
   const controlRef = useRef<{ flip: (to: CoinFace) => void } | null>(null);
@@ -133,16 +135,22 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
       };
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(size, size);
+    renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
-    camera.position.set(0, 1.15, 6.0);
-    camera.lookAt(0, 0.35, 0);
+    // Commit 43 reframe - the full toss must fit: coin top at the arc's apex
+    // reaches y ~= 0.35 + TOSS_H + R = 3.5 world units, and the old square
+    // frame (fov 38 at 6 units) topped out around 2.4, cropping the coin at
+    // the height of its own throw (the reported bug). Portrait aspect + wider
+    // fov + a higher, farther camera puts the visible top at ~4.2 and still
+    // keeps the floor shadow at -1.7 in frame.
+    const camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 60);
+    camera.position.set(0, 1.7, 7.2);
+    camera.lookAt(0, 1.15, 0);
 
     // The art carries baked lighting - bright ambient keeps it true, and the
     // neon points work the edge, rim glint and floor shadow.
@@ -155,6 +163,12 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
     const rim = new THREE.PointLight(0x39ff6a, 0.6, 24);
     rim.position.set(4.2, 2.2, -2.4);
     scene.add(rim);
+    // Commit 43 - a light that RIDES the toss. The fixed scene lights are
+    // aimed at the rest position, so mid-throw the coin used to climb out of
+    // its own lighting and go flat; this one is parented to the rig and
+    // travels with it, keeping the faces lit at the apex.
+    const riderLight = new THREE.PointLight(0xff2fd0, 1.15, 9);
+    riderLight.position.set(-0.6, 0.5, 1.6);
     const fill = new THREE.DirectionalLight(0xffffff, 0.55);
     fill.position.set(0, 6, 5);
     scene.add(fill);
@@ -170,8 +184,10 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
     const T = 0.18;
     const matEdge = new THREE.MeshStandardMaterial({ map: reededEdgeTexture(), metalness: 0.85, roughness: 0.42 });
     // Low metalness: the art is pre-lit; metal shading would darken and double-light it.
-    const matHeads = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55 });
-    const matTails = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55 });
+    // emissive + emissiveMap (set alongside map below) lets the art itself
+    // glow faintly - reads as the coin catching neon, not just being lit.
+    const matHeads = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0x2e2e34 });
+    const matTails = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0x2e2e34 });
 
     let disposed = false;
     loadFilteredTexture(COIN_FRONT_SRC, skinFilter, (t) => {
@@ -179,6 +195,7 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
       t.center.set(0.5, 0.5);
       t.rotation = Math.PI / 2; // top cap: stand the art upright
       matHeads.map = t;
+      matHeads.emissiveMap = t;
       matHeads.color.set(0xffffff);
       matHeads.needsUpdate = true;
     });
@@ -187,6 +204,7 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
       t.center.set(0.5, 0.5);
       t.rotation = -Math.PI / 2; // bottom cap UVs run the other way
       matTails.map = t;
+      matTails.emissiveMap = t;
       matTails.color.set(0xffffff);
       matTails.needsUpdate = true;
     });
@@ -199,6 +217,26 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
     spinner.add(coin);
     const rig = new THREE.Group(); // toss height + idle bob
     rig.add(spinner);
+    rig.add(riderLight);
+    // Additive neon halo behind the coin - a soft radial sprite that pulses
+    // gently at rest and flares during the toss. Parented to the rig so it
+    // travels with the throw.
+    const haloCanvas = document.createElement('canvas');
+    haloCanvas.width = haloCanvas.height = 256;
+    const hx = haloCanvas.getContext('2d')!;
+    const hg = hx.createRadialGradient(128, 128, 10, 128, 128, 128);
+    hg.addColorStop(0, 'rgba(255,47,208,0.55)');
+    hg.addColorStop(0.45, 'rgba(255,47,208,0.18)');
+    hg.addColorStop(1, 'rgba(255,47,208,0)');
+    hx.fillStyle = hg;
+    hx.fillRect(0, 0, 256, 256);
+    const haloTex = new THREE.CanvasTexture(haloCanvas);
+    const halo = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })
+    );
+    halo.position.z = -0.55;
+    halo.scale.setScalar(4.4);
+    rig.add(halo);
     rig.position.y = 0.35;
     scene.add(rig);
 
@@ -236,12 +274,16 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
         rig.position.y = 0.35 + Math.sin(t * 1.6) * 0.05;
         spinner.rotation.y = Math.sin(t * 0.7) * 0.16;
         spinner.rotation.z = Math.sin(t * 0.9) * 0.05;
+        halo.material.opacity = 0.75 + Math.sin(t * 2.1) * 0.2; // breathing glow
+        halo.scale.setScalar(4.4 + Math.sin(t * 2.1) * 0.15);
       } else if (state === 'flip') {
         const p = Math.min((t - t0) / FLIP_DUR, 1);
         spinner.rotation.x = fromRot + (toRot - fromRot) * easeOutCubic(p);
         rig.position.y = 0.35 + TOSS_H * 4 * p * (1 - p); // parabolic toss
         spinner.rotation.y = Math.sin(p * Math.PI) * 0.35; // mid-air wobble
         spinner.rotation.z = Math.sin(p * Math.PI * 2) * 0.12;
+        halo.material.opacity = 0.85 + Math.sin(p * Math.PI) * 0.35; // flare at the apex
+        halo.scale.setScalar(4.4 + Math.sin(p * Math.PI) * 0.9);
         if (p >= 1) {
           spinner.rotation.x = isTails ? Math.PI : 0;
           playSfx('coin.flipLand');
@@ -270,6 +312,8 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
       cancelAnimationFrame(raf);
       controlRef.current = null;
       coin.geometry.dispose();
+      halo.material.map?.dispose();
+      halo.material.dispose();
       [matEdge, matHeads, matTails].forEach((m) => {
         m.map?.dispose();
         m.dispose();
@@ -277,9 +321,9 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
       renderer.dispose();
       host.removeChild(renderer.domElement);
     };
-    // skinFilter/size changes rebuild the scene - both only change between
-    // flips (Locker / menu navigation), never mid-toss.
-  }, [size, skinFilter]);
+    // skinFilter/dimension changes rebuild the scene - all only change
+    // between flips (Locker / menu navigation), never mid-toss.
+  }, [width, height, skinFilter]);
 
   // Prop-driven flip trigger: a new flipId with a target face launches the toss.
   useEffect(() => {
@@ -290,7 +334,17 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
   }, [flipId, flipTo]);
 
   return (
-    <div ref={hostRef} style={{ width: size, height: size }} className="relative select-none">
+    <div
+      ref={hostRef}
+      style={{
+        width,
+        height,
+        // CSS silhouette glow - drop-shadow follows the coin's rendered alpha,
+        // so the glow hugs the coin itself (and its whole arc), not the box.
+        filter: 'drop-shadow(0 0 22px rgba(255,47,208,0.4)) drop-shadow(0 0 60px rgba(255,47,208,0.16))',
+      }}
+      className="relative select-none"
+    >
       {fallback && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
@@ -300,10 +354,10 @@ export default function CoinFlip3D({ size = 280, skinFilter = 'none', flipId, fl
           className="absolute rounded-full pointer-events-none"
           style={{
             filter: skinFilter !== 'none' ? skinFilter : undefined,
-            width: size * 0.75,
-            height: size * 0.75,
-            left: size * 0.125,
-            top: size * 0.125,
+            width: width * 0.75,
+            height: width * 0.75,
+            left: width * 0.125,
+            top: (height - width * 0.75) / 2,
           }}
         />
       )}

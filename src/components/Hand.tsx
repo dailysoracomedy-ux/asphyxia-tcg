@@ -88,7 +88,7 @@ export default function Hand({
                   setHoveredId(c.instanceId);
                 }}
                 onMouseLeave={() => setHoveredId((cur) => (cur === c.instanceId ? null : cur))}
-                className="relative shrink-0 transition-[top] duration-150 ease-out"
+                className="vfx-draw-in relative shrink-0 transition-[top] duration-150 ease-out"
                 style={{ top: isHovered ? -HAND_TUCK_OFFSET : 0, zIndex: isHovered ? 40 : undefined }}
               >
                 <Card

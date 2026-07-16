@@ -376,7 +376,8 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             </div>
 
             <CoinFlip3D
-              size={300}
+              width={300}
+              height={430}
               skinFilter={coinSkin.filter}
               flipId={flipId}
               flipTo={(coinResult ?? null) as CoinFace | null}

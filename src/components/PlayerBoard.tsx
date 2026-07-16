@@ -171,6 +171,7 @@ export default function PlayerBoard({
               onInspect={onInspectCard}
               drag={drag}
               onAttackDragStart={onApexAttackDragStart}
+              flipped={flipped}
             />
           ))}
         </div>
@@ -235,6 +236,7 @@ function ApexSlotOrGhost({
   onInspect,
   drag,
   onAttackDragStart,
+  flipped,
 }: {
   slotIndex: number;
   apex: CardInstance | null;
@@ -247,10 +249,15 @@ function ApexSlotOrGhost({
   onInspect?: (instance: CardInstance) => void;
   drag?: DragState | null;
   onAttackDragStart?: (e: React.PointerEvent, instanceId: string) => void;
+  /** Commit 43 - which way this board faces on screen: battle animations
+   *  (lunge, knockback) are direction-aware, and screen direction is a view
+   *  concern, so it's threaded from PlayerBoard rather than derived from
+   *  player identity (which hotseat view-flipping would get wrong). */
+  flipped?: boolean;
 }) {
   const ghost = useSlotGhost(playerId, slotIndex, 'apex');
   if (!apex && ghost?.destroyedGhost) {
-    return <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} />;
+    return <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} flipped={flipped} />;
   }
 
   // Commit 30 - which drop zone (if any) this slot represents right now.
@@ -274,6 +281,7 @@ function ApexSlotOrGhost({
       disabled={disabled}
       selected={selected}
       onInspect={onInspect}
+      flipped={flipped}
     />
   );
 
@@ -301,6 +309,7 @@ function ApexSlot({
   disabled,
   selected,
   onInspect,
+  flipped,
 }: {
   apex: CardInstance | null;
   state: GameState;
@@ -310,6 +319,7 @@ function ApexSlot({
   disabled?: boolean;
   selected?: boolean;
   onInspect?: (instance: CardInstance) => void;
+  flipped?: boolean;
 }) {
   if (!apex) {
     const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
@@ -377,7 +387,7 @@ function ApexSlot({
     const apexArtWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div className="flex flex-col shrink-0" style={{ width: apexArtWidth }}>
-        <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'}>
+        <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'} flipped={flipped}>
           {cardEl}
         </ApexVfxOverlay>
         <EquipFlap key={apex.equip.instanceId} equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
@@ -386,7 +396,7 @@ function ApexSlot({
   }
 
   return (
-    <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'}>
+    <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'} flipped={flipped}>
       {cardEl}
     </ApexVfxOverlay>
   );
@@ -404,25 +414,34 @@ function ApexVfxOverlay({
   faction,
   children,
   spotlight,
+  flipped,
 }: {
   apexInstanceId: string;
   faction: Faction;
   children: React.ReactNode;
   spotlight?: boolean;
+  /** Screen orientation of this card's board - drives lunge/knockback
+   *  direction (Commit 43). Bottom board attacks upward, top board downward. */
+  flipped?: boolean;
 }) {
   const events = useApexVisualEvents(apexInstanceId);
   const theme = factionTheme(faction);
   const tutorialMode = useGameStore((s) => s.tutorialMode);
+  // Commit 43 - the battle animation set: real motion (lunge, knockback,
+  // shatter, slam) replacing the old scale/brightness pulses. Same one-class-
+  // at-a-time priority order as before - these fire in sequence during one
+  // attack, and stacking transform animations would fight each other.
+  const hitEvent = events.find((e) => e.type === 'CARD_HIT');
   const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
-    ? 'vfx-destroy-shake'
-    : events.some((e) => e.type === 'CARD_HIT')
-    ? 'vfx-hit-flash'
+    ? 'vfx-destroy-shatter'
+    : hitEvent
+    ? 'vfx-impact-hit'
     : events.some((e) => e.type === 'ATTACK_DECLARED')
-    ? 'vfx-attack-pulse'
+    ? 'vfx-attack-lunge'
     : events.some((e) => e.type === 'ENGINE_TRIGGER')
     ? 'vfx-engine-pulse'
     : events.some((e) => e.type === 'CARD_PLACED')
-    ? 'vfx-place-glow'
+    ? 'vfx-place-slam vfx-place-glow'
     : '';
   const popups = events.filter((e) => e.label);
 
@@ -436,18 +455,50 @@ function ApexVfxOverlay({
         ['--faction-primary' as string]: `${theme.primary}99`,
         ['--faction-secondary' as string]: `${theme.secondary}aa`,
         ['--faction-impact' as string]: `${theme.primary}aa`,
+        // Toward-the-enemy sign for lunge (attacker) and knockback (defender):
+        // bottom board = up (-Y on screen means multiplying by -1 inside the
+        // keyframes' calc, so the var itself is +1), flipped board = opposite.
+        ['--lunge' as string]: flipped ? -1 : 1,
+        ['--impact-color' as string]: theme.secondary,
       }}
     >
       {children}
-      {popups.map((p) => (
-        <div
-          key={p.id}
-          className="vfx-damage-popup absolute left-1/2 top-1/3 -translate-x-1/2 z-20 pointer-events-none font-mono font-bold text-sm whitespace-nowrap"
-          style={{ color: p.type === 'CARD_HIT' ? '#f87171' : '#fb923c', textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}
-        >
-          {p.label}
+      {/* Impact garnish - shockwave ring + spark burst, keyed to the specific
+          hit event so back-to-back hits each get their own fresh burst. */}
+      {hitEvent && (
+        <div key={hitEvent.id} className="pointer-events-none absolute inset-0 z-[19]">
+          <div className="vfx-shockwave-ring" />
+          <div className="vfx-impact-sparks" />
         </div>
-      ))}
+      )}
+      {popups.map((p) => {
+        // Severity read straight off the label the game store already
+        // formatted ("-650", "-200 O2") - no new rule knowledge here.
+        const dmg = p.label ? Math.abs(parseInt(p.label, 10)) || 0 : 0;
+        const heavy = p.type === 'CARD_HIT' && dmg >= 500;
+        // Deterministic per-event tilt/offset from the event id, so numbers
+        // from rapid consecutive hits scatter instead of stacking exactly.
+        const seed = p.id.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
+        const tilt = ((seed % 11) - 5) * 1.2;
+        const xOff = ((seed % 7) - 3) * 5;
+        return (
+          <div
+            key={p.id}
+            className={`${heavy ? 'vfx-damage-pop-heavy text-2xl' : 'vfx-damage-popup text-base'} absolute left-1/2 top-1/3 z-20 pointer-events-none font-mono font-black whitespace-nowrap`}
+            style={{
+              marginLeft: xOff,
+              ['--pop-tilt' as string]: `${tilt}deg`,
+              transform: heavy ? undefined : 'translateX(-50%)',
+              color: heavy ? '#ff3b3b' : p.type === 'CARD_HIT' ? '#f87171' : '#fb923c',
+              textShadow: heavy
+                ? '0 0 12px rgba(255,59,59,0.8), 0 2px 4px rgba(0,0,0,0.95)'
+                : '0 0 8px rgba(0,0,0,0.9), 0 1px 4px rgba(0,0,0,0.9)',
+            }}
+          >
+            {p.label}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -552,11 +603,11 @@ function SupportSlot({
   const supportDef = getCardDef(support.defId);
   const placeTheme = factionTheme(supportDef.faction);
   const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
-    ? 'vfx-destroy-shake'
+    ? 'vfx-destroy-shatter'
     : events.some((e) => e.type === 'ENGINE_TRIGGER')
     ? 'vfx-engine-pulse'
     : events.some((e) => e.type === 'CARD_PLACED')
-    ? 'vfx-place-glow'
+    ? 'vfx-place-slam vfx-place-glow'
     : '';
 
   return (
