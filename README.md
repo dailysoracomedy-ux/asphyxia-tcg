@@ -15,6 +15,29 @@ Then open http://localhost:3000. Two players share one browser tab/window (hotse
 
 ## What's implemented
 
+**Commit 43 — battle animations, whole-screen impact & the synthesized sound layer.**
+
+- **Battle animations**: attackers now physically lunge at the enemy board
+  (anticipation → strike → recoil, direction-aware per board side); hits land
+  with a hard flash, knockback, a faction-colored shockwave ring and a spark
+  burst; heavy hits (500+) punch in oversized red damage numbers with scatter;
+  destroys glitch-tear apart via clip-path shatter before collapsing. Heavy
+  hits, destroys and direct O2 damage shake the whole screen, and direct O2
+  damage breathes a red vignette across it (`src/components/vfx/BattleFeedback.tsx`).
+  Drawn cards slide up into the hand fan; played cards slam onto their slot.
+  All of it respects `prefers-reduced-motion`.
+- **Synthesized impact sound layer** (`scripts/generate-impact-sfx.py` →
+  `public/audio/sfx/`): an attack whoosh synced to the lunge, a sub-bass boom
+  under heavy hits/destroys/O2 damage, and a digital shatter under destruction —
+  layered automatically beneath the existing samples via `SFX_LAYERS` in
+  `src/audio/sfx.ts`. Generated procedurally (numpy/scipy/ffmpeg, deterministic
+  seed) since the build environment can't fetch sample libraries; drop-in
+  replaceable file-for-file if sampled audio is sourced later.
+- **Coin fixes**: portrait reframe so the full toss arc fits (the coin was
+  cropping at the apex of its own throw), a point light that rides the toss, an
+  additive neon halo that breathes at rest and flares at the apex, emissive
+  faces, and a CSS silhouette glow hugging the coin's alpha.
+
 **Commit 42 — cosmetics & the 3D coin.** Highlights of the latest pass:
 
 - **CoinFlip3D** (`src/components/CoinFlip3D.tsx`): the pre-game coin is now a real
