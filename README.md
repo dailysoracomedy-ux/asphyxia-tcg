@@ -15,6 +15,30 @@ Then open http://localhost:3000. Two players share one browser tab/window (hotse
 
 ## What's implemented
 
+**Commit 44 — the physicality pass: coin glow rebuilt on real bloom, board depth & de-digitize.**
+
+- **Coin glow, properly**: the halo sprite (which clipped at the canvas edges)
+  and the shadow-mapped floor (whose cast shadow smeared across the glow) are
+  both gone. The coin's own colors glow now: an emissive mask is extracted
+  from the coin art (saturated bright pixels = the neon inlays; stone/metal
+  masked out) and a real `UnrealBloomPass` with a luminance threshold blooms
+  only those regions - inlays breathe at rest, flare at the toss apex, and
+  show a thin glowing seam edge-on mid-flip. Grounding comes from a contact
+  blob that shrinks/fades with height.
+- **Deck box fixed & physical**: box now slightly larger than its cards
+  (112x152 around 104x146) with thin visible walls, the seated card peek crops
+  past the card back's white border so it reads as a sleeved card (not a white
+  sticker), a lit lid face reads as the box's top surface under the board tilt,
+  and bare piles show a paper-edge strip whose thickness tracks the REAL card
+  count - decks visibly thin over a match.
+- **Board depth**: `preserve-3d` on the already-tilted board + small
+  `translateZ` lifts per slot column = true parallax; two-part shadows
+  (contact + ambient) on all board cards and piles.
+- **De-digitize**: empty slots are etched into the mat (recessed, engraved)
+  instead of dashed neon rectangles; the mat itself gets a bevel and a soft
+  specular sheen; and everything now obeys ONE implied light source (top-left)
+  - see the unified light convention note in `app/globals.css`.
+
 **Commit 43 — battle animations, whole-screen impact & the synthesized sound layer.**
 
 - **Battle animations**: attackers now physically lunge at the enemy board
