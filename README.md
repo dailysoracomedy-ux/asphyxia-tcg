@@ -6,6 +6,8 @@ play — just a rules engine and a board.
 
 ## Running it
 
+VC test 2
+
 ```bash
 npm install
 npm run dev
