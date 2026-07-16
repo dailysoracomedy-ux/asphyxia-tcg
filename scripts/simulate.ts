@@ -117,8 +117,6 @@ function playMainPhaseActions() {
         else if (def.requiresTarget === 'enemyApexWithChoke')
           target = rand(opp.apexSlots.filter((a) => a && (a.counters?.choke ?? 0) > 0))?.instanceId;
         else if (def.requiresTarget === 'ownApex') target = rand(player.apexSlots.filter(Boolean))?.instanceId;
-        else if (def.requiresTarget === 'ownApexWithUpgrade')
-          target = rand(player.apexSlots.filter((a) => a && (a.counters?.upgrade ?? 0) > 0))?.instanceId;
         if (!def.requiresTarget || target) st.playSpecialCard(card.instanceId, target);
       }
       // Reaction/Negate not played from hand directly - skip
@@ -253,7 +251,7 @@ function assertSaneNumbers(label: string) {
     for (const apex of p.apexSlots) {
       if (!apex) continue;
       if (apex.counters) {
-        for (const key of ['choke', 'upgrade', 'glitch'] as const) {
+        for (const key of ['choke', 'glitch'] as const) {
           if (!Number.isFinite(apex.counters[key]) || apex.counters[key] < 0) {
             throw new Error(`${label}: ${pid} apex ${apex.defId} has invalid ${key} counter = ${apex.counters[key]}`);
           }

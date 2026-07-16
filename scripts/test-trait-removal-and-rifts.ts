@@ -32,7 +32,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -167,9 +167,7 @@ console.log('=== Test 8: Virex no longer gains an Upgrade Counter from destroyin
   const p2Apex = createInstance('dw-overseer-prime', 'Apex'); // 400 DEF, exact match for Archive Kill (600 dmg, overkill but destroys)
   useGameStore.setState(fixtureState(fixturePlayer('player1', 'Synth Ascendancy', p1Apex), fixturePlayer('player2', 'Dark White', p2Apex), { phase: 'Combat' }));
   useGameStore.getState().declareAttack(p1Apex.instanceId, 'archive-kill', p2Apex.instanceId);
-  const apexAfter = useGameStore.getState().players.player1.apexSlots[0];
   check('the target was destroyed', useGameStore.getState().players.player2.apexSlots[0] === null);
-  check('Virex gains no Upgrade Counter from the kill (trait removed)', (apexAfter?.counters?.upgrade ?? 0) === 0);
 }
 
 // ============================================================

@@ -30,7 +30,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -89,7 +89,7 @@ console.log('=== Test 1 & 2: Destroyed Apex and its attached Equip both go to Vo
   const p1Apex = createInstance('nu-riot-runner', 'Apex');
   p1Apex.equip = plasmaEdge;
   const p2Apex = createInstance('dw-overseer-prime', 'Apex'); // 400 DEF, exact match
-  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex), fixturePlayer('player2', 'Dark White', p2Apex)));
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', p1Apex), fixturePlayer('player2', 'Dark White', p2Apex, { hand: [createInstance('dw-glass-warden', 'Apex')] })));
   useGameStore.getState().declareAttack(p1Apex.instanceId, 'mob-charge', p2Apex.instanceId);
   const after = useGameStore.getState();
   check('the target was destroyed', after.players.player2.apexSlots[0] === null);
@@ -101,7 +101,7 @@ console.log('=== Test 1 & 2: Destroyed Apex and its attached Equip both go to Vo
   const shield = createInstance('dw-monomolecular-blade', 'Equip');
   shieldedApex.equip = shield;
   const attacker = createInstance('nu-riot-runner', 'Apex');
-  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', attacker), fixturePlayer('player2', 'Dark White', shieldedApex)));
+  useGameStore.setState(fixtureState(fixturePlayer('player1', 'Neon Underground', attacker), fixturePlayer('player2', 'Dark White', shieldedApex, { hand: [createInstance('dw-overseer-prime', 'Apex')] })));
   useGameStore.getState().declareAttack(attacker.instanceId, 'last-breath-rush', shieldedApex.instanceId); // 700+ dmg vs 600 DEF, destroys
   const after2 = useGameStore.getState();
   check('the equipped defender was destroyed', after2.players.player2.apexSlots[0] === null);
@@ -114,7 +114,7 @@ console.log('=== Test 3: Chained Ability Support is destroyed with its Apex (Com
   const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
   sparkPlug.chainedApexId = p1Apex.instanceId;
   const p2Apex = createInstance('dw-overseer-prime', 'Apex');
-  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { supportSlots: [sparkPlug, null, null] });
+  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { supportSlots: [sparkPlug, null, null], hand: [createInstance('nu-alley-wraith', 'Apex')] });
   // Use the real engine path: have player2 destroy player1's Riot Runner. fixtureState always
   // maps its first argument to the player1 key and second to player2, so player1's setup must
   // stay first regardless of who's active; activePlayerId controls who actually attacks.

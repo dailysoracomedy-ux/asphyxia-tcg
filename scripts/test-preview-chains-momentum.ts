@@ -42,7 +42,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 

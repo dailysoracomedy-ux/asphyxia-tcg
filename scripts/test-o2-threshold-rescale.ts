@@ -36,7 +36,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -221,14 +221,14 @@ console.log('=== Backup Consciousness: places Upgrade+Glitch counters at O2 <= 4
 
   const survivorAt4 = runBackupConsciousnessAt(4);
   check(
-    'at O2=4, Backup Consciousness also places Upgrade+Glitch counters',
-    (survivorAt4?.counters?.upgrade ?? 0) > 0 && (survivorAt4?.counters?.glitch ?? 0) > 0
+    'at O2=4, Backup Consciousness also places a Glitch counter',
+    (survivorAt4?.counters?.glitch ?? 0) > 0
   );
 
   const survivorAt5 = runBackupConsciousnessAt(5);
   check(
-    'at O2=5, Backup Consciousness survives but does NOT place the extra counters',
-    (survivorAt5?.counters?.upgrade ?? 0) === 0 && (survivorAt5?.counters?.glitch ?? 0) === 0
+    'at O2=5, Backup Consciousness survives but does NOT place the extra counter',
+    (survivorAt5?.counters?.glitch ?? 0) === 0
   );
 }
 

@@ -28,7 +28,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -79,11 +79,15 @@ function fixtureState(p1: PlayerState, p2: PlayerState, extra: Partial<GameState
 
 console.log('=== Test 1-3: chained Ability Support is destroyed with its Apex, sent to Void, slot emptied ===');
 {
-  const p1Apex = createInstance('nu-static-jack', 'Apex'); // 300 DEF
+  const p1Apex = createInstance('nu-static-jack', 'Apex'); // 400 DEF
   const juiceBox = createInstance('nu-juice-box', 'AbilitySupport');
   juiceBox.chainedApexId = p1Apex.instanceId;
-  const p2Apex = createInstance('dw-pale-executioner', 'Apex'); // Public Erasure: 800 dmg, destroys 300 DEF easily
-  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { supportSlots: [juiceBox, null, null] });
+  const p2Apex = createInstance('dw-pale-executioner', 'Apex'); // Public Erasure: 800 dmg, destroys 400 DEF easily
+  // A spare Apex in hand keeps this focused on chained-destruction behavior, not the
+  // separate void-reshuffle safety net (Commit 41.19) - without it, this Apex being the
+  // player's only one anywhere would immediately reshuffle Void back into the deck the
+  // instant it lands there, before this test's own void-check assertion ever runs.
+  const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { supportSlots: [juiceBox, null, null], hand: [createInstance('nu-alley-wraith', 'Apex')] });
   useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Dark White', p2Apex), { activePlayerId: 'player2' }));
 
   useGameStore.getState().declareAttack(p2Apex.instanceId, 'public-erasure', p1Apex.instanceId);
@@ -180,7 +184,7 @@ console.log('=== Test 9: this rule is general-purpose, not hardcoded to Spark-Pl
   const oxygenSiphon = createInstance('dw-oxygen-siphon', 'AbilitySupport');
   oxygenSiphon.chainedApexId = p1Apex.instanceId;
   const p2Apex = createInstance('sa-virex', 'Apex'); // Archive Kill: 600 dmg vs 600 DEF, exact destroy
-  const p1 = fixturePlayer('player1', 'Dark White', p1Apex, { supportSlots: [oxygenSiphon, null, null] });
+  const p1 = fixturePlayer('player1', 'Dark White', p1Apex, { supportSlots: [oxygenSiphon, null, null], hand: [createInstance('dw-overseer-prime', 'Apex')] });
   useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Synth Ascendancy', p2Apex), { activePlayerId: 'player2' }));
   useGameStore.getState().declareAttack(p2Apex.instanceId, 'archive-kill', p1Apex.instanceId);
   const after = useGameStore.getState();
@@ -193,7 +197,7 @@ console.log('=== Test 9: this rule is general-purpose, not hardcoded to Spark-Pl
   const gatekeeperDrone = createInstance('dw-gatekeeper-drone', 'AbilitySupport');
   gatekeeperDrone.chainedApexId = p1Apex.instanceId;
   const p2Apex = createInstance('sa-virex', 'Apex');
-  const p1 = fixturePlayer('player1', 'Dark White', p1Apex, { supportSlots: [gatekeeperDrone, null, null] });
+  const p1 = fixturePlayer('player1', 'Dark White', p1Apex, { supportSlots: [gatekeeperDrone, null, null], hand: [createInstance('dw-overseer-prime', 'Apex')] });
   useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Synth Ascendancy', p2Apex), { activePlayerId: 'player2' }));
   useGameStore.getState().declareAttack(p2Apex.instanceId, 'archive-kill', p1Apex.instanceId);
   const after = useGameStore.getState();

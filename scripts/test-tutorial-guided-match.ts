@@ -204,7 +204,7 @@ async function main() {
 
   // --- Step 6: rift-choice - real click ---
   await wait(150);
-  const momentumBtn = Array.from(dom.window.document.querySelectorAll('button')).find((b) => b.textContent === 'Gain 1 Momentum');
+  const momentumBtn = Array.from(dom.window.document.querySelectorAll('button')).find((b) => b.textContent === '+1 Momentum');
   check('the highlighted Rift option is genuinely rendered', !!momentumBtn);
   if (momentumBtn) click(momentumBtn);
   await wait(300);

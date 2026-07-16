@@ -29,7 +29,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -161,19 +161,16 @@ console.log('=== Test 6 & 7: Juice-Box base +200 DEF, Overdrive +300 DEF total, 
   useGameStore.getState().endTurn();
   const afterEndTurn = useGameStore.getState();
   const apexAfter = afterEndTurn.players.player1.apexSlots[0];
-  check('the DEF buff was applied at End Phase (base 500 + 300 Overdrive total = 800)', apexAfter?.tempDefBuffs?.some((b) => b.amount === 300) ?? false);
+  check('the DEF buff was applied at End Phase (300 Overdrive total)', apexAfter?.tempDefBuffs?.some((b) => b.amount === 300) ?? false);
   check('the pending flag was consumed/cleared, not left dangling', apexAfter?.pendingJuiceBoxOverdrive !== true);
 }
 
 console.log('=== Test 8: AI Spark-Plug Overdrive - spends when it flips lethal, skips otherwise ===');
 {
-  // Lethal case: Glass Warden survives Mob Charge+SparkPlug (600 dmg vs 600 DEF -> exact, no overflow), but
-  // the target is at 300 DEF here instead so the base clears it already... use a scenario where base attack
-  // does NOT destroy, but +100 Overdrive WOULD, to test the "flips non-destroy to destroy" heuristic cleanly.
   const p1Apex = createInstance('nu-riot-runner', 'Apex'); // Mob Charge 400 + Spark-Plug 200 = 600
   const sparkPlug = createInstance('nu-spark-plug', 'AbilitySupport');
   sparkPlug.chainedApexId = p1Apex.instanceId;
-  const p2Apex = createInstance('sa-halcyon-maw', 'Apex'); // 400 DEF... need something that survives 600 but not 700
+  const p2Apex = createInstance('sa-halcyon-maw', 'Apex');
   const p1 = fixturePlayer('player1', 'Neon Underground', p1Apex, { supportSlots: [sparkPlug, null, null], momentum: 2, availableSync: 3 });
   useGameStore.setState(fixtureState(p1, fixturePlayer('player2', 'Synth Ascendancy', p2Apex), { activePlayerId: 'player1' }));
   aiPlayOneCombatAction('player1');

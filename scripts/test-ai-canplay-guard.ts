@@ -32,7 +32,7 @@ function freshTurnFlags() {
     chokeCounterPlacedThisTurn: false,
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
-    civilWarBonusArmedThisTurn: false,
+    civilWarBonusArmedThisTurn: false, chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -84,7 +84,7 @@ function fixtureState(p1: PlayerState, p2: PlayerState, extra: Partial<GameState
 console.log('=== Reproduction: Ascension Complete cannot be played (canPlay fails), AI must not loop forever ===');
 {
   const apexWithUpgrade = createInstance('sa-chrome-seraph', 'Apex');
-  apexWithUpgrade.counters = { choke: 0, glitch: 0, upgrade: 1 }; // has an upgrade counter, so targeting alone is NOT the blocker
+  apexWithUpgrade.counters = { choke: 0, glitch: 0 };
   const ascensionComplete = createInstance('sa-ascension-complete', 'Special');
   const p2 = fixturePlayer('player2', 'Synth Ascendancy', apexWithUpgrade, {
     hand: [ascensionComplete],
@@ -102,7 +102,7 @@ console.log('=== Reproduction: Ascension Complete cannot be played (canPlay fail
 console.log('=== Once the canPlay precondition is actually met, the AI plays it normally ===');
 {
   const apexWithUpgrade = createInstance('sa-chrome-seraph', 'Apex');
-  apexWithUpgrade.counters = { choke: 0, glitch: 0, upgrade: 1 };
+  apexWithUpgrade.counters = { choke: 0, glitch: 0 };
   const ascensionComplete = createInstance('sa-ascension-complete', 'Special');
   const p2 = fixturePlayer('player2', 'Synth Ascendancy', apexWithUpgrade, {
     hand: [ascensionComplete],
@@ -118,7 +118,7 @@ console.log('=== Once the canPlay precondition is actually met, the AI plays it 
 console.log('=== A full AI turn never stalls even when the hand contains an initially-unplayable Special ===');
 {
   const apexWithUpgrade = createInstance('sa-chrome-seraph', 'Apex');
-  apexWithUpgrade.counters = { choke: 0, glitch: 0, upgrade: 1 };
+  apexWithUpgrade.counters = { choke: 0, glitch: 0 };
   const ascensionComplete = createInstance('sa-ascension-complete', 'Special'); // unplayable at first (nothing played yet)
   const battery = createInstance('nu-dead-battery', 'BatterySupport'); // wrong faction is fine for this isolated fixture test
   const p2 = fixturePlayer('player2', 'Synth Ascendancy', apexWithUpgrade, { hand: [ascensionComplete, battery] });
