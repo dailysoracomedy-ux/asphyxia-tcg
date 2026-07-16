@@ -59,6 +59,39 @@ function FactionPicker({
   );
 }
 
+const O2_OPTIONS = [12, 24, 48, 96];
+
+function O2Selector({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-widest text-white/40 mb-2">Select O2 Amount</div>
+      <div className="flex gap-2">
+        {O2_OPTIONS.map((n) => {
+          const active = value === n;
+          return (
+            <button
+              type="button"
+              key={n}
+              onClick={() => {
+                playSfx('ui.click');
+                onChange(n);
+              }}
+              onMouseEnter={() => playSfx('ui.hover')}
+              className={`flex-1 px-3 py-2 rounded-md border-2 font-bold text-sm transition-all ${
+                active
+                  ? 'border-cyan-400 bg-cyan-400/15 text-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.6)] scale-[1.02]'
+                  : 'border-white/15 text-white/50 hover:opacity-90 hover:border-white/30'
+              }`}
+            >
+              {n}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** A primary menu button - shared hover/click sound + glow, used for all three
  *  main-menu options so they behave and feel identically. */
 function MenuButton({
@@ -116,6 +149,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
   const [p1, setP1] = useState<Faction>('Neon Underground');
   const [p2, setP2] = useState<Faction>('Dark White');
   const [hotseat, setHotseat] = useState(false);
+  const [o2Amount, setO2Amount] = useState(12);
   // Locked in the instant "Start" is pressed on the New Game screen, so the
   // coin flip screen that follows always launches the exact match that was
   // actually configured, not a freshly re-randomized opponent.
@@ -197,7 +231,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
           // The opponent won the call - their choice of who goes first is
           // random, since there's no one to meaningfully make it for them.
           const randomFirst: PlayerId = Math.random() < 0.5 ? 'player1' : 'player2';
-          setTimeout(() => startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, randomFirst), 1400);
+          setTimeout(() => startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, randomFirst, o2Amount), 1400);
         }
       }
       doFlip();
@@ -206,7 +240,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
   function chooseFirst(first: PlayerId) {
     playSfx('ui.confirm');
-    startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, first);
+    startNewGame(p1, pendingOpponent, !pendingHotseat, false, false, first, o2Amount);
   }
 
   return (
@@ -290,6 +324,10 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
             {hotseat && <div className="mt-4"><FactionPicker label="Player 2's Deck" value={p2} onChange={setP2} /></div>}
 
+            <div className="mt-4">
+              <O2Selector value={o2Amount} onChange={setO2Amount} />
+            </div>
+
             <button
               type="button"
               onClick={() => {
@@ -316,11 +354,14 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               <FactionPicker label="Deck A" value={p1} onChange={setP1} />
               <FactionPicker label="Deck B" value={p2} onChange={setP2} />
             </div>
+            <div className="mt-4">
+              <O2Selector value={o2Amount} onChange={setO2Amount} />
+            </div>
             <button
               type="button"
               onClick={() => {
                 playSfx('ui.confirm');
-                startNewGame(p1, p2, false, true);
+                startNewGame(p1, p2, false, true, false, undefined, o2Amount);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
               className="mt-6 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"

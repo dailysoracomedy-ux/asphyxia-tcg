@@ -68,7 +68,7 @@ export type ResponseChoice =
   | { type: 'humanError'; pick: 'momentum' | 'damage' }
   | { type: 'civilWar'; pick: 'momentum' | 'damage' };
 
-function freshPlayer(id: PlayerId, faction: Faction): PlayerState {
+function freshPlayer(id: PlayerId, faction: Faction, o2Override?: number): PlayerState {
   return {
     id,
     faction,
@@ -77,7 +77,7 @@ function freshPlayer(id: PlayerId, faction: Faction): PlayerState {
     voidZone: [],
     apexSlots: [null, null],
     supportSlots: [null, null, null],
-    o2: STARTING_O2,
+    o2: o2Override ?? STARTING_O2,
     momentum: 0,
     availableSync: 0,
     turnFlags: freshTurnFlags(),
@@ -1202,7 +1202,7 @@ function maybeLogActionResolved(draft: GameState) {
 // ==========================================================================
 
 interface GameStore extends GameState {
-  startNewGame: (p1: Faction, p2: Faction, vsAI?: boolean, aiVsAiMode?: boolean, tutorialMode?: boolean, forcedFirstPlayerId?: PlayerId | null) => void;
+  startNewGame: (p1: Faction, p2: Faction, vsAI?: boolean, aiVsAiMode?: boolean, tutorialMode?: boolean, forcedFirstPlayerId?: PlayerId | null, o2Amount?: number) => void;
   selectOpeningApex: (playerId: PlayerId, cardInstanceId: string) => void;
   advancePhase: (phase: Phase) => void;
   endTurn: () => void;
@@ -1233,7 +1233,7 @@ function mutate(set: (fn: (state: GameStore) => Partial<GameStore> | GameStore) 
 export const useGameStore = create<GameStore>((set) => ({
   ...initialState(),
 
-  startNewGame: (p1FactionArg, p2FactionArg, vsAI, aiVsAiMode, tutorialMode, forcedFirstPlayerId) =>
+  startNewGame: (p1FactionArg, p2FactionArg, vsAI, aiVsAiMode, tutorialMode, forcedFirstPlayerId, o2Amount) =>
     mutate(set, (draft) => {
       Object.assign(draft, initialState());
       if (tutorialMode) tutorialGeneration++;
@@ -1243,6 +1243,7 @@ export const useGameStore = create<GameStore>((set) => ({
       // played against the AI, regardless of whatever was passed in.
       const p1Faction = tutorialMode ? 'Neon Underground' : p1FactionArg;
       const p2Faction = tutorialMode ? 'Dark White' : p2FactionArg;
+      const startingO2 = tutorialMode ? STARTING_O2 : o2Amount ?? STARTING_O2;
       draft.selectedFactions = { player1: p1Faction, player2: p2Faction };
       draft.vsAI = tutorialMode ? true : !!vsAI;
       draft.aiVsAiMode = !!aiVsAiMode;
@@ -1253,7 +1254,7 @@ export const useGameStore = create<GameStore>((set) => ({
         ['player1', p1Faction],
         ['player2', p2Faction],
       ] as [PlayerId, Faction][]) {
-        const player = freshPlayer(pid, faction);
+        const player = freshPlayer(pid, faction, startingO2);
         let deck = shuffle(buildStarterDeck(faction));
 
         // Tutorial scripting (Commit 29 / 29.1 / 29.7): reorder each player's

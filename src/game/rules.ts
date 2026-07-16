@@ -695,6 +695,26 @@ export function destroyApexFn(draft: GameState, apexInstanceId: string) {
   logMsg(draft, `${def.name} is destroyed.`, 'destroy');
 
   destroyChainedSupportForApex(draft, ownerId, apexInstanceId, def.name);
+
+  // Commit 41.19 - if that was genuinely the player's last reachable Apex
+  // anywhere (none left on board, in hand, or in the deck - every copy now
+  // sitting in the Void), the whole Void shuffles back into the deck and
+  // they draw immediately, so a player can never be locked out of ever
+  // playing an Apex again for the rest of the match.
+  const hasApexOnBoard = player.apexSlots.some((a) => a !== null);
+  const hasApexInHand = player.hand.some((c) => c.type === 'Apex');
+  const hasApexInDeck = player.deck.some((c) => c.type === 'Apex');
+  if (!hasApexOnBoard && !hasApexInHand && !hasApexInDeck && player.voidZone.length > 0) {
+    const reclaimed = player.voidZone;
+    player.voidZone = [];
+    player.deck = shuffle([...player.deck, ...reclaimed]);
+    logMsg(draft, `${player.faction} has no Apex left anywhere - the Void reshuffles back into the deck.`, 'info');
+    const drawnCard = player.deck.shift();
+    if (drawnCard) {
+      player.hand.push(drawnCard);
+      logMsg(draft, `${player.faction} draws ${getCardDef(drawnCard.defId).name}.`, 'draw');
+    }
+  }
 }
 
 export function createHelpers(draft: GameState): EngineHelpers {
