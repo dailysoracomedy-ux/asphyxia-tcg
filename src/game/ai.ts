@@ -111,6 +111,16 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
       if (def.type !== 'Special') continue;
       if (def.canPlay && !def.canPlay(playerId, store)) continue;
 
+      // Commit 41.20 - a handful of Specials are only good if a specific
+      // condition is currently true (not just legal to play) - dumping them
+      // the instant they're playable wastes the entire point of the card. A
+      // human holds these for the right moment; the AI now does too, as long
+      // as something else productive is still happening this turn (if this
+      // is truly the only thing left to do, playing it anyway for partial
+      // value still beats doing nothing).
+      if (specialCard.defId === 'nu-no-gods' && player.o2 > 4 && store.turnNumber < 15) continue;
+      if (specialCard.defId === 'nu-data-thief' && player.supportSlots.filter(Boolean).length < 2 && store.turnNumber < 15) continue;
+
       if (!def.requiresTarget) {
         store.playSpecialCard(specialCard.instanceId);
         if (!stillInHand(specialCard.instanceId)) return true;
@@ -121,8 +131,22 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
       let targetId: string | undefined;
       if (def.requiresTarget === 'enemyApex') targetId = opponent.apexSlots.find(Boolean)?.instanceId;
       else if (def.requiresTarget === 'enemyApexWithChoke') targetId = opponent.apexSlots.find((a) => a && (a.counters?.choke ?? 0) > 0)?.instanceId;
-      else if (def.requiresTarget === 'ownApex') targetId = player.apexSlots.find(Boolean)?.instanceId;
-      else if (def.requiresTarget === 'ownApexWithUpgrade') targetId = player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)?.instanceId;
+      else if (def.requiresTarget === 'ownApex') {
+        // Overclock arms a bonus on the target's NEXT attack this turn - targeting
+        // an Apex that's already attacked wastes the entire card (and its O2 cost).
+        const preferNotYetAttacked = specialCard.defId === 'nu-overclock';
+        targetId = preferNotYetAttacked
+          ? (player.apexSlots.find((a) => a && !a.hasAttacked) ?? player.apexSlots.find(Boolean))?.instanceId
+          : player.apexSlots.find(Boolean)?.instanceId;
+      } else if (def.requiresTarget === 'ownApexWithUpgrade') {
+        const preferNotYetAttacked = specialCard.defId === 'sa-ascension-complete';
+        targetId = preferNotYetAttacked
+          ? (
+              player.apexSlots.find((a) => a && !a.hasAttacked && (a.counters?.upgrade ?? 0) > 0) ??
+              player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)
+            )?.instanceId
+          : player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)?.instanceId;
+      }
       if (!targetId) continue;
 
       store.playSpecialCard(specialCard.instanceId, targetId);

@@ -250,8 +250,8 @@ export interface CardInstance {
   attackLockedForTurn?: number | null; // absolute turn number this apex is locked for
   armedBonus?: number; // consumed on this apex's next attack
   armedBonusIsOverclock?: boolean; // if true, the armed bonus came from Overclock (triggers its O2 cost on use)
-  pendingEndPhaseDefBuff?: number; // accumulated DEF to apply at End Phase (Juice-Box / Logic Bloom)
   pendingJuiceBoxOverdrive?: boolean; // set for one attack only - consumed and cleared by Juice-Box's own syncAbility
+  pendingEndPhaseDefBuff?: number; // accumulated DEF to apply at End Phase (Juice-Box / Logic Bloom)
   pendingEndPhaseProtection?: number; // accumulated protection to apply at End Phase (Gatekeeper Drone)
   survivorDefOverride?: number; // set by Backup Consciousness - overrides all DEF math while active
   tempDefBuffs?: TempModifier[];

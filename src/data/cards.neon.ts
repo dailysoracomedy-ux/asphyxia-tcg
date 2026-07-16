@@ -7,7 +7,7 @@ export const nuStreetBeast: ApexDef = {
   name: 'Street-Beast',
   faction: F,
   type: 'Apex',
-  baseDef: 300,
+  baseDef: 400,
   rulesText: '',
   attacks: [
     { id: 'razor-swipe', name: 'Razor Swipe', syncCost: 0, baseDamage: 300, description: '300 damage.' },
@@ -31,7 +31,7 @@ export const nuStaticJack: ApexDef = {
   name: 'Static Jack',
   faction: F,
   type: 'Apex',
-  baseDef: 300,
+  baseDef: 400,
   rulesText: '',
   attacks: [
     { id: 'shock-jab', name: 'Shock Jab', syncCost: 0, baseDamage: 200, description: '200 damage.' },
@@ -58,7 +58,7 @@ export const nuAlleyWraith: ApexDef = {
   name: 'Alley Wraith',
   faction: F,
   type: 'Apex',
-  baseDef: 200,
+  baseDef: 300,
   rulesText: '',
   attacks: [
     { id: 'cheap-shot', name: 'Cheap Shot', syncCost: 0, baseDamage: 300, description: '300 damage.' },
@@ -80,7 +80,7 @@ export const nuRiotRunner: ApexDef = {
   name: 'Riot Runner',
   faction: F,
   type: 'Apex',
-  baseDef: 400,
+  baseDef: 500,
   rulesText: '',
   attacks: [
     { id: 'pipe-swing', name: 'Pipe Swing', syncCost: 0, baseDamage: 200, description: '200 damage.' },
