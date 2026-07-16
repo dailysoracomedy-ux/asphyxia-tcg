@@ -16,7 +16,7 @@ export function createInstance(defId: string, type: CardInstance['type']): CardI
     type,
   };
   if (type === 'Apex') {
-    instance.counters = { choke: 0, upgrade: 0, glitch: 0 };
+    instance.counters = { choke: 0, glitch: 0 };
     instance.hasAttacked = false;
     instance.attackLockedForTurn = null;
     instance.armedBonus = 0;

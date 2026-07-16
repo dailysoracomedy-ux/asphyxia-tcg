@@ -20,8 +20,7 @@ export const dwOverseerPrime: ApexDef = {
       baseDamage: 700,
       description: '700 damage. If the target has a Choke Counter, opponent loses 1 O2.',
       onResolve: (ctx) => {
-        const target = ctx.targetInstanceId ? ctx.helpers.getApex(ctx.targetInstanceId) : undefined;
-        if (target && (target.counters?.choke ?? 0) > 0) {
+        if (ctx.targetHadChoke) {
           ctx.helpers.loseO2(ctx.helpers.getOpponentId(ctx.ownerId), 1);
           ctx.helpers.log('Absolute Command punishes the Choke Counter for 1 O2.', 'o2');
         }
@@ -96,9 +95,7 @@ export const dwPaleExecutioner: ApexDef = {
       baseDamage: 800,
       description: '800 damage. If this destroys an Apex with a Choke Counter, draw 1 card.',
       onResolve: (ctx) => {
-        const target = ctx.targetInstanceId ? ctx.helpers.getApex(ctx.targetInstanceId) : undefined;
-        const hadChoke = (target?.counters?.choke ?? 0) > 0;
-        if (ctx.destroyedTarget && hadChoke) ctx.helpers.drawCards(ctx.ownerId, 1);
+        if (ctx.destroyedTarget && ctx.targetHadChoke) ctx.helpers.drawCards(ctx.ownerId, 1);
       },
     },
   ],
@@ -113,8 +110,7 @@ export const dwOxygenSiphon: AbilitySupportDef = {
     'After the chained Apex attacks, if the target had a Choke Counter, gain 1 Momentum immediately. If the attack dealt O2 damage, gain 1 O2.',
   syncAbilityText: 'Momentum on choked kills, O2 on O2 damage.',
   syncAbility: (ctx) => {
-    const target = ctx.targetInstanceId ? ctx.helpers.getApex(ctx.targetInstanceId) : undefined;
-    if (target && (target.counters?.choke ?? 0) > 0) {
+    if (ctx.targetHadChoke) {
       ctx.helpers.gainMomentum(ctx.ownerId, 1);
     }
     if (ctx.dealtO2Damage) {
@@ -132,8 +128,7 @@ export const dwGatekeeperDrone: AbilitySupportDef = {
     'After the chained Apex attacks, mark it for protection. At the end of your turn, that Apex takes 100 less damage from the next attack during your opponent\u2019s next turn. If an enemy Apex has a Choke Counter, reduce by 200 instead.',
   syncAbilityText: 'Arm protection, applied at End Phase.',
   syncAbility: (ctx) => {
-    const target = ctx.targetInstanceId ? ctx.helpers.getApex(ctx.targetInstanceId) : undefined;
-    const reduction = target && (target.counters?.choke ?? 0) > 0 ? 200 : 100;
+    const reduction = ctx.targetHadChoke ? 200 : 100;
     ctx.helpers.markPendingEndPhaseProtection(ctx.chainedApexId, reduction);
     ctx.helpers.log('Gatekeeper Drone arms protection for its chained Apex.', 'support');
   },

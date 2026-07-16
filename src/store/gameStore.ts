@@ -834,6 +834,19 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
     });
   }
 
+  // Chrome Halo (Synth Ascendancy Equip): "Once per turn, if equipped Apex destroys
+  // an enemy Apex, gain 1 Momentum." No generic on-kill hook exists for Equips (only
+  // Apexes have onDestroyEnemyApex), so this is special-cased here, same pattern as
+  // Glitch Step and Emergency Authority elsewhere in this file.
+  if (attackerHit?.apex.equip?.defId === 'sa-chrome-halo') {
+    const attackerOwner = draft.players[trigger.attackerId];
+    if (!attackerOwner.turnFlags.chromeHaloMomentumGainedThisTurn) {
+      attackerOwner.turnFlags.chromeHaloMomentumGainedThisTurn = true;
+      gainMomentumFn(draft, trigger.attackerId, 1);
+      logMsg(draft, 'Chrome Halo grants 1 Momentum for the kill.', 'momentum');
+    }
+  }
+
   const o2Loss = overflowToO2Loss(overflow);
   if (o2Loss > 0) {
     emitVfx({ type: 'OVERFLOW_DAMAGE', playerId: otherPlayer(trigger.attackerId), label: `-${o2Loss} O2 (Overflow)` });
@@ -847,6 +860,7 @@ function proceedWithDestruction(draft: GameState, trigger: AttackTriggerData, ov
       attackDefId: trigger.attackDefId,
       targetInstanceId: trigger.targetInstanceId,
       destroyedTarget: true,
+      targetHadChoke: trigger.targetHadChoke,
     });
   } else {
     finalizeAttackEffects(draft, trigger, true, false);
@@ -997,6 +1011,7 @@ function applyO2LossFinal(draft: GameState, o2trigger: O2DamageTriggerData, redu
     targetInstanceId: o2trigger.targetInstanceId,
     syncCost: 0,
     totalDamage: 0,
+    targetHadChoke: o2trigger.targetHadChoke,
   };
   finalizeAttackEffects(draft, trigger, o2trigger.destroyedTarget, finalAmount > 0, o2trigger.isOverflow);
 }
@@ -1010,7 +1025,6 @@ function finishDestroyDecision(draft: GameState, trigger: DestroyTriggerData, pr
     logMsg(draft, `${getCardDef(apexHit.apex.defId).name} survives at ${survivorDef} DEF (Backup Consciousness)!`, 'response');
     const owner = draft.players[trigger.ownerId];
     if (owner.o2 <= 4) {
-      addCounterFn(draft, trigger.apexInstanceId, 'upgrade', 1);
       addCounterFn(draft, trigger.apexInstanceId, 'glitch', 1);
     }
     if (trigger.fromAttack) {
@@ -1073,6 +1087,7 @@ function finalizeAttackEffects(
         baseDamage: attackDef?.baseDamage ?? 0,
         destroyedTarget,
         dealtO2Damage,
+        targetHadChoke: trigger.targetHadChoke ?? false,
       };
 
       if (attackDef?.onResolve) attackDef.onResolve(ctx);
@@ -1723,9 +1738,8 @@ export const useGameStore = create<GameStore>((set) => ({
           if (hit.ownerId === playerId) return;
           if (def.requiresTarget === 'enemyApexWithChoke' && (hit.apex.counters?.choke ?? 0) === 0) return;
         }
-        if (def.requiresTarget === 'ownApex' || def.requiresTarget === 'ownApexWithUpgrade') {
+        if (def.requiresTarget === 'ownApex') {
           if (hit.ownerId !== playerId) return;
-          if (def.requiresTarget === 'ownApexWithUpgrade' && (hit.apex.counters?.upgrade ?? 0) === 0) return;
         }
       }
 
@@ -2015,6 +2029,8 @@ export const useGameStore = create<GameStore>((set) => ({
         : `${opponentId}'s O2 directly`;
       logMsg(draft, `${apexDef.name} attacks ${targetLabel} for ${total} damage.`, 'attack');
 
+      const targetHadChoke = targetInstanceId ? (findApexAnywhere(draft, targetInstanceId)?.apex.counters?.choke ?? 0) > 0 : false;
+
       const trigger: AttackTriggerData = {
         kind: 'enemyApexAttacks',
         attackerId: draft.activePlayerId,
@@ -2024,6 +2040,7 @@ export const useGameStore = create<GameStore>((set) => ({
         syncCost: attackDef.syncCost,
         totalDamage: total,
         cannotBeRedirected: attackDef.cannotBeRedirected,
+        targetHadChoke,
       };
 
       let opened = false;

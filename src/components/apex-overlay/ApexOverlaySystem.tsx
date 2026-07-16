@@ -87,14 +87,13 @@ export function DynamicStatText({
   );
 }
 
-/** Compact pill-badge cluster for Choke/Upgrade/Glitch counters - wraps to a second
+/** Compact pill-badge cluster for Choke/Glitch counters - wraps to a second
  *  row automatically if it runs out of horizontal room; renders nothing for any
  *  counter at 0. */
-export function CounterBadges({ counters, cardWidth }: { counters?: { choke: number; upgrade: number; glitch: number }; cardWidth: number }) {
+export function CounterBadges({ counters, cardWidth }: { counters?: { choke: number; glitch: number }; cardWidth: number }) {
   if (!counters) return null;
   const badges: { label: string; value: number; border: string; text: string }[] = [
     { label: 'CHK', value: counters.choke, border: 'border-red-400', text: 'text-red-300' },
-    { label: 'UPG', value: counters.upgrade, border: 'border-amber-300', text: 'text-amber-200' },
     { label: 'GLT', value: counters.glitch, border: 'border-fuchsia-400', text: 'text-fuchsia-200' },
   ].filter((b) => b.value > 0);
   if (badges.length === 0) return null;

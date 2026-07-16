@@ -23,7 +23,7 @@ export type SyncCost = 0 | 1 | 2 | 3;
 
 export type PlayerId = 'player1' | 'player2';
 
-export type CounterType = 'choke' | 'upgrade' | 'glitch';
+export type CounterType = 'choke' | 'glitch';
 
 // --------------------------------------------------------------------------
 // Effect context objects passed to card effect functions.
@@ -81,7 +81,7 @@ export interface AttackDef {
   /** Extra damage on top of baseDamage + universal modifiers, computed at declare-attack time */
   bonusDamage?: (ctx: AttackContext) => number;
   /** Side effects resolved after damage/O2 loss has been applied */
-  onResolve?: (ctx: AttackContext & { destroyedTarget: boolean; dealtO2Damage: boolean }) => void;
+  onResolve?: (ctx: AttackContext & { destroyedTarget: boolean; dealtO2Damage: boolean; targetHadChoke: boolean }) => void;
   /** Prevents attack from being redirected/cancelled by reactions (flavor flag, informational) */
   cannotBeRedirected?: boolean;
 }
@@ -169,7 +169,7 @@ export interface ApexDef extends BaseCardDef {
 export interface AbilitySupportDef extends BaseCardDef {
   type: 'AbilitySupport';
   /** Fires after the chained Apex attacks (if allowed to activate) */
-  syncAbility: (ctx: AttackContext & { chainedApexId: string; destroyedTarget: boolean; dealtO2Damage: boolean }) => void;
+  syncAbility: (ctx: AttackContext & { chainedApexId: string; destroyedTarget: boolean; dealtO2Damage: boolean; targetHadChoke: boolean }) => void;
   syncAbilityText: string;
   /** Flat damage bonus applied immediately to the chained Apex's CURRENT attack (evaluated
    *  live during damage calculation, same as any other modifier) - distinct from
@@ -196,7 +196,7 @@ export interface SpecialDef extends BaseCardDef {
   type: 'Special';
   canPlay?: (playerId: PlayerId, state: GameState) => boolean;
   resolve: (ctx: EffectContext & { targetApexInstanceId?: string }) => void;
-  requiresTarget?: 'enemyApex' | 'ownApex' | 'enemyApexWithChoke' | 'ownApexWithUpgrade';
+  requiresTarget?: 'enemyApex' | 'ownApex' | 'enemyApexWithChoke';
 }
 
 // A React (internally still 'Reaction') is either attack-triggered (sets `trigger`,
@@ -244,7 +244,7 @@ export interface CardInstance {
   defId: string;
   type: CardType;
   // Apex runtime fields
-  counters?: { choke: number; upgrade: number; glitch: number };
+  counters?: { choke: number; glitch: number };
   equip?: CardInstance; // attached equip instance
   hasAttacked?: boolean;
   attackLockedForTurn?: number | null; // absolute turn number this apex is locked for
@@ -277,6 +277,7 @@ export interface TurnFlags {
   ownEffectO2LossThisTurn: boolean;
   recursiveGlitchPlacedThisTurn: boolean;
   civilWarBonusArmedThisTurn: boolean;
+  chromeHaloMomentumGainedThisTurn: boolean;
 }
 
 export function freshTurnFlags(): TurnFlags {
@@ -293,6 +294,7 @@ export function freshTurnFlags(): TurnFlags {
     ownEffectO2LossThisTurn: false,
     recursiveGlitchPlacedThisTurn: false,
     civilWarBonusArmedThisTurn: false,
+    chromeHaloMomentumGainedThisTurn: false,
   };
 }
 
@@ -365,6 +367,11 @@ export interface AttackTriggerData {
   syncCost: SyncCost;
   totalDamage: number;
   cannotBeRedirected?: boolean;
+  /** Whether the target had a Choke Counter at the moment this attack was declared -
+   *  snapshotted before any damage/destruction, so effects that check "did the target
+   *  have a Choke Counter" still work correctly even when this same attack destroys
+   *  that target (a destroyed Apex's counters are no longer readable afterward). */
+  targetHadChoke?: boolean;
 }
 
 export interface O2DamageTriggerData {
@@ -377,6 +384,7 @@ export interface O2DamageTriggerData {
   attackDefId: string;
   targetInstanceId?: string;
   destroyedTarget: boolean;
+  targetHadChoke?: boolean;
 }
 
 export interface DestroyTriggerData {

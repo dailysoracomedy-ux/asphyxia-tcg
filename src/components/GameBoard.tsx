@@ -518,7 +518,7 @@ export default function GameBoard() {
       resetMode();
       return;
     }
-    if (mode.kind === 'specialReady' && (mode.requiresTarget === 'ownApex' || mode.requiresTarget === 'ownApexWithUpgrade')) {
+    if (mode.kind === 'specialReady' && mode.requiresTarget === 'ownApex') {
       const guidedSpecial = currentGuidedAction();
       if (state.tutorialMode) {
         if (tutorialGate(guidedSpecial?.kind === 'selectSpecialTarget', 'Follow the tutorial prompt to continue.')) return;
@@ -847,9 +847,7 @@ export default function GameBoard() {
       return apexHasAbilitySupportChained(id) ? null : 'valid-target';
     }
     if (mode.kind === 'equipReady') return 'valid-target';
-    if (mode.kind === 'specialReady' && (mode.requiresTarget === 'ownApex' || mode.requiresTarget === 'ownApexWithUpgrade')) {
-      const target = activePlayer.apexSlots.find((a) => a?.instanceId === id);
-      if (mode.requiresTarget === 'ownApexWithUpgrade' && (target?.counters?.upgrade ?? 0) === 0) return null;
+    if (mode.kind === 'specialReady' && mode.requiresTarget === 'ownApex') {
       return 'valid-target';
     }
     return null;

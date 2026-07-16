@@ -18,10 +18,7 @@ export const saModel00Crown: ApexDef = {
       name: 'Ascendant Decree',
       syncCost: 3,
       baseDamage: 800,
-      description: '800 damage. If this destroys an Apex, place 1 Upgrade Counter on this Apex.',
-      onResolve: (ctx) => {
-        if (ctx.destroyedTarget) ctx.helpers.addCounter(ctx.attackerInstanceId, 'upgrade', 1);
-      },
+      description: '800 damage.',
     },
   ],
 };
@@ -204,10 +201,10 @@ export const saUpgradePath: SpecialDef = {
   name: 'Upgrade Path',
   faction: F,
   type: 'Special',
-  rulesText: 'Place 1 Upgrade Counter on one Apex. That Apex\u2019s attacks deal +100 damage.',
+  rulesText: 'Choose one Apex. Its next attack this turn deals +100 damage.',
   requiresTarget: 'ownApex',
   resolve: (ctx) => {
-    if (ctx.targetApexInstanceId) ctx.helpers.addCounter(ctx.targetApexInstanceId, 'upgrade', 1);
+    if (ctx.targetApexInstanceId) ctx.helpers.armAttackBonus(ctx.targetApexInstanceId, 100);
   },
 };
 
@@ -217,8 +214,8 @@ export const saAscensionComplete: SpecialDef = {
   faction: F,
   type: 'Special',
   rulesText:
-    'Play this only if you played another card earlier this turn. Choose one Apex with an Upgrade Counter. That Apex gains +100 DEF and its next attack deals +200 damage. If that Apex is Model-00 "Crown," gain 1 Momentum.',
-  requiresTarget: 'ownApexWithUpgrade',
+    'Play this only if you played another card earlier this turn. Choose one Apex. That Apex gains +100 DEF and its next attack deals +200 damage. If that Apex is Model-00 "Crown," gain 1 Momentum.',
+  requiresTarget: 'ownApex',
   canPlay: (playerId, state) => state.players[playerId].turnFlags.cardsPlayedThisTurn >= 1,
   resolve: (ctx) => {
     if (!ctx.targetApexInstanceId) return;
@@ -239,7 +236,7 @@ export const saBackupConsciousness: ReactionDef = {
   trigger: 'ownApexWouldBeDestroyed',
   tags: ['INSTANT', 'REACTION', 'ON_APEX_WOULD_BE_DESTROYED'],
   rulesText:
-    'When one of your Apexes would be destroyed: that Apex remains in play with 100 DEF. If your O2 is 4 or lower, place 1 Upgrade Counter on that Apex, then place 1 Glitch Counter on it.',
+    'When one of your Apexes would be destroyed: that Apex remains in play with 100 DEF. If your O2 is 4 or lower, place 1 Glitch Counter on it.',
   resolve: (ctx) => {
     ctx.helpers.log('Backup Consciousness reboots the Apex at 100 DEF.', 'response');
     return { preventDestruction: true, survivorDef: 100 };

@@ -118,11 +118,10 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
                 );
               })}
             </div>
-            {instance.counters && (instance.counters.choke > 0 || instance.counters.glitch > 0 || instance.counters.upgrade > 0) && (
+            {instance.counters && (instance.counters.choke > 0 || instance.counters.glitch > 0) && (
               <div className="flex gap-2">
                 {instance.counters.choke > 0 && <span className="px-1.5 py-0.5 rounded bg-red-900/40 border border-red-500/50 text-red-200">CHK {instance.counters.choke}</span>}
                 {instance.counters.glitch > 0 && <span className="px-1.5 py-0.5 rounded bg-fuchsia-900/40 border border-fuchsia-500/50 text-fuchsia-200">GLT {instance.counters.glitch}</span>}
-                {instance.counters.upgrade > 0 && <span className="px-1.5 py-0.5 rounded bg-amber-900/40 border border-amber-400/50 text-amber-200">UPG {instance.counters.upgrade}</span>}
               </div>
             )}
             {instance.equip && (

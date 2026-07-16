@@ -560,7 +560,7 @@ export function addCounterFn(
   const hit = findApexAnywhere(draft, apexInstanceId);
   if (!hit) return;
   const apex = hit.apex;
-  if (!apex.counters) apex.counters = { choke: 0, upgrade: 0, glitch: 0 };
+  if (!apex.counters) apex.counters = { choke: 0, glitch: 0 };
   if (type === 'glitch') {
     apex.counters.glitch = Math.min(MAX_GLITCH_COUNTERS, apex.counters.glitch + amount);
   } else {

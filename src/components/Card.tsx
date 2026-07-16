@@ -310,13 +310,10 @@ export default function Card({
         <div className="mt-1 flex-1 overflow-y-auto leading-tight opacity-85">{def.rulesText}</div>
       )}
 
-      {instance.counters && (instance.counters.choke || instance.counters.upgrade || instance.counters.glitch) ? (
+      {instance.counters && (instance.counters.choke || instance.counters.glitch) ? (
         <div className="mt-0.5 flex gap-1 flex-wrap">
           {instance.counters.choke > 0 && (
             <span className="px-1 rounded bg-black/50 border border-red-400 text-red-300">CHK {instance.counters.choke}</span>
-          )}
-          {instance.counters.upgrade > 0 && (
-            <span className="px-1 rounded bg-black/50 border border-amber-300 text-amber-200">UPG {instance.counters.upgrade}</span>
           )}
           {instance.counters.glitch > 0 && (
             <span className="px-1 rounded bg-black/50 border border-fuchsia-400 text-fuchsia-200">GLT {instance.counters.glitch}</span>

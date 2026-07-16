@@ -132,20 +132,14 @@ export function aiPlayOneMainPhaseAction(playerId: PlayerId): boolean {
       if (def.requiresTarget === 'enemyApex') targetId = opponent.apexSlots.find(Boolean)?.instanceId;
       else if (def.requiresTarget === 'enemyApexWithChoke') targetId = opponent.apexSlots.find((a) => a && (a.counters?.choke ?? 0) > 0)?.instanceId;
       else if (def.requiresTarget === 'ownApex') {
-        // Overclock arms a bonus on the target's NEXT attack this turn - targeting
-        // an Apex that's already attacked wastes the entire card (and its O2 cost).
-        const preferNotYetAttacked = specialCard.defId === 'nu-overclock';
+        // Overclock, Upgrade Path, and Ascension Complete all arm a bonus on the
+        // target's NEXT attack this turn - targeting an Apex that's already attacked
+        // wastes the card (and Overclock's O2 cost on top of that).
+        const preferNotYetAttacked =
+          specialCard.defId === 'nu-overclock' || specialCard.defId === 'sa-upgrade-path' || specialCard.defId === 'sa-ascension-complete';
         targetId = preferNotYetAttacked
           ? (player.apexSlots.find((a) => a && !a.hasAttacked) ?? player.apexSlots.find(Boolean))?.instanceId
           : player.apexSlots.find(Boolean)?.instanceId;
-      } else if (def.requiresTarget === 'ownApexWithUpgrade') {
-        const preferNotYetAttacked = specialCard.defId === 'sa-ascension-complete';
-        targetId = preferNotYetAttacked
-          ? (
-              player.apexSlots.find((a) => a && !a.hasAttacked && (a.counters?.upgrade ?? 0) > 0) ??
-              player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)
-            )?.instanceId
-          : player.apexSlots.find((a) => a && (a.counters?.upgrade ?? 0) > 0)?.instanceId;
       }
       if (!targetId) continue;
 
