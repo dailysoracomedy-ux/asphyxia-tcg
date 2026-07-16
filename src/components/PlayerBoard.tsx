@@ -113,7 +113,7 @@ export default function PlayerBoard({
   return (
     <div
       ref={containerRef}
-      className={`rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
+      className={`relative rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
       style={{
         borderColor: playmat.edge ? `${playmat.edge}66` : `${theme.border}55`,
         background:
@@ -121,14 +121,33 @@ export default function PlayerBoard({
           `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
         transform: 'perspective(1100px) rotateX(11deg)',
         transformOrigin: 'center center',
+        // Commit 44 - the board's 11-degree tilt existed since Commit 23, but
+        // everything on it rendered flat. preserve-3d (here and on the grid
+        // below) lets the slot columns take small translateZ lifts, which the
+        // existing tilt turns into true parallax against the mat.
+        transformStyle: 'preserve-3d',
         ['--active-glow-color' as string]: `${theme.primary}99`,
       }}
     >
+      {/* Mat surface treatment (Commit 44): bevel - the top edge catches the
+          light, the bottom falls into shadow - plus a soft specular sheen
+          sweeping from the top-left, per the app-wide unified light
+          convention (globals.css). Purely paint: pointer-transparent, and it
+          sits under the (relative) content grid. */}
       <div
-        className="flex-1 min-h-0 grid gap-3 justify-center"
-        style={{ gridTemplateColumns: 'minmax(0,auto) auto minmax(0,auto)', alignItems: flipped ? 'end' : 'start' }}
+        aria-hidden
+        className="absolute inset-0 rounded-lg pointer-events-none"
+        style={{
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -3px 9px rgba(0,0,0,0.45)',
+          background:
+            'linear-gradient(115deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 26%, transparent 45%)',
+        }}
+      />
+      <div
+        className="relative flex-1 min-h-0 grid gap-3 justify-center"
+        style={{ gridTemplateColumns: 'minmax(0,auto) auto minmax(0,auto)', alignItems: flipped ? 'end' : 'start', transformStyle: 'preserve-3d' }}
       >
-        <div className="flex gap-2 items-start row-start-1 col-start-1 justify-end">
+        <div className={`flex gap-2 items-start row-start-1 col-start-1 justify-end ${flipped ? 'lift-support' : 'lift-piles'}`}>
           {flipped ? (
             <div className="flex gap-1.5">
               {player.supportSlots.map((support, i) => (
@@ -156,7 +175,7 @@ export default function PlayerBoard({
             </div>
           )}
         </div>
-        <div className="flex gap-1.5 row-start-1 col-start-2 justify-self-center">
+        <div className="flex gap-1.5 row-start-1 col-start-2 justify-self-center lift-apex">
           {player.apexSlots.map((apex, i) => (
             <ApexSlotOrGhost
               key={i}
@@ -175,7 +194,7 @@ export default function PlayerBoard({
             />
           ))}
         </div>
-        <div className="flex flex-col gap-1.5 row-start-1 col-start-3 items-start relative">
+        <div className={`flex flex-col gap-1.5 row-start-1 col-start-3 items-start relative ${flipped ? 'lift-piles' : 'lift-support'}`}>
           <div className="flex gap-2 items-start justify-start">
             {flipped ? (
               <div className="flex flex-col gap-1 items-center">
@@ -325,7 +344,7 @@ function ApexSlot({
     const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div
-        className={`rounded-md border border-dashed border-white/15 flex items-center justify-center text-[9px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
+        className={`rounded-md slot-etched flex items-center justify-center text-[9px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: APEX_BOARD_HEIGHT }}
       >
         empty Apex slot
@@ -592,7 +611,7 @@ function SupportSlot({
     const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
     return (
       <div
-        className={`rounded-md border border-dashed border-white/15 flex items-center justify-center text-[8.5px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
+        className={`rounded-md slot-etched flex items-center justify-center text-[8.5px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: SUPPORT_BOARD_HEIGHT }}
       >
         empty Support slot

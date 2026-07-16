@@ -251,7 +251,7 @@ export default function Card({
       <div
         className={`relative inline-block shrink-0 ${
           highlight === 'tutorial-target' ? 'tutorial-spotlight' : highlight === 'tutorial-dim' ? 'pointer-events-none' : ''
-        }`}
+        } ${size === 'apexBoard' || size === 'supportBoard' ? 'board-card-shadow' : ''}`}
         style={{ width: artW, height: h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}

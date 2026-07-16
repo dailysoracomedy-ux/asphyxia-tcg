@@ -16,6 +16,19 @@
  * CSS filter on a 2D canvas before it becomes a WebGL texture - filters can't
  * reach inside WebGL, so the tint is baked in at texture build time instead.
  *
+ * Commit 44 lighting model - the coin's own colors glow, nothing else does.
+ * The old approach (a big additive halo sprite + a shadow-mapped floor) had
+ * three reported failures: the halo clipped at the canvas edges, the coin's
+ * real cast shadow smeared across the halo mid-sway, and the glow read as "a
+ * light behind the coin" rather than "neon inlays IN the coin." All replaced:
+ * an emissive mask is extracted from the coin art itself (high-saturation,
+ * bright pixels = the neon triangle channels; stone and metal masked out),
+ * and a real UnrealBloomPass with a luminance threshold blooms only those
+ * regions - so the inlays bleed light past their own edges, the rim stays
+ * matte, and mid-flip the edge-on coin shows a thin glowing seam. Grounding
+ * comes from a fake contact blob that shrinks and fades as the coin rises -
+ * physically plausible and structurally incapable of smearing over anything.
+ *
  * Face-orientation note (learned the hard way in the standalone demo): three's
  * cylinder cap UVs sit 90° rotated relative to the screen once the coin is
  * pitched to face the camera, and the two caps' UVs run in opposite
@@ -25,6 +38,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { COIN_FRONT_SRC, COIN_BACK_SRC } from '@/lib/cosmetics';
 import { playSfx } from '@/audio/sfx';
 
@@ -53,22 +70,52 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/** Draws an image through a CSS filter onto a canvas -> WebGL-safe texture. */
-function loadFilteredTexture(src: string, filter: string, onReady: (t: THREE.Texture) => void) {
+/** Draws an image through a CSS filter onto a canvas, then derives an
+ *  emissive mask from it: only saturated, bright pixels (the neon inlays)
+ *  survive; stone/metal goes black. Both textures share the same pixels, so
+ *  the glow always sits exactly on the art it comes from - including through
+ *  coin-skin tint filters, since the mask is computed AFTER the filter. */
+function loadCoinTextures(src: string, filter: string, onReady: (base: THREE.Texture, emissive: THREE.Texture) => void) {
   const img = new Image();
   img.onload = () => {
+    const S = 1024;
     const c = document.createElement('canvas');
-    c.width = c.height = 1024;
+    c.width = c.height = S;
     const x = c.getContext('2d')!;
     // Flatten onto the scene's near-black so any transparent corners blend in.
     x.fillStyle = '#05050a';
-    x.fillRect(0, 0, 1024, 1024);
+    x.fillRect(0, 0, S, S);
     if (filter && filter !== 'none') x.filter = filter;
-    x.drawImage(img, 0, 0, 1024, 1024);
-    const t = new THREE.CanvasTexture(c);
-    t.anisotropy = 8;
-    t.colorSpace = THREE.SRGBColorSpace;
-    onReady(t);
+    x.drawImage(img, 0, 0, S, S);
+
+    const e = document.createElement('canvas');
+    e.width = e.height = S;
+    const ex = e.getContext('2d')!;
+    ex.drawImage(c, 0, 0);
+    const data = ex.getImageData(0, 0, S, S);
+    const px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i], g = px[i + 1], b = px[i + 2];
+      const mx = Math.max(r, g, b);
+      const mn = Math.min(r, g, b);
+      const sat = mx > 0 ? (mx - mn) / mx : 0;
+      const lum = mx / 255;
+      // Soft-edged keep factor: fully on for vivid bright pixels, ramping to
+      // zero for anything dull or dark - a hard cutoff leaves crunchy fringes.
+      const k = Math.min(1, Math.max(0, (sat - 0.35) / 0.2)) * Math.min(1, Math.max(0, (lum - 0.3) / 0.22));
+      px[i] = r * k;
+      px[i + 1] = g * k;
+      px[i + 2] = b * k;
+    }
+    ex.putImageData(data, 0, 0);
+
+    const base = new THREE.CanvasTexture(c);
+    base.anisotropy = 8;
+    base.colorSpace = THREE.SRGBColorSpace;
+    const emissive = new THREE.CanvasTexture(e);
+    emissive.anisotropy = 8;
+    emissive.colorSpace = THREE.SRGBColorSpace;
+    onReady(base, emissive);
   };
   img.src = src;
 }
@@ -136,8 +183,6 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     host.appendChild(renderer.domElement);
 
@@ -157,8 +202,6 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     scene.add(new THREE.AmbientLight(0x8a8a95, 1.05));
     const key = new THREE.PointLight(0xff2fd0, 0.9, 24);
     key.position.set(-4, 3.4, 3.2);
-    key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
     scene.add(key);
     const rim = new THREE.PointLight(0x39ff6a, 0.6, 24);
     rim.position.set(4.2, 2.2, -2.4);
@@ -173,44 +216,67 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     fill.position.set(0, 6, 5);
     scene.add(fill);
 
-    // Shadow-only floor: invisible surface, real cast shadow.
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.ShadowMaterial({ opacity: 0.5 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.7;
-    floor.receiveShadow = true;
-    scene.add(floor);
+    // Contact blob instead of a shadow-mapped floor: a soft dark disc that
+    // shrinks and fades as the coin rises. Grounds the coin exactly like a
+    // shadow would, but it's fully controlled - it can never be cast across
+    // the glow or anything else (the reported smearing bug).
+    const blobCanvas = document.createElement('canvas');
+    blobCanvas.width = blobCanvas.height = 128;
+    const bx = blobCanvas.getContext('2d')!;
+    const bg = bx.createRadialGradient(64, 64, 4, 64, 64, 64);
+    bg.addColorStop(0, 'rgba(0,0,0,0.55)');
+    bg.addColorStop(0.6, 'rgba(0,0,0,0.28)');
+    bg.addColorStop(1, 'rgba(0,0,0,0)');
+    bx.fillStyle = bg;
+    bx.fillRect(0, 0, 128, 128);
+    const blobMat = new THREE.MeshBasicMaterial({
+      map: new THREE.CanvasTexture(blobCanvas),
+      transparent: true,
+      depthWrite: false,
+    });
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), blobMat);
+    blob.rotation.x = -Math.PI / 2;
+    blob.position.y = -1.68;
+    blob.scale.setScalar(2.7);
+    scene.add(blob);
 
     const R = 1.25;
     const T = 0.18;
     const matEdge = new THREE.MeshStandardMaterial({ map: reededEdgeTexture(), metalness: 0.85, roughness: 0.42 });
     // Low metalness: the art is pre-lit; metal shading would darken and double-light it.
-    // emissive + emissiveMap (set alongside map below) lets the art itself
-    // glow faintly - reads as the coin catching neon, not just being lit.
-    const matHeads = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0x2e2e34 });
-    const matTails = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0x2e2e34 });
+    // emissive is driven by the extracted neon mask (set below with the base
+    // map): white emissive color x mask x intensity pushes ONLY the inlay
+    // pixels over the bloom threshold. Everything else stays matte.
+    const matHeads = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0xffffff, emissiveIntensity: 0 });
+    const matTails = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0xffffff, emissiveIntensity: 0 });
 
     let disposed = false;
-    loadFilteredTexture(COIN_FRONT_SRC, skinFilter, (t) => {
+    loadCoinTextures(COIN_FRONT_SRC, skinFilter, (base, emissive) => {
       if (disposed) return;
-      t.center.set(0.5, 0.5);
-      t.rotation = Math.PI / 2; // top cap: stand the art upright
-      matHeads.map = t;
-      matHeads.emissiveMap = t;
+      for (const t of [base, emissive]) {
+        t.center.set(0.5, 0.5);
+        t.rotation = Math.PI / 2; // top cap: stand the art upright
+      }
+      matHeads.map = base;
+      matHeads.emissiveMap = emissive;
+      matHeads.emissiveIntensity = 1.45;
       matHeads.color.set(0xffffff);
       matHeads.needsUpdate = true;
     });
-    loadFilteredTexture(COIN_BACK_SRC, skinFilter, (t) => {
+    loadCoinTextures(COIN_BACK_SRC, skinFilter, (base, emissive) => {
       if (disposed) return;
-      t.center.set(0.5, 0.5);
-      t.rotation = -Math.PI / 2; // bottom cap UVs run the other way
-      matTails.map = t;
-      matTails.emissiveMap = t;
+      for (const t of [base, emissive]) {
+        t.center.set(0.5, 0.5);
+        t.rotation = -Math.PI / 2; // bottom cap UVs run the other way
+      }
+      matTails.map = base;
+      matTails.emissiveMap = emissive;
+      matTails.emissiveIntensity = 1.45;
       matTails.color.set(0xffffff);
       matTails.needsUpdate = true;
     });
 
     const coin = new THREE.Mesh(new THREE.CylinderGeometry(R, R, T, 96), [matEdge, matHeads, matTails]);
-    coin.castShadow = true;
     coin.rotation.x = Math.PI / 2; // heads toward camera at rest
 
     const spinner = new THREE.Group(); // flip rotation
@@ -218,27 +284,21 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     const rig = new THREE.Group(); // toss height + idle bob
     rig.add(spinner);
     rig.add(riderLight);
-    // Additive neon halo behind the coin - a soft radial sprite that pulses
-    // gently at rest and flares during the toss. Parented to the rig so it
-    // travels with the throw.
-    const haloCanvas = document.createElement('canvas');
-    haloCanvas.width = haloCanvas.height = 256;
-    const hx = haloCanvas.getContext('2d')!;
-    const hg = hx.createRadialGradient(128, 128, 10, 128, 128, 128);
-    hg.addColorStop(0, 'rgba(255,47,208,0.55)');
-    hg.addColorStop(0.45, 'rgba(255,47,208,0.18)');
-    hg.addColorStop(1, 'rgba(255,47,208,0)');
-    hx.fillStyle = hg;
-    hx.fillRect(0, 0, 256, 256);
-    const haloTex = new THREE.CanvasTexture(haloCanvas);
-    const halo = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })
-    );
-    halo.position.z = -0.55;
-    halo.scale.setScalar(4.4);
-    rig.add(halo);
     rig.position.y = 0.35;
     scene.add(rig);
+
+    // Post-processing: real bloom with a luminance threshold. Only pixels the
+    // emissive mask pushed bright enough bloom - the neon inlays and the
+    // occasional specular ping - so the glow hugs the art instead of haloing
+    // the whole coin, and there is nothing scaled past the canvas to clip.
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    renderPass.clearAlpha = 0; // keep the canvas transparent over the menu card
+    composer.addPass(renderPass);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.85, 0.28, 0.72);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+    composer.setSize(width, height);
 
     const clock = new THREE.Clock();
     let state: 'idle' | 'flip' | 'settle' = 'idle';
@@ -274,16 +334,20 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
         rig.position.y = 0.35 + Math.sin(t * 1.6) * 0.05;
         spinner.rotation.y = Math.sin(t * 0.7) * 0.16;
         spinner.rotation.z = Math.sin(t * 0.9) * 0.05;
-        halo.material.opacity = 0.75 + Math.sin(t * 2.1) * 0.2; // breathing glow
-        halo.scale.setScalar(4.4 + Math.sin(t * 2.1) * 0.15);
+        // Neon inlays breathe: a slow emissive swell, picked up by the bloom.
+        const breathe = 1.45 + Math.sin(t * 2.1) * 0.25;
+        matHeads.emissiveIntensity = matHeads.emissiveMap ? breathe : 0;
+        matTails.emissiveIntensity = matTails.emissiveMap ? breathe : 0;
       } else if (state === 'flip') {
         const p = Math.min((t - t0) / FLIP_DUR, 1);
         spinner.rotation.x = fromRot + (toRot - fromRot) * easeOutCubic(p);
         rig.position.y = 0.35 + TOSS_H * 4 * p * (1 - p); // parabolic toss
         spinner.rotation.y = Math.sin(p * Math.PI) * 0.35; // mid-air wobble
         spinner.rotation.z = Math.sin(p * Math.PI * 2) * 0.12;
-        halo.material.opacity = 0.85 + Math.sin(p * Math.PI) * 0.35; // flare at the apex
-        halo.scale.setScalar(4.4 + Math.sin(p * Math.PI) * 0.9);
+        // Inlays flare hardest at the apex of the throw.
+        const flare = 1.45 + Math.sin(p * Math.PI) * 0.8;
+        matHeads.emissiveIntensity = matHeads.emissiveMap ? flare : 0;
+        matTails.emissiveIntensity = matTails.emissiveMap ? flare : 0;
         if (p >= 1) {
           spinner.rotation.x = isTails ? Math.PI : 0;
           playSfx('coin.flipLand');
@@ -303,7 +367,12 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
         }
       }
 
-      renderer.render(scene, camera);
+      // Contact blob: shrink + fade with height above the rest position.
+      const hNorm = Math.min(1, Math.max(0, (rig.position.y - 0.35) / TOSS_H));
+      blob.scale.setScalar(2.7 * (1 - 0.4 * hNorm));
+      blobMat.opacity = 1 - 0.8 * hNorm;
+
+      composer.render();
     }
     animate();
 
@@ -312,10 +381,13 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
       cancelAnimationFrame(raf);
       controlRef.current = null;
       coin.geometry.dispose();
-      halo.material.map?.dispose();
-      halo.material.dispose();
+      blob.geometry.dispose();
+      blobMat.map?.dispose();
+      blobMat.dispose();
+      composer.dispose();
       [matEdge, matHeads, matTails].forEach((m) => {
         m.map?.dispose();
+        m.emissiveMap?.dispose();
         m.dispose();
       });
       renderer.dispose();
@@ -336,13 +408,7 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
   return (
     <div
       ref={hostRef}
-      style={{
-        width,
-        height,
-        // CSS silhouette glow - drop-shadow follows the coin's rendered alpha,
-        // so the glow hugs the coin itself (and its whole arc), not the box.
-        filter: 'drop-shadow(0 0 22px rgba(255,47,208,0.4)) drop-shadow(0 0 60px rgba(255,47,208,0.16))',
-      }}
+      style={{ width, height }}
       className="relative select-none"
     >
       {fallback && (
