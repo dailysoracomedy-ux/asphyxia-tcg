@@ -528,30 +528,31 @@ html, body {
    like flaked paint. The press/hover/elevation mechanics from 45 stay:
    grunge is the finish, not the physics. */
 
+/* Commit 47 - hand-made art era: buttons wear the user's universal button
+   frame (public/ui/button-frame.webp, a complete 9-sliced button FACE) drawn
+   by ::before, which paints ABOVE the background but BELOW the text - labels
+   can never be covered (the Commit 46 lesson). The element's own border still
+   paints outside the ::before, so faction border colors + glows survive.
+   Press/hover mechanics unchanged. Bespoke-art buttons (START, HEADS/TAILS,
+   deck picker, O2, End Turn, Continue) use .btn-art instead - full designed
+   images with their own baked text. */
 .btn-3d {
   position: relative;
-  background-image:
-    url('/textures/grime.png'),
-    linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.28) 100%);
-  background-size: 190px auto, 100% 100%;
-  background-blend-mode: multiply, normal;
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.16),
+    inset 0 1px 0 rgba(255,255,255,0.10),
     inset 0 -2px 3px rgba(0,0,0,0.42),
     0 3px 6px rgba(0,0,0,0.5),
     0 1px 2px rgba(0,0,0,0.65);
-  transition: transform 90ms ease, box-shadow 90ms ease;
+  transition: transform 90ms ease, box-shadow 90ms ease, filter 90ms ease;
 }
-/* Chipped paint edge - eroded 9-slice frame over whatever border color the
-   button already wears, so faction-colored borders come through the chips. */
-.btn-3d::after {
+.btn-3d::before {
   content: '';
   position: absolute;
-  inset: -1px;
-  border: 8px solid transparent;
-  border-image: url('/textures/frame.png') 84 / 8px stretch;
+  inset: 0;
+  border: 10px solid transparent;
+  border-image: url('/ui/button-frame.webp') 110 fill stretch;
   border-radius: inherit;
-  opacity: 0.8;
+  opacity: 0.92;
   pointer-events: none;
 }
 .btn-3d:hover:not(:disabled) {
@@ -564,79 +565,87 @@ html, body {
 }
 .btn-3d:active:not(:disabled) {
   transform: translateY(1px);
-  background-image:
-    url('/textures/grime.png'),
-    linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.05) 100%);
-  background-size: 190px auto, 100% 100%;
-  background-blend-mode: multiply, normal;
+  filter: brightness(0.82);
   box-shadow:
     inset 0 2px 6px rgba(0,0,0,0.6),
     inset 0 -1px 0 rgba(255,255,255,0.05),
     0 1px 2px rgba(0,0,0,0.5);
 }
 .btn-3d:disabled {
-  background-image: url('/textures/grime.png');
-  background-size: 190px auto;
-  background-blend-mode: multiply;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+}
+.btn-3d:disabled::before {
+  opacity: 0.45;
+}
+
+/* Bespoke-art buttons: the image IS the button (text baked into the art;
+   real labels are sr-only for accessibility). Same physical press feel;
+   existing glow shadows and hover/press sounds are untouched at call sites. */
+.btn-art {
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transition: transform 90ms ease, box-shadow 90ms ease, filter 90ms ease;
+}
+.btn-art:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+.btn-art:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.82);
+}
+.btn-art:disabled {
+  filter: grayscale(0.7) brightness(0.6);
 }
 
 /* Raised panel: a physical grimy metal plate. Layer order (top->bottom):
    specular sheen, wear scratches (screen), grime (multiply), brushed plate. */
 .panel-3d {
   position: relative;
-  background-image:
-    linear-gradient(165deg, rgba(255,255,255,0.05) 0%, transparent 38%),
-    url('/textures/scratches.png'),
-    url('/textures/grime.png'),
-    url('/textures/plate.png');
-  background-size: 100% 100%, 512px auto, 340px auto, 512px auto;
-  background-blend-mode: normal, screen, multiply, normal;
+  background-image: linear-gradient(165deg, rgba(255,255,255,0.04) 0%, transparent 34%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.07),
     inset 0 -2px 6px rgba(0,0,0,0.35),
     0 6px 16px rgba(0,0,0,0.45),
     0 2px 4px rgba(0,0,0,0.55);
 }
-.panel-3d::after {
+.panel-3d::before {
   content: '';
   position: absolute;
-  inset: -1px;
-  border: 7px solid transparent;
-  border-image: url('/textures/frame.png') 84 / 7px stretch;
+  inset: 0;
+  border: 12px solid transparent;
+  border-image: url('/ui/panel.webp') 120 fill stretch;
   border-radius: inherit;
-  opacity: 0.65;
+  opacity: 0.95;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
 }
+/* content above the panel art */
+.panel-3d > * { position: relative; z-index: 1; }
 
 /* Floating panel: modals and the main menu card - heavier plate, deeper drop. */
 .panel-3d-deep {
   position: relative;
-  background-image:
-    linear-gradient(165deg, rgba(255,255,255,0.06) 0%, transparent 42%),
-    url('/textures/scratches.png'),
-    url('/textures/grime.png'),
-    url('/textures/plate.png');
-  background-size: 100% 100%, 512px auto, 380px auto, 512px auto;
-  background-blend-mode: normal, screen, multiply, normal;
+  background-image: linear-gradient(165deg, rgba(255,255,255,0.06) 0%, transparent 42%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.09),
     inset 0 -3px 9px rgba(0,0,0,0.4),
     0 24px 60px rgba(0,0,0,0.6),
     0 6px 16px rgba(0,0,0,0.55);
 }
-.panel-3d-deep::after {
+.panel-3d-deep::before {
   content: '';
   position: absolute;
-  inset: -1px;
-  border: 9px solid transparent;
-  border-image: url('/textures/frame.png') 84 / 9px stretch;
+  inset: 0;
+  border: 14px solid transparent;
+  border-image: url('/ui/panel.webp') 120 fill stretch;
   border-radius: inherit;
-  opacity: 0.7;
+  opacity: 0.97;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
 }
+.panel-3d-deep > * { position: relative; z-index: 1; }
 
 /* ===== Commit 46: the world is ALIVE ===== */
 
@@ -660,8 +669,8 @@ html, body {
   z-index: 90;
   background-image: url('/textures/grain.png');
   background-size: 256px;
-  opacity: 0.055;
-  mix-blend-mode: overlay;
+  opacity: 0.04;
+  mix-blend-mode: soft-light; /* 46.1: overlay was washing the dark UI lighter */
   animation: grain-shift 0.9s steps(1) infinite;
 }
 
@@ -731,4 +740,127 @@ html, body {
   .neon-flicker { animation: none; }
   .o2-critical { animation: none; filter: drop-shadow(0 0 5px rgba(248,60,60,0.8)); }
   .mom-pip.lit { animation: none; box-shadow: 0 0 5px var(--pip-color); }
+}
+
+/* ===== Commit 47: particle systems ===== */
+
+/* Engine short-circuit sparks - erratic electric burst when an Engine is
+   played or triggers. Two shadow colors (arc-white and hazard-yellow), and
+   the motion is deliberately jittery (electricity, not confetti). */
+@keyframes engine-sparks {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px #eaffff, 0 0 0 2px #ffe14d, 0 0 0 2px #9ff3ff, 0 0 0 2px #ffe14d,
+      0 0 0 2px #eaffff, 0 0 0 2px #9ff3ff, 0 0 0 2px #ffe14d, 0 0 0 2px #eaffff;
+  }
+  18% {
+    box-shadow:
+      14px -20px 0 1px #eaffff, 26px 2px 0 0 #ffe14d, 18px 16px 0 1px #9ff3ff, -3px 24px 0 0 #ffe14d,
+      -17px 13px 0 1px #eaffff, -25px -4px 0 0 #9ff3ff, -14px -19px 0 1px #ffe14d, 3px -27px 0 0 #eaffff;
+  }
+  34% {
+    opacity: 0.7;
+    box-shadow:
+      22px -30px 0 0 #eaffff, 39px 6px 0 1px #ffe14d, 24px 27px 0 0 #9ff3ff, -7px 36px 0 1px #ffe14d,
+      -27px 19px 0 0 #eaffff, -38px -9px 0 1px #9ff3ff, -20px -31px 0 0 #ffe14d, 8px -40px 0 1px #eaffff;
+  }
+  52% {
+    opacity: 0.95;
+    box-shadow:
+      28px -37px 0 1px #eaffff, 48px 4px 0 0 #ffe14d, 31px 34px 0 1px #9ff3ff, -10px 45px 0 0 #ffe14d,
+      -35px 25px 0 1px #eaffff, -47px -12px 0 0 #9ff3ff, -26px -38px 0 1px #ffe14d, 11px -50px 0 0 #eaffff;
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      34px -44px 0 0 #eaffff, 56px 8px 0 0 #ffe14d, 37px 42px 0 0 #9ff3ff, -13px 54px 0 0 #ffe14d,
+      -42px 31px 0 0 #eaffff, -55px -15px 0 0 #9ff3ff, -31px -46px 0 0 #ffe14d, 14px -59px 0 0 #eaffff;
+  }
+}
+@keyframes engine-arc-flicker {
+  0%, 100% { filter: none; }
+  12% { filter: brightness(2.1) saturate(1.4); }
+  16% { filter: brightness(1.05); }
+  28% { filter: brightness(1.8); }
+  33% { filter: brightness(1); }
+  47% { filter: brightness(1.5); }
+  55% { filter: brightness(1); }
+}
+.vfx-engine-sparks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 19;
+  animation: engine-sparks 620ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+.vfx-engine-arc {
+  animation: engine-arc-flicker 620ms linear;
+}
+
+/* Destruction debris - dark chunks arc outward then fall (two-stage
+   keyframes approximate gravity), with a pair of faction-colored embers. */
+@keyframes destroy-debris {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 3px #17171c, 0 0 0 2px #232329, 0 0 0 3px #101014, 0 0 0 2px #1c1c22,
+      0 0 0 2px #26262d, 0 0 0 3px #131317, 0 0 0 2px var(--impact-color, #ff2fd0), 0 0 0 2px var(--impact-color, #ff2fd0);
+  }
+  38% {
+    opacity: 1;
+    box-shadow:
+      26px -18px 0 3px #17171c, 44px -6px 0 2px #232329, 14px -26px 0 3px #101014, -22px -20px 0 2px #1c1c22,
+      -40px -4px 0 2px #26262d, -12px -24px 0 3px #131317, 30px -24px 0 2px var(--impact-color, #ff2fd0), -32px -16px 0 2px var(--impact-color, #ff2fd0);
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      38px 34px 0 2px #17171c, 60px 46px 0 1px #232329, 20px 42px 0 2px #101014, -32px 38px 0 1px #1c1c22,
+      -56px 50px 0 1px #26262d, -18px 46px 0 2px #131317, 44px 30px 0 1px var(--impact-color, #ff2fd0), -46px 36px 0 1px var(--impact-color, #ff2fd0);
+  }
+}
+.vfx-debris {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 19;
+  animation: destroy-debris 900ms cubic-bezier(0.3, 0.6, 0.6, 1) forwards;
+}
+
+/* Placement dust - a soft neutral ring puffing out when a card lands. */
+@keyframes place-dust {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+.vfx-place-dust {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 80px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 18;
+  animation: place-dust 420ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vfx-engine-sparks,
+  .vfx-engine-arc,
+  .vfx-debris,
+  .vfx-place-dust {
+    animation: none !important;
+    opacity: 0 !important;
+  }
 }
