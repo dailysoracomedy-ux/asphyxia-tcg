@@ -16,7 +16,6 @@ import type { PlayerId } from '@/types/game';
 import {
   PLAYMATS,
   SLEEVES,
-  DECK_BOXES,
   COINS,
   SLEEVE_BASE_SRC,
   COIN_FRONT_SRC,
@@ -28,7 +27,6 @@ import { playSfx } from '@/audio/sfx';
 const TABS: { kind: CosmeticKind; label: string }[] = [
   { kind: 'playmat', label: 'Playmats' },
   { kind: 'sleeve', label: 'Sleeves' },
-  { kind: 'deckbox', label: 'Deck Boxes' },
   { kind: 'coin', label: 'Coins' },
 ];
 
@@ -47,41 +45,18 @@ function PlaymatPreview({ background, edge }: { background: string | null; edge:
   );
 }
 
-function SleevePreview({ filter, rim }: { filter: string; rim: string }) {
+function SleevePreview({ filter, rim, overlay, overlayBlend }: { filter: string; rim: string; overlay?: string; overlayBlend?: string }) {
   return (
-    <div className="w-11 h-[62px] rounded-[4px] overflow-hidden border mx-auto" style={{ borderColor: rim }}>
+    <div className="relative w-11 h-[62px] rounded-[4px] overflow-hidden border mx-auto" style={{ borderColor: rim }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" style={{ filter }} draggable={false} />
-    </div>
-  );
-}
-
-function DeckBoxPreview({ body, edge, emblemFilter }: { body: string | null; edge: string; emblemFilter: string }) {
-  if (!body) {
-    // "No Box" - the classic bare stack.
-    return (
-      <div className="relative w-12 h-16 mx-auto">
-        {[2, 1, 0].map((i) => (
-          <div
-            key={i}
-            className="absolute rounded-[3px] border overflow-hidden"
-            style={{ width: 44, height: 60, left: i * 2, top: -i * 2 + 4, borderColor: edge }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" draggable={false} />
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div
-      className="relative w-12 h-16 mx-auto rounded-[4px] border flex items-center justify-center"
-      style={{ background: body, borderColor: `${edge}88`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), 0 3px 8px rgba(0,0,0,0.5)` }}
-    >
-      <div className="absolute top-0 left-0 right-0 h-2 rounded-t-[3px]" style={{ background: 'rgba(255,255,255,0.10)', borderBottom: `1px solid ${edge}66` }} />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={COIN_FRONT_SRC} alt="" className="w-7 h-7 rounded-full opacity-90" style={{ filter: emblemFilter }} draggable={false} />
+      {overlay && (
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: overlay, mixBlendMode: (overlayBlend ?? 'normal') as React.CSSProperties['mixBlendMode'] }}
+        />
+      )}
     </div>
   );
 }
@@ -107,9 +82,7 @@ export default function LockerMenu() {
     tab === 'playmat'
       ? PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview background={p.background} edge={p.edge} /> }))
       : tab === 'sleeve'
-      ? SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview filter={s.filter} rim={s.rim} /> }))
-      : tab === 'deckbox'
-      ? DECK_BOXES.map((d) => ({ id: d.id, name: d.name, blurb: d.blurb, preview: <DeckBoxPreview body={d.body} edge={d.edge} emblemFilter={d.emblemFilter} /> }))
+      ? SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview filter={s.filter} rim={s.rim} overlay={s.overlay} overlayBlend={s.overlayBlend} /> }))
       : COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview filter={c.filter} /> }));
 
   return (
@@ -125,7 +98,7 @@ export default function LockerMenu() {
               setSeat(p);
             }}
             onMouseEnter={() => playSfx('ui.hover')}
-            className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border transition-all ${
+            className={`btn-3d px-3 py-1 rounded-full text-[10px] font-bold tracking-widest border transition-all ${
               seat === p ? 'border-fuchsia-400/70 text-fuchsia-200 bg-fuchsia-400/10' : 'border-white/15 text-white/40 hover:text-white/70'
             }`}
           >
@@ -145,7 +118,7 @@ export default function LockerMenu() {
               setTab(t.kind);
             }}
             onMouseEnter={() => playSfx('ui.hover')}
-            className={`flex-1 py-1.5 rounded-md text-[10px] font-bold tracking-widest border transition-all ${
+            className={`btn-3d flex-1 py-1.5 rounded-md text-[10px] font-bold tracking-widest border transition-all ${
               tab === t.kind
                 ? 'border-cyan-400/60 text-cyan-200 bg-cyan-400/10'
                 : 'border-white/10 text-white/35 hover:text-white/60 hover:border-white/25'
@@ -169,7 +142,7 @@ export default function LockerMenu() {
                 setItem(seat, tab, item.id);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className={`text-left rounded-lg border-2 p-2 transition-all ${
+              className={`btn-3d text-left rounded-lg border-2 p-2 transition-all ${
                 active
                   ? 'border-fuchsia-400/80 bg-fuchsia-400/10 shadow-[0_0_14px_rgba(255,47,208,0.35)]'
                   : 'border-white/10 hover:border-white/30 bg-black/30'

@@ -84,7 +84,7 @@ export default function ActionBanner({ state }: { state: GameState }) {
       style={{ ['--banner-color' as string]: theme.primary, animationDuration: `${displayMs}ms` }}
     >
       <div
-        className="flex items-center gap-3 rounded-lg border-2 px-4 py-2.5 max-w-md"
+        className="panel-3d flex items-center gap-3 rounded-lg border-2 px-4 py-2.5 max-w-md"
         style={{ borderColor: theme.primary, background: '#05050ae8', boxShadow: `0 0 30px ${theme.primary}66` }}
       >
         {art && (

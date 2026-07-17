@@ -44,7 +44,7 @@ function FactionPicker({
                 onChange(f);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className={`text-left px-3 py-2 rounded-md border-2 transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              className={`btn-3d text-left px-3 py-2 rounded-md border-2 transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
                 borderColor: theme.border,
                 background: theme.bg,
@@ -81,7 +81,7 @@ function O2Selector({ value, onChange }: { value: number; onChange: (n: number) 
                 onChange(n);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className={`flex-1 px-3 py-2 rounded-md border-2 font-bold text-sm transition-all ${
+              className={`btn-3d flex-1 px-3 py-2 rounded-md border-2 font-bold text-sm transition-all ${
                 active
                   ? 'border-cyan-400 bg-cyan-400/15 text-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.6)] scale-[1.02]'
                   : 'border-white/15 text-white/50 hover:opacity-90 hover:border-white/30'
@@ -119,7 +119,7 @@ function MenuButton({
         onClick();
       }}
       onMouseEnter={() => playSfx('ui.hover')}
-      className={`group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:scale-[1.02] hover:brightness-110 ${colorClass} ${glowColorClass}`}
+      className={`btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`}
     >
       {label}
       <div className="text-[10px] font-normal tracking-normal opacity-60 mt-0.5 normal-case">{sublabel}</div>
@@ -213,7 +213,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
-      <div className="max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+      <div className="panel-3d-deep max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
             competes with the toss. Every other view keeps the full header. */}
@@ -390,7 +390,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                   type="button"
                   onClick={() => callCoin('heads')}
                   onMouseEnter={() => playSfx('ui.hover')}
-                  className="px-5 py-2.5 rounded-lg border-2 border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
+                  className="btn-3d px-5 py-2.5 rounded-lg border-2 border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
                 >
                   HEADS
                 </button>
@@ -398,7 +398,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                   type="button"
                   onClick={() => callCoin('tails')}
                   onMouseEnter={() => playSfx('ui.hover')}
-                  className="px-5 py-2.5 rounded-lg border-2 border-cyan-400/60 text-cyan-200 bg-cyan-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
+                  className="btn-3d px-5 py-2.5 rounded-lg border-2 border-cyan-400/60 text-cyan-200 bg-cyan-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
                 >
                   TAILS
                 </button>

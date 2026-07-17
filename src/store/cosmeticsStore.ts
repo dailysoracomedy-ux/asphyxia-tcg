@@ -17,14 +17,16 @@ import type { CosmeticKind } from '@/lib/cosmetics';
 export interface Loadout {
   playmat: string;
   sleeve: string;
-  deckbox: string;
   coin: string;
 }
 
+// Commit 45 - deckbox removed from the loadout (the concept is scrapped; the
+// deck is a full-bleed sleeved stack now). A stale 'deckbox' key in persisted
+// localStorage data is harmless: merge() spreads it into the object where
+// nothing reads it.
 const DEFAULT_LOADOUT: Loadout = {
   playmat: 'faction',
   sleeve: 'asphyxia',
-  deckbox: 'street-steel',
   coin: 'rift-standard',
 };
 

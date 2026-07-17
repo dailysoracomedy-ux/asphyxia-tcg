@@ -37,7 +37,7 @@ export default function CombatControls({
   }
 
   return (
-    <div className="rounded-lg border border-orange-500/40 bg-[#05050a] p-3">
+    <div className="panel-3d rounded-lg border border-orange-500/40 bg-[#05050a] p-3">
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-bold text-orange-300">{apexDef.name} — choose an attack</div>
         <button type="button" onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80">
@@ -65,7 +65,7 @@ export default function CombatControls({
             return (
               <div
                 key={atk.id}
-                className={`rounded border text-[11px] transition-colors ${
+                className={`btn-3d rounded border text-[11px] transition-colors ${
                   selectedAttackId === atk.id
                     ? 'border-yellow-300 bg-yellow-300/10 text-yellow-200'
                     : affordable
@@ -137,7 +137,7 @@ function OutcomePreviewList({
     const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId);
     if (!preview) return null;
     return (
-      <div className="rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
+      <div className="panel-3d rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
         <div className="font-bold text-yellow-200">Direct O2 attack</div>
         <div>Final damage: {preview.finalDamage}</div>
         <div>Expected O2 loss: {preview.o2Loss}</div>
@@ -146,7 +146,7 @@ function OutcomePreviewList({
   }
 
   return (
-    <div className="rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] flex items-center gap-3 flex-wrap w-fit max-w-full mx-auto">
+    <div className="panel-3d rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] flex items-center gap-3 flex-wrap w-fit max-w-full mx-auto">
       {enemyApexes.map((apex) => {
         if (!apex) return null;
         const name = getCardDef(apex.defId).name;

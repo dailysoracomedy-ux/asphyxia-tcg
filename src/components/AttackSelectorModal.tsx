@@ -85,7 +85,7 @@ export default function AttackSelectorModal({
           />
         </div>
         <div className="text-[11px] uppercase tracking-widest text-white/60">Hover an attack, click to select</div>
-        <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded border border-white/20 text-white/60 text-xs hover:bg-white/10">
+        <button type="button" onClick={onCancel} className="btn-3d px-3 py-1.5 rounded border border-white/20 text-white/60 text-xs hover:bg-white/10">
           Cancel
         </button>
       </div>

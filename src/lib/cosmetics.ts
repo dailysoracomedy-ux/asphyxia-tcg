@@ -12,7 +12,9 @@
  * nothing else changes anywhere.
  */
 
-export type CosmeticKind = 'playmat' | 'sleeve' | 'deckbox' | 'coin';
+// Commit 45 - 'deckbox' removed: the deck now always renders as a full-bleed
+// sleeved card-back stack (per direction, the sleeve IS the deck's look).
+export type CosmeticKind = 'playmat' | 'sleeve' | 'coin';
 
 export interface PlaymatSkin {
   id: string;
@@ -33,17 +35,11 @@ export interface SleeveSkin {
   filter: string;
   /** Sleeve rim color - the thin plastic edge you see around a sleeved card. */
   rim: string;
-}
-
-export interface DeckBoxSkin {
-  id: string;
-  name: string;
-  blurb: string;
-  /** `null` = classic bare stack (no box) - the original look. */
-  body: string | null;
-  edge: string;
-  /** Emblem tint applied to the coin-front art used as the box's badge. */
-  emblemFilter: string;
+  /** Optional printed layer composited over the art (CSS background stack) -
+   *  what turns a tint into a DESIGN: stripes, scanlines, holo sheens. */
+  overlay?: string;
+  /** Blend mode for the overlay (default 'normal'). */
+  overlayBlend?: string;
 }
 
 export interface CoinSkin {
@@ -150,44 +146,56 @@ export const SLEEVES: SleeveSkin[] = [
   { id: 'cryo', name: 'Cryo Batch', blurb: 'Flash-frozen cyan.', filter: 'hue-rotate(175deg) saturate(1.2)', rim: 'rgba(32,224,255,0.55)' },
   { id: 'royal', name: 'Royal Batch', blurb: 'Deep violet, off-market.', filter: 'hue-rotate(-70deg) saturate(1.25)', rim: 'rgba(162,91,255,0.55)' },
   { id: 'mono', name: 'Monochrome', blurb: 'All signal, no color.', filter: 'grayscale(1) contrast(1.15) brightness(1.05)', rim: 'rgba(244,251,255,0.4)' },
-];
-
-/* ------------------------------------------------------------------ */
-/* Deck boxes                                                          */
-/* ------------------------------------------------------------------ */
-
-export const DECK_BOXES: DeckBoxSkin[] = [
   {
-    id: 'bare',
-    name: 'No Box',
-    blurb: 'Raw stack on the mat, old-school.',
-    body: null,
-    edge: 'rgba(255,255,255,0.18)',
-    emblemFilter: 'none',
+    id: 'blood-oath',
+    name: 'Blood Oath',
+    blurb: 'Signed in red. Diagonal hazard scoring.',
+    filter: 'hue-rotate(-140deg) saturate(1.5) brightness(0.95)',
+    rim: 'rgba(248,60,60,0.6)',
+    overlay:
+      'repeating-linear-gradient(135deg, rgba(248,60,60,0.14) 0 6px, transparent 6px 22px)',
+    overlayBlend: 'screen',
   },
   {
-    id: 'street-steel',
-    name: 'Street Steel',
-    blurb: 'Scuffed gunmetal case with a rivet lid.',
-    body: 'linear-gradient(180deg, #3a3a44 0%, #23232b 18%, #17171d 100%)',
-    edge: '#8b8b9a',
-    emblemFilter: 'none',
+    id: 'circuit-gold',
+    name: 'Circuit Gold',
+    blurb: 'Gilded traces on black glass.',
+    filter: 'sepia(0.9) saturate(1.6) hue-rotate(-12deg) contrast(1.1)',
+    rim: 'rgba(255,196,64,0.6)',
+    overlay:
+      'repeating-linear-gradient(0deg, rgba(255,196,64,0.08) 0 1px, transparent 1px 14px), ' +
+      'repeating-linear-gradient(90deg, rgba(255,196,64,0.08) 0 1px, transparent 1px 14px)',
+    overlayBlend: 'screen',
   },
   {
-    id: 'toxic-vault',
-    name: 'Toxic Vault',
-    blurb: 'Hazard-sealed. Probably fine.',
-    body: 'linear-gradient(180deg, #1c3a22 0%, #0d2412 18%, #071408 100%)',
-    edge: '#39ff6a',
-    emblemFilter: 'hue-rotate(95deg) saturate(1.3)',
+    id: 'void-static',
+    name: 'Void Static',
+    blurb: 'A broadcast from nowhere. Scanlined.',
+    filter: 'grayscale(0.85) contrast(1.35) brightness(0.9)',
+    rim: 'rgba(255,255,255,0.3)',
+    overlay:
+      'repeating-linear-gradient(0deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), ' +
+      'radial-gradient(ellipse at 50% 40%, transparent 50%, rgba(0,0,0,0.45) 100%)',
   },
   {
-    id: 'chrome-case',
-    name: 'Chrome Case',
-    blurb: 'Dark White evidence locker, requisitioned.',
-    body: 'linear-gradient(180deg, #1e3a44 0%, #10222b 18%, #081318 100%)',
-    edge: '#20e0ff',
-    emblemFilter: 'hue-rotate(175deg) saturate(1.15)',
+    id: 'holo-rift',
+    name: 'Holo Rift',
+    blurb: 'Iridescent laminate. Catches every light in the room.',
+    filter: 'saturate(1.25) brightness(1.05)',
+    rim: 'rgba(255,255,255,0.55)',
+    overlay:
+      'linear-gradient(115deg, rgba(255,47,208,0.20) 0%, rgba(32,224,255,0.18) 30%, rgba(57,255,106,0.16) 55%, rgba(162,91,255,0.20) 80%, rgba(255,196,64,0.16) 100%)',
+    overlayBlend: 'screen',
+  },
+  {
+    id: 'hazard-line',
+    name: 'Hazard Line',
+    blurb: 'Do not cross. You will anyway.',
+    filter: 'saturate(1.15) contrast(1.08)',
+    rim: 'rgba(250,204,21,0.65)',
+    overlay:
+      'linear-gradient(0deg, transparent 0 88%, rgba(250,204,21,0.5) 88% 90%, rgba(0,0,0,0.55) 90% 94%, rgba(250,204,21,0.5) 94% 96%, transparent 96%), ' +
+      'linear-gradient(180deg, transparent 0 88%, rgba(250,204,21,0.5) 88% 90%, rgba(0,0,0,0.55) 90% 94%, rgba(250,204,21,0.5) 94% 96%, transparent 96%)',
   },
 ];
 
@@ -212,9 +220,6 @@ export function getPlaymat(id: string): PlaymatSkin {
 }
 export function getSleeve(id: string): SleeveSkin {
   return SLEEVES.find((s) => s.id === id) ?? SLEEVES[0];
-}
-export function getDeckBox(id: string): DeckBoxSkin {
-  return DECK_BOXES.find((d) => d.id === id) ?? DECK_BOXES[0];
 }
 export function getCoin(id: string): CoinSkin {
   return COINS.find((c) => c.id === id) ?? COINS[0];

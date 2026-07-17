@@ -21,7 +21,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5">
+    <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5">
       <div
         className={`font-bold tracking-wide text-[12px] mb-1 ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
         style={{ color: theme.primary }}
@@ -49,7 +49,7 @@ export function OptionsInline({ state, onOpenLog, logHasUnread }: { state: GameS
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-lg border border-white/15 bg-[#05050a] overflow-hidden w-fit">
+    <div className="panel-3d rounded-lg border border-white/15 bg-[#05050a] overflow-hidden w-fit">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -63,7 +63,7 @@ export function OptionsInline({ state, onOpenLog, logHasUnread }: { state: GameS
           <button
             type="button"
             onClick={onOpenLog}
-            className="relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
+            className="btn-3d relative px-2 py-1 rounded border border-white/15 hover:bg-white/10 hover:text-white"
           >
             Battle Log
             {logHasUnread && <span className="ml-1 text-fuchsia-300">• New</span>}

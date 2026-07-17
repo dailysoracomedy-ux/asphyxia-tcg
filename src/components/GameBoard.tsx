@@ -891,7 +891,7 @@ export default function GameBoard() {
 
   const endTurnFooter = (
     <div className="flex flex-row flex-wrap items-start justify-center gap-2">
-      <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
+      <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 flex items-center justify-center gap-2 flex-wrap">
         {state.phase === 'Start' && (
           <span className="text-[11px] text-white/40 italic px-1">Draw Phase...</span>
         )}
@@ -904,7 +904,7 @@ export default function GameBoard() {
           type="button"
           onClick={scrollSafeClick(() => state.endTurn())}
           disabled={state.phase !== 'Combat' || aiIsActing || mode.kind === 'attackerChosen'}
-          className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
+          className={`btn-3d px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
             state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
           }`}
         >
@@ -913,12 +913,12 @@ export default function GameBoard() {
       </div>
 
       {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
-        <div className="rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
+        <div className="panel-3d rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
           <div className="flex items-center justify-center gap-2 flex-wrap">
             <button type="button"
               disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
               onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-              className="px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
+              className="btn-3d px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
             >
               Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
             </button>
@@ -926,7 +926,7 @@ export default function GameBoard() {
               <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
             )}
             {mode.kind === 'reconfigurePlay' && (
-              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="btn-3d px-2 py-1 rounded bg-white/10 hover:bg-white/20">
                 Skip — finish Engine Reconfig
               </button>
             )}
@@ -957,7 +957,7 @@ export default function GameBoard() {
                         resetMode();
                       }
                     }}
-                    className="px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
+                    className="btn-3d px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
                   >
                     play {def.name}
                   </button>
@@ -1344,10 +1344,10 @@ function BattleLogDrawer({ log, onClose }: { log: GameState['log']; onClose: () 
         <div className="flex items-center justify-between shrink-0">
           <div className="text-xs uppercase tracking-widest text-white/50">Battle Log</div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={handleCopyLog} className="text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
+            <button type="button" onClick={handleCopyLog} className="btn-3d text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
               {copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed' : 'Copy Log'}
             </button>
-            <button type="button" onClick={onClose} className="text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
+            <button type="button" onClick={onClose} className="btn-3d text-[10px] px-2 py-1 rounded border border-white/20 hover:bg-white/10">
               Close
             </button>
           </div>
@@ -1382,7 +1382,7 @@ function ShowcaseControls() {
   }, []);
 
   return (
-    <div className="shrink-0 rounded-lg border border-fuchsia-500/30 bg-[#05050a] px-2 py-1 flex items-center justify-center gap-3 text-[11px]">
+    <div className="panel-3d shrink-0 rounded-lg border border-fuchsia-500/30 bg-[#05050a] px-2 py-1 flex items-center justify-center gap-3 text-[11px]">
       <span className="text-fuchsia-300/70 uppercase tracking-widest text-[10px]">AI vs AI Showcase</span>
       <button
         type="button"
@@ -1423,7 +1423,7 @@ function AttackOutcomePreview({ state, mode }: { state: GameState; mode: Extract
   if (targets.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 text-[10px] w-fit max-w-full mx-auto">
+    <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 text-[10px] w-fit max-w-full mx-auto">
       <div className="text-white/30 uppercase tracking-widest text-center mb-1">Attack Preview</div>
       <div className="flex flex-col gap-1">
         {targets.map((target) => {
@@ -1480,7 +1480,7 @@ function OpeningApexScreen() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-[#05050a] p-6">
+      <div className="panel-3d-deep max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-[#05050a] p-6">
         <div className="text-center mb-4">
           <div className="text-[11px] uppercase tracking-widest text-white/40">Opening Hand — choose your starting Apex</div>
           <div className="text-xl font-bold text-cyan-300">
@@ -1551,7 +1551,7 @@ function GameOverScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div
-        className="max-w-2xl w-full rounded-xl border-2 p-8"
+        className="panel-3d-deep max-w-2xl w-full rounded-xl border-2 p-8"
         style={{ borderColor: theme?.border ?? '#888', boxShadow: theme ? `0 0 40px ${theme.primary}66` : undefined }}
       >
         <div className="text-center">

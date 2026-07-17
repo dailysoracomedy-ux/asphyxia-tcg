@@ -50,7 +50,7 @@ export default function CardInspectModal({ instance, state, ownerId, zone, onClo
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="max-w-sm w-full rounded-xl border-2 p-4 max-h-[85vh] overflow-y-auto"
+        className="panel-3d-deep max-w-sm w-full rounded-xl border-2 p-4 max-h-[85vh] overflow-y-auto"
         style={{ borderColor: theme.border, background: '#0a0512', boxShadow: `0 0 30px ${theme.primary}55` }}
         onClick={(e) => e.stopPropagation()}
       >

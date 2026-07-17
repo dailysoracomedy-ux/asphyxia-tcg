@@ -36,7 +36,7 @@ export default function VoidInspectModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6" onClick={onClose}>
       <div
-        className="max-w-4xl w-full max-h-[85vh] rounded-xl border-2 p-5 flex flex-col"
+        className="panel-3d-deep max-w-4xl w-full max-h-[85vh] rounded-xl border-2 p-5 flex flex-col"
         style={{ borderColor: theme.border, background: '#05050a', boxShadow: `0 0 30px ${theme.primary}44` }}
         onClick={(e) => e.stopPropagation()}
       >
