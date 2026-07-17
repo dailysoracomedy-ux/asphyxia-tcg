@@ -20,23 +20,43 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   const theme = factionTheme(player.faction);
   const isActive = state.activePlayerId === playerId && state.status === 'playing';
 
+  // Commit 46 - the chip is ALIVE: the faction nameplate is a spray-stencil
+  // tag that flickers like cheap neon while this player is active; critical
+  // O2 (<=6) pulses the readout like an alarm; and three momentum pips hum
+  // beneath the vitals. O2Stat/MomentumStat stay untouched - they carry the
+  // drop-zone and visual-event logic - the life is layered AROUND them.
+  const o2Critical = player.o2 <= 6 && state.status === 'playing';
+
   return (
     <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5">
-      <div
-        className={`font-bold tracking-wide text-[12px] mb-1 ${isActive ? 'text-shadow-glow' : 'opacity-60'}`}
-        style={{ color: theme.primary }}
-      >
-        {player.faction.toUpperCase()}
-        {isActive ? ' ◂' : ''}
+      <div className={`font-bold tracking-wide text-[12px] mb-1 ${isActive ? '' : 'opacity-60'}`}>
+        <span
+          className={`stencil-tag ${isActive ? 'text-shadow-glow neon-flicker' : ''}`}
+          style={{ color: theme.primary, ['--tag-color' as string]: theme.primary }}
+        >
+          {player.faction.toUpperCase()}
+          {isActive ? ' ◂' : ''}
+        </span>
       </div>
       <div className="flex items-center gap-1.5 font-mono text-[12px] whitespace-nowrap">
-        <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
+        <span className={o2Critical ? 'o2-critical' : undefined}>
+          <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
+        </span>
         <span className="text-white/20">|</span>
         <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
         <span className="text-white/20">|</span>
         <span className="text-white/40">Hand {player.hand.length}</span>
         <span className="text-white/20">|</span>
         <span className="text-fuchsia-300">Sync {player.availableSync}</span>
+      </div>
+      <div className="flex items-center gap-1 mt-1" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={`mom-pip ${i < player.momentum ? 'lit' : ''}`}
+            style={{ ['--pip-color' as string]: theme.primary }}
+          />
+        ))}
       </div>
     </div>
   );

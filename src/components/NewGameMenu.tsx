@@ -213,6 +213,8 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
   return (
     <div className="min-h-screen flex items-center justify-center scanlines">
+      {/* Commit 46 - living film grain over the whole menu scene. */}
+      <div className="world-grain" aria-hidden />
       <div className="panel-3d-deep max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
