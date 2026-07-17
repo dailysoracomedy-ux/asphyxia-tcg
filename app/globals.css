@@ -528,14 +528,11 @@ html, body {
    like flaked paint. The press/hover/elevation mechanics from 45 stay:
    grunge is the finish, not the physics. */
 
-/* Commit 47 - hand-made art era: buttons wear the user's universal button
-   frame (public/ui/button-frame.webp, a complete 9-sliced button FACE) drawn
-   by ::before, which paints ABOVE the background but BELOW the text - labels
-   can never be covered (the Commit 46 lesson). The element's own border still
-   paints outside the ::before, so faction border colors + glows survive.
-   Press/hover mechanics unchanged. Bespoke-art buttons (START, HEADS/TAILS,
-   deck picker, O2, End Turn, Continue) use .btn-art instead - full designed
-   images with their own baked text. */
+/* Commit 47 introduced hand-made art on generic chrome; Commit 49.1 removed
+   it again per direction (the 9-slice art muddied small buttons - see the
+   .btn-3d note below). Generic chrome is pure black CSS. Bespoke-art buttons
+   (START, HEADS/TAILS, deck picker, O2, End Turn, Continue, menu plates) use
+   .btn-art - full designed images with their own baked text - and stay. */
 .btn-3d {
   position: relative;
   box-shadow:
@@ -545,15 +542,13 @@ html, body {
     0 1px 2px rgba(0,0,0,0.65);
   transition: transform 90ms ease, box-shadow 90ms ease, filter 90ms ease;
 }
-.btn-3d::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 10px solid transparent;
-  border-image: url('/ui/button-frame.webp') 110 fill stretch;
-  border-radius: inherit;
-  opacity: 0.92;
-  pointer-events: none;
+/* Commit 49.1 - the universal frame art is GONE from generic buttons (it
+   muddied small chrome into illegibility - the Locker being the worst hit).
+   Generic buttons are pure black CSS again: their call-site bg/border colors
+   over a subtle dark shade, with the press physics unchanged. Bespoke .btn-art
+   buttons (START, deck plates, END TURN, menu plates...) are untouched. */
+.btn-3d {
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%);
 }
 .btn-3d:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -573,9 +568,7 @@ html, body {
 }
 .btn-3d:disabled {
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
-}
-.btn-3d:disabled::before {
-  opacity: 0.45;
+  background-image: none;
 }
 
 /* Bespoke-art buttons: the image IS the button (text baked into the art;
@@ -610,19 +603,10 @@ html, body {
     0 6px 16px rgba(0,0,0,0.45),
     0 2px 4px rgba(0,0,0,0.55);
 }
-.panel-3d::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 12px solid transparent;
-  border-image: url('/ui/panel.webp') 120 fill stretch;
-  border-radius: inherit;
-  opacity: 0.95;
-  pointer-events: none;
-  z-index: 0;
+/* Commit 49.1 - panel art removed: pure black plates, bevel + elevation only. */
+.panel-3d {
+  background-color: #000;
 }
-/* content above the panel art */
-.panel-3d > * { position: relative; z-index: 1; }
 
 /* Floating panel: modals and the main menu card - heavier plate, deeper drop. */
 .panel-3d-deep {
@@ -634,18 +618,9 @@ html, body {
     0 24px 60px rgba(0,0,0,0.6),
     0 6px 16px rgba(0,0,0,0.55);
 }
-.panel-3d-deep::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border: 14px solid transparent;
-  border-image: url('/ui/panel.webp') 120 fill stretch;
-  border-radius: inherit;
-  opacity: 0.97;
-  pointer-events: none;
-  z-index: 0;
+.panel-3d-deep {
+  background-color: #000;
 }
-.panel-3d-deep > * { position: relative; z-index: 1; }
 
 /* ===== Commit 46: the world is ALIVE ===== */
 
