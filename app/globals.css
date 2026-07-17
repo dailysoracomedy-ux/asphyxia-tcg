@@ -518,20 +518,41 @@ html, body {
   /* lifts are static, not motion - deliberately left on */
 }
 
-/* ===== Commit 45: 3D chrome - the whole UI gets physical ===== */
+/* ===== Commit 45: 3D chrome / Commit 46: THE GRUNGE PASS =====
+   Commit 46 restyles the Commit 45 chrome classes IN PLACE - every call site
+   keeps its class, the whole UI changes at once. The system: procedurally
+   generated textures (public/textures/, scripts/generate-grunge-textures.py)
+   layered into every button and panel - grime stains (multiply), brushed
+   plate surfaces, wear scratches (screen) - plus a 9-slice CHIPPED FRAME
+   (frame.png) drawn by each element's ::after, which erodes every border
+   like flaked paint. The press/hover/elevation mechanics from 45 stay:
+   grunge is the finish, not the physics. */
 
-/* Convex button treatment. Layers OVER each button's existing bg color
-   classes (background-image stacks on background-color): lit top face,
-   shadowed underside, real elevation, and a genuine PRESS on :active -
-   the button travels down and its shadow inverts to inset. */
 .btn-3d {
-  background-image: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.28) 100%);
+  position: relative;
+  background-image:
+    url('/textures/grime.png'),
+    linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 42%, rgba(0,0,0,0.28) 100%);
+  background-size: 190px auto, 100% 100%;
+  background-blend-mode: multiply, normal;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.16),
     inset 0 -2px 3px rgba(0,0,0,0.42),
     0 3px 6px rgba(0,0,0,0.5),
     0 1px 2px rgba(0,0,0,0.65);
   transition: transform 90ms ease, box-shadow 90ms ease;
+}
+/* Chipped paint edge - eroded 9-slice frame over whatever border color the
+   button already wears, so faction-colored borders come through the chips. */
+.btn-3d::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 8px solid transparent;
+  border-image: url('/textures/frame.png') 84 / 8px stretch;
+  border-radius: inherit;
+  opacity: 0.8;
+  pointer-events: none;
 }
 .btn-3d:hover:not(:disabled) {
   transform: translateY(-1px);
@@ -543,35 +564,160 @@ html, body {
 }
 .btn-3d:active:not(:disabled) {
   transform: translateY(1px);
-  background-image: linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.05) 100%);
+  background-image:
+    url('/textures/grime.png'),
+    linear-gradient(180deg, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0.05) 100%);
+  background-size: 190px auto, 100% 100%;
+  background-blend-mode: multiply, normal;
   box-shadow:
     inset 0 2px 6px rgba(0,0,0,0.6),
     inset 0 -1px 0 rgba(255,255,255,0.05),
     0 1px 2px rgba(0,0,0,0.5);
 }
 .btn-3d:disabled {
-  background-image: none;
+  background-image: url('/textures/grime.png');
+  background-size: 190px auto;
+  background-blend-mode: multiply;
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
 }
 
-/* Raised panel: sidebar cards, control strips, banners. */
+/* Raised panel: a physical grimy metal plate. Layer order (top->bottom):
+   specular sheen, wear scratches (screen), grime (multiply), brushed plate. */
 .panel-3d {
-  background-image: linear-gradient(165deg, rgba(255,255,255,0.035) 0%, transparent 38%);
+  position: relative;
+  background-image:
+    linear-gradient(165deg, rgba(255,255,255,0.05) 0%, transparent 38%),
+    url('/textures/scratches.png'),
+    url('/textures/grime.png'),
+    url('/textures/plate.png');
+  background-size: 100% 100%, 512px auto, 340px auto, 512px auto;
+  background-blend-mode: normal, screen, multiply, normal;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.07),
     inset 0 -2px 6px rgba(0,0,0,0.35),
     0 6px 16px rgba(0,0,0,0.45),
     0 2px 4px rgba(0,0,0,0.55);
 }
+.panel-3d::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 7px solid transparent;
+  border-image: url('/textures/frame.png') 84 / 7px stretch;
+  border-radius: inherit;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 1;
+}
 
-/* Floating panel: modals and the main menu card - highest elevation tier. */
+/* Floating panel: modals and the main menu card - heavier plate, deeper drop. */
 .panel-3d-deep {
-  background-image: linear-gradient(165deg, rgba(255,255,255,0.05) 0%, transparent 42%);
+  position: relative;
+  background-image:
+    linear-gradient(165deg, rgba(255,255,255,0.06) 0%, transparent 42%),
+    url('/textures/scratches.png'),
+    url('/textures/grime.png'),
+    url('/textures/plate.png');
+  background-size: 100% 100%, 512px auto, 380px auto, 512px auto;
+  background-blend-mode: normal, screen, multiply, normal;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.09),
     inset 0 -3px 9px rgba(0,0,0,0.4),
     0 24px 60px rgba(0,0,0,0.6),
     0 6px 16px rgba(0,0,0,0.55);
+}
+.panel-3d-deep::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 9px solid transparent;
+  border-image: url('/textures/frame.png') 84 / 9px stretch;
+  border-radius: inherit;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ===== Commit 46: the world is ALIVE ===== */
+
+/* Living film grain over the entire scene - one grade unifies board, chrome
+   and modals into a single physical world. steps() jitter = real static. */
+@keyframes grain-shift {
+  0%   { transform: translate(0, 0); }
+  12.5%{ transform: translate(-26px, 14px); }
+  25%  { transform: translate(18px, -22px); }
+  37.5%{ transform: translate(-10px, -28px); }
+  50%  { transform: translate(24px, 10px); }
+  62.5%{ transform: translate(-30px, -6px); }
+  75%  { transform: translate(12px, 26px); }
+  87.5%{ transform: translate(-18px, 20px); }
+  100% { transform: translate(0, 0); }
+}
+.world-grain {
+  position: fixed;
+  inset: -60px;
+  pointer-events: none;
+  z-index: 90;
+  background-image: url('/textures/grain.png');
+  background-size: 256px;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  animation: grain-shift 0.9s steps(1) infinite;
+}
+
+/* Neon sign flicker - long quiet stretches, brief stutters. For the active
+   player's faction nameplate: the sign is ON, and it's a cheap sign. */
+@keyframes neon-flicker {
+  0%, 84%, 100% { opacity: 1; }
+  85% { opacity: 0.5; }
+  86% { opacity: 1; }
+  90% { opacity: 0.72; }
+  91% { opacity: 1; }
+  95% { opacity: 0.85; }
+  96% { opacity: 1; }
+}
+.neon-flicker { animation: neon-flicker 6.4s infinite; }
+
+/* Critical O2 - the number itself pulses like an alarm. */
+@keyframes o2-critical-pulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 7px rgba(248, 60, 60, 0.95)) brightness(1.3); }
+}
+.o2-critical { animation: o2-critical-pulse 1.05s ease-in-out infinite; }
+
+/* Spray-stencil tag behind the faction nameplate - grime-masked skewed
+   swatch, like the name was tagged onto the plate. --tag-color per faction. */
+.stencil-tag { position: relative; display: inline-block; padding: 0 5px; }
+.stencil-tag::before {
+  content: '';
+  position: absolute;
+  inset: -1px -5px;
+  background: var(--tag-color, #ff2fd0);
+  opacity: 0.16;
+  transform: skewX(-12deg);
+  mask-image: url('/textures/grime.png');
+  mask-size: 210px;
+  -webkit-mask-image: url('/textures/grime.png');
+  -webkit-mask-size: 210px;
+  pointer-events: none;
+}
+
+/* Momentum pips - segmented charge lights under the sidebar vitals. Lit pips
+   hum (soft glow breathing); the newest pip flares in via place-glow. */
+.mom-pip {
+  width: 14px;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.07);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.6);
+}
+@keyframes pip-hum {
+  0%, 100% { box-shadow: 0 0 4px var(--pip-color), inset 0 0 2px rgba(255,255,255,0.4); }
+  50% { box-shadow: 0 0 8px var(--pip-color), inset 0 0 2px rgba(255,255,255,0.6); }
+}
+.mom-pip.lit {
+  background: var(--pip-color, #ff2fd0);
+  animation: pip-hum 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -581,4 +727,8 @@ html, body {
     transition: none;
     transform: none;
   }
+  .world-grain { animation: none; }
+  .neon-flicker { animation: none; }
+  .o2-critical { animation: none; filter: drop-shadow(0 0 5px rgba(248,60,60,0.8)); }
+  .mom-pip.lit { animation: none; box-shadow: 0 0 5px var(--pip-color); }
 }
