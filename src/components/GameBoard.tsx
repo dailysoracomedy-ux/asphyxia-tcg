@@ -913,10 +913,18 @@ export default function GameBoard() {
           // Commit 47 - the art carries the red itself; old bg classes would
           // tint through its transparent pixels. Disabled look comes from
           // .btn-art:disabled (grayscale), driven by the real disabled attr.
-          className={`btn-art w-[156px] h-[20px] rounded ${
+          // Commit 50.3 - BUG FIX: repeated -15% shrinks across Commit 48/49
+          // (240x30 -> 184x23 -> 156x20) left this reading as a thin
+          // "stretched" sliver even though its ratio (7.8:1) was already
+          // close to the art's real 7.958:1 - the problem was absolute
+          // proportion, not distortion. Anchored on height (28px, giving it
+          // real presence as the primary action next to Reconfig) with
+          // aspectRatio deriving width from the art's true ratio, so it can
+          // never drift out of sync with the asset again either.
+          className={`btn-art rounded ${
             state.phase === 'Combat' ? 'hover:shadow-[0_0_14px_rgba(248,60,60,0.55)]' : 'cursor-not-allowed'
           }`}
-          style={{ backgroundImage: 'url(/ui/end-turn-button.webp)' }}
+          style={{ backgroundImage: 'url(/ui/end-turn-button.webp)', height: '28px', aspectRatio: '764 / 96' }}
         >
           <span className="sr-only">End Turn</span>
         </button>
@@ -940,9 +948,23 @@ export default function GameBoard() {
                 Skip — finish Engine Reconfig
               </button>
             )}
+            {/* Commit 50.3 - the reported "can't click cancel" bug: this was a
+                bare text link with ZERO padding, its clickable hit area was
+                exactly the glyph bounds of the word "cancel" - easy to visibly
+                see but genuinely hard to click precisely, especially sitting
+                in a flex-wrap row next to siblings that all have real
+                px-2.5 py-1 button padding. Cancel now gets the same button
+                treatment as Skip/Reconfig for a real, generous hit target
+                (also closes the Commit 50 section-13 "consistent interaction
+                states" gap this one element had been missed by). onClick is
+                unchanged - resetMode() was always correct. */}
             {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-              <button type="button" onClick={resetMode} className="text-white/40 hover:text-white/70">
-                cancel
+              <button
+                type="button"
+                onClick={resetMode}
+                className="px-2.5 py-1 rounded border border-white/20 bg-black/70 hover:bg-white/15 hover:border-white/35 text-white/60 hover:text-white/90 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors"
+              >
+                Cancel
               </button>
             )}
           </div>

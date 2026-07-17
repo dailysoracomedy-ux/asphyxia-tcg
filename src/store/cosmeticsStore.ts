@@ -26,7 +26,7 @@ export interface Loadout {
 // nothing reads it.
 const DEFAULT_LOADOUT: Loadout = {
   playmat: 'faction',
-  sleeve: 'asphyxia',
+  sleeve: 'none',
   coin: 'rift-standard',
 };
 

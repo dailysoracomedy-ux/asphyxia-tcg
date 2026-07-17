@@ -1,28 +1,29 @@
 /**
- * Commit 42 - the cosmetics registry: playmats, card sleeves, deck boxes and
- * flip coins. Pure data, no React - every skin is either a CSS recipe
- * (playmats, deck boxes) or an image + CSS filter recipe (sleeves, coins), so
- * the whole system ships with zero new image assets: sleeves and coins reuse
- * the existing card-back / coin art re-tinted per skin, and playmats are
- * layered CSS gradients tuned to read as printed neoprene mats under the
- * board's existing perspective tilt.
+ * Commit 42 - the cosmetics registry: playmats, card sleeves, and flip
+ * coins. Pure data, no React.
  *
- * Everything is keyed by stable string ids (stored in localStorage via
- * cosmeticsStore), so adding a new skin later is append-only: new entry here,
- * nothing else changes anywhere.
+ * Commit 50.4 - real hand-painted art replaces the original CSS-only recipes
+ * (procedural gradients for playmats, filter/overlay tints for sleeves and
+ * coins). Every playmat and sleeve is now either a genuine image or an
+ * explicit "use the default" sentinel (`'faction'` / `'none'`); every coin
+ * skin replaces only its FRONT face - tails always stays the shared default
+ * back (COIN_BACK_SRC), since that's the only face new coin art was
+ * provided for. Everything is still keyed by stable string ids (stored in
+ * localStorage via cosmeticsStore), so adding another skin later is still
+ * append-only: drop the file in static2/cosmetics/<kind>/, add one entry
+ * here, nothing else changes.
  */
 
-// Commit 45 - 'deckbox' removed: the deck now always renders as a full-bleed
-// sleeved card-back stack (per direction, the sleeve IS the deck's look).
 export type CosmeticKind = 'playmat' | 'sleeve' | 'coin';
 
 export interface PlaymatSkin {
   id: string;
   name: string;
   blurb: string;
-  /** CSS background stack for the mat surface. `null` = "faction default":
-   *  keep the board's original per-faction radial gradient. */
-  background: string | null;
+  /** `null` = the 'faction' default: the board's own dynamic per-faction
+   *  radial gradient (no art - this is the only entry without a real image,
+   *  and it's intentional: it's the "just use my deck's colors" option). */
+  image: string | null;
   /** Accent used for the mat's stitched border line; null = faction border. */
   edge: string | null;
 }
@@ -31,24 +32,23 @@ export interface SleeveSkin {
   id: string;
   name: string;
   blurb: string;
-  /** CSS filter applied over the base card-back art. */
-  filter: string;
+  /** `null` = the 'none' default: the original printed card back
+   *  (SLEEVE_BASE_SRC), unmodified. Every other entry REPLACES the back
+   *  entirely with its own art - no filter/overlay tinting anymore. */
+  image: string | null;
   /** Sleeve rim color - the thin plastic edge you see around a sleeved card. */
   rim: string;
-  /** Optional printed layer composited over the art (CSS background stack) -
-   *  what turns a tint into a DESIGN: stripes, scanlines, holo sheens. */
-  overlay?: string;
-  /** Blend mode for the overlay (default 'normal'). */
-  overlayBlend?: string;
 }
 
 export interface CoinSkin {
   id: string;
   name: string;
   blurb: string;
-  /** CSS filter baked into the coin textures (canvas-side, so it also works
-   *  inside WebGL where CSS filters can't reach). */
-  filter: string;
+  /** `null` = the 'rift-standard' default front (COIN_FRONT_SRC). Every
+   *  other entry replaces ONLY the front/heads face - tails is always the
+   *  shared default back (COIN_BACK_SRC) for every skin, since that's the
+   *  only face new coin art was provided for. */
+  frontImage: string | null;
 }
 
 export const COIN_FRONT_SRC = '/images/coin-front.png';
@@ -59,81 +59,17 @@ export const SLEEVE_BASE_SRC = '/art/card-back.webp';
 /* Playmats                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Shared fine-grid layer - reads as the printed alignment grid on a real mat. */
-const MAT_GRID =
-  'repeating-linear-gradient(0deg, rgba(255,255,255,0.030) 0 1px, transparent 1px 26px), ' +
-  'repeating-linear-gradient(90deg, rgba(255,255,255,0.030) 0 1px, transparent 1px 26px)';
-
 export const PLAYMATS: PlaymatSkin[] = [
-  {
-    id: 'faction',
-    name: 'Faction Standard',
-    blurb: 'The stock mat. Your deck’s own colors, nothing else.',
-    background: null,
-    edge: null,
-  },
-  {
-    id: 'street-static',
-    name: 'Street Static',
-    blurb: 'Neon Underground back-alley signal wash.',
-    background:
-      `${MAT_GRID}, ` +
-      'radial-gradient(ellipse 90% 70% at 20% 100%, rgba(255,47,208,0.16), transparent 60%), ' +
-      'radial-gradient(ellipse 90% 70% at 80% 100%, rgba(57,255,106,0.12), transparent 60%), ' +
-      'linear-gradient(165deg, #17041a 0%, #05050a 55%, #041007 100%)',
-    edge: '#ff2fd0',
-  },
-  {
-    id: 'acid-rain',
-    name: 'Acid Rain',
-    blurb: 'Toxic runoff streaking down corrugated steel.',
-    background:
-      'repeating-linear-gradient(115deg, rgba(57,255,106,0.05) 0 2px, transparent 2px 18px), ' +
-      `${MAT_GRID}, ` +
-      'radial-gradient(ellipse 120% 80% at 50% 110%, rgba(57,255,106,0.15), transparent 65%), ' +
-      'linear-gradient(180deg, #060b06 0%, #04120a 100%)',
-    edge: '#39ff6a',
-  },
-  {
-    id: 'chrome-grid',
-    name: 'Chrome Grid',
-    blurb: 'Dark White clean-room floor. Sterile. Watched.',
-    background:
-      'repeating-linear-gradient(0deg, rgba(32,224,255,0.05) 0 1px, transparent 1px 34px), ' +
-      'repeating-linear-gradient(90deg, rgba(32,224,255,0.05) 0 1px, transparent 1px 34px), ' +
-      'radial-gradient(ellipse 100% 75% at 50% 100%, rgba(32,224,255,0.12), transparent 60%), ' +
-      'linear-gradient(180deg, #060a0d 0%, #02141a 100%)',
-    edge: '#20e0ff',
-  },
-  {
-    id: 'ascendant-circuit',
-    name: 'Ascendant Circuit',
-    blurb: 'Synth Ascendancy boardroom silicon, still warm.',
-    background:
-      'radial-gradient(circle at 18% 30%, rgba(162,91,255,0.10) 0 2px, transparent 3px), ' +
-      'radial-gradient(circle at 72% 62%, rgba(255,145,48,0.10) 0 2px, transparent 3px), ' +
-      `${MAT_GRID}, ` +
-      'radial-gradient(ellipse 100% 80% at 50% 110%, rgba(162,91,255,0.16), transparent 62%), ' +
-      'linear-gradient(160deg, #120421 0%, #05050a 60%, #170b00 100%)',
-    edge: '#a25bff',
-  },
-  {
-    id: 'blood-signal',
-    name: 'Blood Signal',
-    blurb: 'Emergency broadcast red. Somebody’s O2 is about to hit zero.',
-    background:
-      `${MAT_GRID}, ` +
-      'radial-gradient(ellipse 110% 75% at 50% 105%, rgba(248,60,60,0.16), transparent 62%), ' +
-      'linear-gradient(180deg, #0d0406 0%, #14060a 100%)',
-    edge: '#f83c3c',
-  },
-  {
-    id: 'blackout',
-    name: 'Blackout',
-    blurb: 'Matte void. Let the cards do the talking.',
-    background: `${MAT_GRID}, linear-gradient(180deg, #060608 0%, #030304 100%)`,
-    edge: '#3a3a46',
-  },
+  { id: 'faction', name: 'Faction Standard', blurb: 'The stock mat. Your deck’s own colors, nothing else.', image: null, edge: null },
+  { id: 'cracked-ground', name: 'Cracked Ground', blurb: 'Scorched earth, split wide open.', image: '/cosmetics/playmats/cracked-ground.webp', edge: '#ff9b4a' },
+  { id: 'digital-bleed', name: 'Digital Bleed', blurb: 'The signal is dying and taking the picture with it.', image: '/cosmetics/playmats/digital-bleed.webp', edge: '#20e0ff' },
+  { id: 'old-gods', name: 'Old Gods', blurb: 'Something was worshipped here, once.', image: '/cosmetics/playmats/old-gods.webp', edge: '#c084fc' },
+  { id: 'dark-white-arena', name: 'White Room', blurb: 'Dark White’s clean-room floor. Sterile. Watched.', image: '/cosmetics/playmats/dark-white-arena.webp', edge: '#20e0ff' },
+  { id: 'dark-white-arena-2', name: 'White Room II', blurb: 'A different wing of the same facility.', image: '/cosmetics/playmats/dark-white-arena-2.webp', edge: '#a6e8ff' },
+  { id: 'neon-underground-alley', name: 'Underground Alley', blurb: 'Neon Underground back-alley signal wash.', image: '/cosmetics/playmats/neon-underground-alley.webp', edge: '#ff2fd0' },
+  { id: 'neon-underground-alley-2', name: 'Underground Alley II', blurb: 'Deeper in, further from the light.', image: '/cosmetics/playmats/neon-underground-alley-2.webp', edge: '#ff6ad5' },
+  { id: 'ascendant-spire', name: 'Ascendant Spire', blurb: 'Synth Ascendancy boardroom silicon, still warm.', image: '/cosmetics/playmats/ascendant-spire.webp', edge: '#a25bff' },
+  { id: 'ascendant-spire-2', name: 'Ascendant Spire II', blurb: 'Higher up the tower.', image: '/cosmetics/playmats/ascendant-spire-2.webp', edge: '#c9a5ff' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -141,73 +77,34 @@ export const PLAYMATS: PlaymatSkin[] = [
 /* ------------------------------------------------------------------ */
 
 export const SLEEVES: SleeveSkin[] = [
-  { id: 'asphyxia', name: 'Asphyxia Classic', blurb: 'The factory back. Unsleeved and proud.', filter: 'none', rim: 'rgba(255,255,255,0.22)' },
-  { id: 'toxic', name: 'Toxic Batch', blurb: 'Re-inked in runoff green.', filter: 'hue-rotate(95deg) saturate(1.35)', rim: 'rgba(57,255,106,0.55)' },
-  { id: 'cryo', name: 'Cryo Batch', blurb: 'Flash-frozen cyan.', filter: 'hue-rotate(175deg) saturate(1.2)', rim: 'rgba(32,224,255,0.55)' },
-  { id: 'royal', name: 'Royal Batch', blurb: 'Deep violet, off-market.', filter: 'hue-rotate(-70deg) saturate(1.25)', rim: 'rgba(162,91,255,0.55)' },
-  { id: 'mono', name: 'Monochrome', blurb: 'All signal, no color.', filter: 'grayscale(1) contrast(1.15) brightness(1.05)', rim: 'rgba(244,251,255,0.4)' },
-  {
-    id: 'blood-oath',
-    name: 'Blood Oath',
-    blurb: 'Signed in red. Diagonal hazard scoring.',
-    filter: 'hue-rotate(-140deg) saturate(1.5) brightness(0.95)',
-    rim: 'rgba(248,60,60,0.6)',
-    overlay:
-      'repeating-linear-gradient(135deg, rgba(248,60,60,0.14) 0 6px, transparent 6px 22px)',
-    overlayBlend: 'screen',
-  },
-  {
-    id: 'circuit-gold',
-    name: 'Circuit Gold',
-    blurb: 'Gilded traces on black glass.',
-    filter: 'sepia(0.9) saturate(1.6) hue-rotate(-12deg) contrast(1.1)',
-    rim: 'rgba(255,196,64,0.6)',
-    overlay:
-      'repeating-linear-gradient(0deg, rgba(255,196,64,0.08) 0 1px, transparent 1px 14px), ' +
-      'repeating-linear-gradient(90deg, rgba(255,196,64,0.08) 0 1px, transparent 1px 14px)',
-    overlayBlend: 'screen',
-  },
-  {
-    id: 'void-static',
-    name: 'Void Static',
-    blurb: 'A broadcast from nowhere. Scanlined.',
-    filter: 'grayscale(0.85) contrast(1.35) brightness(0.9)',
-    rim: 'rgba(255,255,255,0.3)',
-    overlay:
-      'repeating-linear-gradient(0deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), ' +
-      'radial-gradient(ellipse at 50% 40%, transparent 50%, rgba(0,0,0,0.45) 100%)',
-  },
-  {
-    id: 'holo-rift',
-    name: 'Holo Rift',
-    blurb: 'Iridescent laminate. Catches every light in the room.',
-    filter: 'saturate(1.25) brightness(1.05)',
-    rim: 'rgba(255,255,255,0.55)',
-    overlay:
-      'linear-gradient(115deg, rgba(255,47,208,0.20) 0%, rgba(32,224,255,0.18) 30%, rgba(57,255,106,0.16) 55%, rgba(162,91,255,0.20) 80%, rgba(255,196,64,0.16) 100%)',
-    overlayBlend: 'screen',
-  },
-  {
-    id: 'hazard-line',
-    name: 'Hazard Line',
-    blurb: 'Do not cross. You will anyway.',
-    filter: 'saturate(1.15) contrast(1.08)',
-    rim: 'rgba(250,204,21,0.65)',
-    overlay:
-      'linear-gradient(0deg, transparent 0 88%, rgba(250,204,21,0.5) 88% 90%, rgba(0,0,0,0.55) 90% 94%, rgba(250,204,21,0.5) 94% 96%, transparent 96%), ' +
-      'linear-gradient(180deg, transparent 0 88%, rgba(250,204,21,0.5) 88% 90%, rgba(0,0,0,0.55) 90% 94%, rgba(250,204,21,0.5) 94% 96%, transparent 96%)',
-  },
+  { id: 'none', name: 'None', blurb: 'The factory back. Unsleeved and proud.', image: null, rim: 'rgba(255,255,255,0.22)' },
+  { id: 'riot', name: 'Riot', blurb: 'Asphyxia house art - a street about to blow.', image: '/cosmetics/sleeves/riot.webp', rim: 'rgba(255,47,208,0.55)' },
+  { id: 'timewarp', name: 'Timewarp', blurb: 'Asphyxia house art - the moment before impact.', image: '/cosmetics/sleeves/timewarp.webp', rim: 'rgba(32,224,255,0.55)' },
+  { id: 'last-breath', name: 'Last Breath', blurb: 'Asphyxia house art - down to the wire.', image: '/cosmetics/sleeves/last-breath.webp', rim: 'rgba(162,91,255,0.55)' },
+  { id: 'skulls', name: 'Skulls', blurb: 'Asphyxia house art - the classic, dressed up.', image: '/cosmetics/sleeves/skulls.webp', rim: 'rgba(244,251,255,0.4)' },
+  { id: 'dark-white-1', name: 'Dark White I', blurb: 'Faction art, Dark White.', image: '/cosmetics/sleeves/dark-white-1.webp', rim: 'rgba(32,224,255,0.5)' },
+  { id: 'dark-white-2', name: 'Dark White II', blurb: 'Faction art, Dark White.', image: '/cosmetics/sleeves/dark-white-2.webp', rim: 'rgba(166,232,255,0.5)' },
+  { id: 'neon-underground-1', name: 'Neon Underground I', blurb: 'Faction art, Neon Underground.', image: '/cosmetics/sleeves/neon-underground-1.webp', rim: 'rgba(255,47,208,0.55)' },
+  { id: 'neon-underground-2', name: 'Neon Underground II', blurb: 'Faction art, Neon Underground.', image: '/cosmetics/sleeves/neon-underground-2.webp', rim: 'rgba(255,106,213,0.55)' },
+  { id: 'synth-ascendancy-1', name: 'Synth Ascendancy I', blurb: 'Faction art, Synth Ascendancy.', image: '/cosmetics/sleeves/synth-ascendancy-1.webp', rim: 'rgba(162,91,255,0.55)' },
+  { id: 'synth-ascendancy-2', name: 'Synth Ascendancy II', blurb: 'Faction art, Synth Ascendancy.', image: '/cosmetics/sleeves/synth-ascendancy-2.webp', rim: 'rgba(201,165,255,0.55)' },
 ];
 
 /* ------------------------------------------------------------------ */
-/* Coins                                                               */
+/* Coins - front-face-only skins; tails is always COIN_BACK_SRC.       */
 /* ------------------------------------------------------------------ */
 
 export const COINS: CoinSkin[] = [
-  { id: 'rift-standard', name: 'Rift Standard', blurb: 'The coin as struck. Skull and sigil.', filter: 'none' },
-  { id: 'toxic-mint', name: 'Toxic Mint', blurb: 'Same die, dirtier metal.', filter: 'hue-rotate(95deg) saturate(1.3)' },
-  { id: 'cryo-mint', name: 'Cryo Mint', blurb: 'Struck cold. Stays cold.', filter: 'hue-rotate(175deg) saturate(1.15)' },
-  { id: 'ember-mint', name: 'Ember Mint', blurb: 'Pulled from the press still glowing.', filter: 'hue-rotate(-55deg) saturate(1.35)' },
+  { id: 'rift-standard', name: 'Rift Standard', blurb: 'The coin as struck. Skull and sigil.', frontImage: null },
+  { id: 'dark-white-1', name: 'Dark White I', blurb: 'Faction mint, Dark White.', frontImage: '/cosmetics/coins/dark-white-1.webp' },
+  { id: 'dark-white-2', name: 'Dark White II', blurb: 'Faction mint, Dark White.', frontImage: '/cosmetics/coins/dark-white-2.webp' },
+  { id: 'neon-underground-1', name: 'Neon Underground I', blurb: 'Faction mint, Neon Underground.', frontImage: '/cosmetics/coins/neon-underground-1.webp' },
+  { id: 'neon-underground-2', name: 'Neon Underground II', blurb: 'Faction mint, Neon Underground.', frontImage: '/cosmetics/coins/neon-underground-2.webp' },
+  { id: 'synth-ascendancy-1', name: 'Synth Ascendancy I', blurb: 'Faction mint, Synth Ascendancy.', frontImage: '/cosmetics/coins/synth-ascendancy-1.webp' },
+  { id: 'synth-ascendancy-2', name: 'Synth Ascendancy II', blurb: 'Faction mint, Synth Ascendancy.', frontImage: '/cosmetics/coins/synth-ascendancy-2.webp' },
+  { id: 'frozen', name: 'Frozen', blurb: 'Struck cold. Stays cold.', frontImage: '/cosmetics/coins/frozen.webp' },
+  { id: 'overdrive', name: 'Overdrive', blurb: 'Pulled from the press still glowing.', frontImage: '/cosmetics/coins/overdrive.webp' },
+  { id: 'toxic-gas', name: 'Toxic Gas', blurb: 'Same die, dirtier metal.', frontImage: '/cosmetics/coins/toxic-gas.webp' },
 ];
 
 /* ------------------------------------------------------------------ */

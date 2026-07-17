@@ -12,9 +12,12 @@
  * coin.flipLoop is intentionally retired since a 1.1s toss has no room for a
  * 1.785s loop (see sfx.ts's Commit 34.3 note for the measured durations).
  *
- * Coin skins (lib/cosmetics.ts) are applied by drawing the coin art through a
- * CSS filter on a 2D canvas before it becomes a WebGL texture - filters can't
- * reach inside WebGL, so the tint is baked in at texture build time instead.
+ * Commit 50.4 - coin skins (lib/cosmetics.ts) now replace the FRONT face
+ * outright with real art (`frontSrc`) rather than CSS-tinting the shared
+ * default texture; tails always stays the default back for every skin,
+ * since that's the only face new coin art was provided for. The emissive-
+ * mask extraction below (loadCoinTextures) runs on whatever image is loaded,
+ * front or back, custom or default - it doesn't care which.
  *
  * Commit 44 lighting model - the coin's own colors glow, nothing else does.
  * The old approach (a big additive halo sprite + a shadow-mapped floor) had
@@ -43,6 +46,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { COIN_FRONT_SRC, COIN_BACK_SRC } from '@/lib/cosmetics';
+import { loadCoinTextures, reededEdgeTexture } from '@/lib/coinTextures';
 import { playSfx } from '@/audio/sfx';
 
 export type CoinFace = 'heads' | 'tails';
@@ -52,8 +56,9 @@ interface CoinFlip3DProps {
    *  and a square canvas was cropping the coin at the apex of its throw. */
   width?: number;
   height?: number;
-  /** CSS filter baked into the coin textures (from the selected CoinSkin). */
-  skinFilter?: string;
+  /** Overrides the heads/front face art (from the selected CoinSkin's
+   *  frontImage). Falls back to the default COIN_FRONT_SRC when omitted. */
+  frontSrc?: string;
   /** Bump this to a new positive value to launch a flip to `flipTo`. */
   flipId: number;
   flipTo: CoinFace | null;
@@ -70,74 +75,8 @@ function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/** Draws an image through a CSS filter onto a canvas, then derives an
- *  emissive mask from it: only saturated, bright pixels (the neon inlays)
- *  survive; stone/metal goes black. Both textures share the same pixels, so
- *  the glow always sits exactly on the art it comes from - including through
- *  coin-skin tint filters, since the mask is computed AFTER the filter. */
-function loadCoinTextures(src: string, filter: string, onReady: (base: THREE.Texture, emissive: THREE.Texture) => void) {
-  const img = new Image();
-  img.onload = () => {
-    const S = 1024;
-    const c = document.createElement('canvas');
-    c.width = c.height = S;
-    const x = c.getContext('2d')!;
-    // Flatten onto the scene's near-black so any transparent corners blend in.
-    x.fillStyle = '#05050a';
-    x.fillRect(0, 0, S, S);
-    if (filter && filter !== 'none') x.filter = filter;
-    x.drawImage(img, 0, 0, S, S);
 
-    const e = document.createElement('canvas');
-    e.width = e.height = S;
-    const ex = e.getContext('2d')!;
-    ex.drawImage(c, 0, 0);
-    const data = ex.getImageData(0, 0, S, S);
-    const px = data.data;
-    for (let i = 0; i < px.length; i += 4) {
-      const r = px[i], g = px[i + 1], b = px[i + 2];
-      const mx = Math.max(r, g, b);
-      const mn = Math.min(r, g, b);
-      const sat = mx > 0 ? (mx - mn) / mx : 0;
-      const lum = mx / 255;
-      // Soft-edged keep factor: fully on for vivid bright pixels, ramping to
-      // zero for anything dull or dark - a hard cutoff leaves crunchy fringes.
-      const k = Math.min(1, Math.max(0, (sat - 0.35) / 0.2)) * Math.min(1, Math.max(0, (lum - 0.3) / 0.22));
-      px[i] = r * k;
-      px[i + 1] = g * k;
-      px[i + 2] = b * k;
-    }
-    ex.putImageData(data, 0, 0);
-
-    const base = new THREE.CanvasTexture(c);
-    base.anisotropy = 8;
-    base.colorSpace = THREE.SRGBColorSpace;
-    const emissive = new THREE.CanvasTexture(e);
-    emissive.anisotropy = 8;
-    emissive.colorSpace = THREE.SRGBColorSpace;
-    onReady(base, emissive);
-  };
-  img.src = src;
-}
-
-function reededEdgeTexture(): THREE.Texture {
-  const c = document.createElement('canvas');
-  c.width = 1024;
-  c.height = 64;
-  const x = c.getContext('2d')!;
-  x.fillStyle = '#2b2b33';
-  x.fillRect(0, 0, 1024, 64);
-  for (let i = 0; i < 1024; i += 8) {
-    x.fillStyle = (i / 8) % 2 ? '#1a1a20' : '#43434f';
-    x.fillRect(i, 0, 8, 64);
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = THREE.RepeatWrapping;
-  t.repeat.x = 4;
-  return t;
-}
-
-export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'none', flipId, flipTo, onLanded }: CoinFlip3DProps) {
+export default function CoinFlip3D({ width = 300, height = 430, frontSrc, flipId, flipTo, onLanded }: CoinFlip3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   /** Imperative bridge into the render loop - re-renders never rebuild the scene. */
   const controlRef = useRef<{ flip: (to: CoinFace) => void } | null>(null);
@@ -257,7 +196,7 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     const matTails = new THREE.MeshStandardMaterial({ color: 0x222228, metalness: 0.25, roughness: 0.55, emissive: 0xffffff, emissiveIntensity: 0 });
 
     let disposed = false;
-    loadCoinTextures(COIN_FRONT_SRC, skinFilter, (base, emissive) => {
+    loadCoinTextures(frontSrc ?? COIN_FRONT_SRC, 'none', 1024, (base, emissive) => {
       if (disposed) return;
       for (const t of [base, emissive]) {
         t.center.set(0.5, 0.5);
@@ -269,7 +208,7 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
       matHeads.color.set(0xffffff);
       matHeads.needsUpdate = true;
     });
-    loadCoinTextures(COIN_BACK_SRC, skinFilter, (base, emissive) => {
+    loadCoinTextures(COIN_BACK_SRC, 'none', 1024, (base, emissive) => {
       if (disposed) return;
       for (const t of [base, emissive]) {
         t.center.set(0.5, 0.5);
@@ -399,9 +338,9 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
       renderer.dispose();
       host.removeChild(renderer.domElement);
     };
-    // skinFilter/dimension changes rebuild the scene - all only change
-    // between flips (Locker / menu navigation), never mid-toss.
-  }, [width, height, skinFilter]);
+    // frontSrc/dimension changes rebuild the scene - all only change between
+    // flips (Locker / menu navigation), never mid-toss.
+  }, [width, height, frontSrc]);
 
   // Prop-driven flip trigger: a new flipId with a target face launches the toss.
   useEffect(() => {
@@ -420,12 +359,11 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
       {fallback && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={fallbackFace === 'heads' ? COIN_FRONT_SRC : COIN_BACK_SRC}
+          src={fallbackFace === 'heads' ? (frontSrc ?? COIN_FRONT_SRC) : COIN_BACK_SRC}
           alt={fallbackFace === 'heads' ? 'Heads' : 'Tails'}
           draggable={false}
           className="absolute rounded-full pointer-events-none"
           style={{
-            filter: skinFilter !== 'none' ? skinFilter : undefined,
             width: width * 0.75,
             height: width * 0.75,
             left: width * 0.125,

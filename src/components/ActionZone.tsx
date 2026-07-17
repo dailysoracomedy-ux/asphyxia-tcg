@@ -33,6 +33,11 @@ export default function ActionZone({ playerId, drag, tutorialMode }: { playerId:
       }`}
       style={{ width: 104, height: 110, zIndex: isLegalDropTarget ? 25 : undefined }}
     >
+      {/* Commit 50.4 - a dedicated opaque black base layer, separate from the
+          bg-emerald-400/10 drop-target highlight class above, so real
+          playmat art can't show through the Action box at rest without
+          fighting Tailwind class-order specificity for the highlight state. */}
+      <div className="absolute inset-0 rounded-md bg-black -z-10" aria-hidden />
       Action
     </div>
   );

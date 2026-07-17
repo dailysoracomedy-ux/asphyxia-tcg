@@ -117,9 +117,14 @@ export default function PlayerBoard({
       className={`relative rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
       style={{
         borderColor: playmat.edge ? `${playmat.edge}66` : `${theme.border}55`,
-        background:
-          playmat.background ??
-          `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
+        // Commit 50.4 - real playmat art (cover, centered) replaces the old
+        // CSS-gradient recipe when a real skin is equipped; the 'faction'
+        // default keeps the exact original dynamic per-faction gradient.
+        background: playmat.image
+          ? `url(${playmat.image})`
+          : `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
+        backgroundSize: playmat.image ? 'cover' : undefined,
+        backgroundPosition: playmat.image ? 'center' : undefined,
         transform: 'perspective(1100px) rotateX(11deg)',
         transformOrigin: 'center center',
         // Commit 44 - the board's 11-degree tilt existed since Commit 23, but
@@ -134,12 +139,18 @@ export default function PlayerBoard({
           light, the bottom falls into shadow - plus a soft specular sheen
           sweeping from the top-left, per the app-wide unified light
           convention (globals.css). Purely paint: pointer-transparent, and it
-          sits under the (relative) content grid. */}
+          sits under the (relative) content grid.
+          Commit 50.4 - a thin PURE BLACK inset stroke just inside the outer
+          edge, simulating a real playmat's sewn border. Deliberately thin
+          (5px) and independent of the outer border/glow (borderColor above,
+          active-board-glow class) which stays exactly as it was - "keep the
+          glow outside, add a stitch inside" was the ask, not a replacement. */}
       <div
         aria-hidden
         className="absolute inset-0 rounded-lg pointer-events-none"
         style={{
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -3px 9px rgba(0,0,0,0.45)',
+          boxShadow:
+            'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -3px 9px rgba(0,0,0,0.45), inset 0 0 0 5px #000',
           background:
             'linear-gradient(115deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 26%, transparent 45%)',
         }}

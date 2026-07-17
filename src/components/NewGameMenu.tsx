@@ -72,10 +72,17 @@ function FactionPicker({
               // equivalent of an <img> with object-fit:fill - the art
               // stretches to exactly match the wrapper's box, no cropping.
               className={`btn-art block mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              // Commit 50.3 - BUG FIX: height was hardcoded to '58px' independent
+              // of width, so when Simulated Match's narrower column forced the
+              // width down via maxWidth:100%, height stayed pinned at 58px and
+              // the art visibly squished ("too compacted"). aspectRatio now
+              // derives height from whatever width actually renders, so the
+              // chunky 340:58 look you asked for scales down cleanly instead
+              // of distorting further.
               style={{
                 backgroundImage: `url(${DECK_BUTTON_ART[f]})`,
                 width: '340px',
-                height: '58px',
+                aspectRatio: '340 / 58',
                 maxWidth: '100%',
                 boxShadow: active ? `0 0 14px ${glowColorOverride ?? theme.primary}` : 'none',
               }}
@@ -391,8 +398,13 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               onMouseEnter={() => playSfx('ui.hover')}
               // Fixed 280x42 per explicit spec - smaller and not full-width,
               // sitting centered beneath the O2 row.
+              // Commit 50.3 - BUG FIX: was a hardcoded width:280/height:42 (ratio
+              // 6.667:1), but the art's real ratio is 224:54 (4.148:1) - forcing
+              // it into a box 60% more elongated than its native shape is
+              // literally what "stretched" means. Now anchored on width with
+              // aspectRatio deriving height from the art's real proportions.
               className="btn-art block mt-6 mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
-              style={{ backgroundImage: 'url(/ui/start-button.webp)', width: '280px', height: '42px', maxWidth: '100%' }}
+              style={{ backgroundImage: 'url(/ui/start-button.webp)', width: '200px', aspectRatio: '224 / 54', maxWidth: '100%' }}
             >
               <span className="sr-only">START</span>
             </button>
@@ -411,13 +423,13 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 distinct (magenta vs cyan glow via glowColorOverride) with a
                 central VS divider, equal-width columns either side. */}
             <div className="flex items-center justify-center gap-4">
-              <div className="flex-1 max-w-[180px]">
+              <div className="flex-1 max-w-[220px]">
                 <FactionPicker label="Deck A" value={p1} onChange={setP1} glowColorOverride="#ff2fd0" />
               </div>
               <div className="shrink-0 flex flex-col items-center justify-center pt-6" aria-hidden>
                 <span className="text-[11px] font-black tracking-widest text-white/30">VS</span>
               </div>
-              <div className="flex-1 max-w-[180px]">
+              <div className="flex-1 max-w-[220px]">
                 <FactionPicker label="Deck B" value={p2} onChange={setP2} glowColorOverride="#22d3ee" />
               </div>
             </div>
@@ -478,7 +490,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             <CoinFlip3D
               width={446}
               height={460}
-              skinFilter={coinSkin.filter}
+              frontSrc={coinSkin.frontImage ?? undefined}
               flipId={flipId}
               flipTo={(coinResult ?? null) as CoinFace | null}
               onLanded={handleCoinLanded}

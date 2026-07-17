@@ -2,7 +2,7 @@
 
 /**
  * Commit 42 - THE LOCKER: pick your gear. Three tabs (Playmat / Sleeves /
- * Coins), each a grid of live CSS previews built from the same cosmetics
+ * Coins), each a grid of live previews built from the same cosmetics
  * registry the game itself renders from - so the preview tile IS the real
  * look, not a screenshot that can drift out of date.
  *
@@ -12,10 +12,14 @@
  *
  * Commit 50 (section 12) - restyled as an industrial loadout terminal: the
  * seat switcher is a segmented mechanical toggle, the category tabs are
- * shallow grunge plates with an illuminated top edge on the active one, and
- * every cosmetic tile got bigger previews, a real EQUIPPED badge, and a
- * textured card surface. All behavior (click handlers, store writes,
- * keyboard focus) is untouched - this is a pure restyle.
+ * shallow grunge plates with an illuminated top edge on the active one.
+ *
+ * Commit 50.4 - real art everywhere, and bigger/more physical previews:
+ * playmat tiles are ~65% taller and show the actual playmat art; sleeve
+ * tiles are noticeably bigger and tilted in real CSS 3D space (perspective +
+ * rotateY), like a card propped up on a shelf; coin tiles are genuinely
+ * live WebGL (CoinPreview3D) - the same emissive-bloom coin technique as the
+ * Coin Flip screen, just tuned down to render ~10 of them at once cheaply.
  */
 
 import { useState } from 'react';
@@ -25,11 +29,11 @@ import {
   SLEEVES,
   COINS,
   SLEEVE_BASE_SRC,
-  COIN_FRONT_SRC,
   type CosmeticKind,
 } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
 import { playSfx } from '@/audio/sfx';
+import CoinPreview3D from './CoinPreview3D';
 
 const TABS: { kind: CosmeticKind; label: string }[] = [
   { kind: 'playmat', label: 'Playmats' },
@@ -37,15 +41,18 @@ const TABS: { kind: CosmeticKind; label: string }[] = [
   { kind: 'coin', label: 'Coins' },
 ];
 
-// Section 12 - preview sizes bumped ~25-28% across the board (spec: 20-30%).
-function PlaymatPreview({ background, edge }: { background: string | null; edge: string | null }) {
+/** Section 12 + Commit 50.4 - the playmat preview is now the big, dominant
+ *  tile: real cover-fit art for every skin except 'faction' (which keeps the
+ *  original dynamic per-faction gradient, since it has no single "look" -
+ *  that IS its look). ~65% taller than the Commit 50 size. */
+function PlaymatPreview({ image, edge }: { image: string | null; edge: string | null }) {
   return (
     <div
-      className="w-full h-20 rounded-md border"
+      className="w-full h-32 rounded-md border bg-cover bg-center"
       style={{
-        background:
-          background ??
-          'radial-gradient(ellipse at 50% 100%, rgba(255,47,208,0.14), #05050a 70%)',
+        backgroundImage: image
+          ? `url(${image})`
+          : 'radial-gradient(ellipse at 50% 100%, rgba(255,47,208,0.14), #05050a 70%)',
         borderColor: edge ? `${edge}66` : 'rgba(255,255,255,0.15)',
         boxShadow: edge ? `inset 0 0 12px ${edge}22` : undefined,
       }}
@@ -53,26 +60,25 @@ function PlaymatPreview({ background, edge }: { background: string | null; edge:
   );
 }
 
-function SleevePreview({ filter, rim, overlay, overlayBlend }: { filter: string; rim: string; overlay?: string; overlayBlend?: string }) {
+/** Commit 50.4 - real full-back-replacement sleeve art (image is null only
+ *  for 'None'), shown at a slight 3D tilt via a CSS perspective + rotateY -
+ *  a card propped up rather than lying flat, with a matching drop shadow to
+ *  sell the depth. Bigger than the Commit 50 sleeve tiles (w-11 -> w-20). */
+function SleevePreview({ image, rim }: { image: string | null; rim: string }) {
   return (
-    <div className="relative w-14 h-[79px] rounded-[4px] overflow-hidden border mx-auto" style={{ borderColor: rim }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" style={{ filter }} draggable={false} />
-      {overlay && (
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: overlay, mixBlendMode: (overlayBlend ?? 'normal') as React.CSSProperties['mixBlendMode'] }}
-        />
-      )}
+    <div className="py-1 flex items-center justify-center" style={{ perspective: '420px' }}>
+      <div
+        className="w-20 h-[112px] rounded-[5px] overflow-hidden border"
+        style={{
+          borderColor: rim,
+          transform: 'rotateY(-16deg) rotateX(3deg)',
+          boxShadow: '10px 14px 22px rgba(0,0,0,0.55)',
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={image ?? SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" draggable={false} />
+      </div>
     </div>
-  );
-}
-
-function CoinPreview({ filter }: { filter: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={COIN_FRONT_SRC} alt="" className="w-[72px] h-[72px] rounded-full mx-auto" style={{ filter }} draggable={false} />
   );
 }
 
@@ -88,18 +94,14 @@ export default function LockerMenu() {
   // gymnastics across three structurally different skin shapes.
   const rows: { id: string; name: string; blurb: string; preview: React.ReactNode }[] =
     tab === 'playmat'
-      ? PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview background={p.background} edge={p.edge} /> }))
+      ? PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview image={p.image} edge={p.edge} /> }))
       : tab === 'sleeve'
-      ? SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview filter={s.filter} rim={s.rim} overlay={s.overlay} overlayBlend={s.overlayBlend} /> }))
-      : COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview filter={c.filter} /> }));
+      ? SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview image={s.image} rim={s.rim} /> }))
+      : COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview3D frontSrc={c.frontImage ?? undefined} size={104} /> }));
 
   return (
     <div>
-      {/* Section 12 - seat switcher as one segmented industrial toggle: a
-          single dark track, two equal halves separated by a hairline, the
-          active half lit and raised. Still two real <button>s (native Tab/
-          Enter/Space behavior, no custom keyboard handling needed), just
-          styled as one mechanical unit instead of two floating pills. */}
+      {/* Seat switcher: one segmented industrial toggle. */}
       <div className="flex rounded-md border border-white/15 bg-black overflow-hidden mb-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]">
         {(['player1', 'player2'] as PlayerId[]).map((p, i) => (
           <button
@@ -122,9 +124,7 @@ export default function LockerMenu() {
         ))}
       </div>
 
-      {/* Section 12 - category tabs as shallow grunge plates: equal width,
-          panel-3d gives the dark bevel/texture, and the selected plate gets
-          an illuminated top edge instead of a rounded SaaS pill fill. */}
+      {/* Category tabs: shallow grunge plates, illuminated top edge = active. */}
       <div className="flex gap-1 mb-4">
         {TABS.map((t) => (
           <button
@@ -152,11 +152,9 @@ export default function LockerMenu() {
         ))}
       </div>
 
-      {/* Section 12 - cosmetic tiles: textured grunge card surface
-          (panel-3d), consistent per-tab height, a real EQUIPPED badge on the
-          selected tile instead of a small inline checkmark. Responsive:
-          2 columns normally, collapses to 1 under Tailwind's sm breakpoint. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[320px] overflow-y-auto pr-1">
+      {/* Cosmetic tiles: textured grunge card surface, EQUIPPED badge,
+          responsive 2-col -> 1-col collapse. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
         {rows.map((item) => {
           const active = selectedId === item.id;
           return (
@@ -174,7 +172,7 @@ export default function LockerMenu() {
               }`}
             >
               {active && (
-                <span className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-fuchsia-500/90 text-black text-[8px] font-black tracking-wider shadow-[0_0_8px_rgba(255,47,208,0.7)]">
+                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-fuchsia-500/90 text-black text-[8px] font-black tracking-wider shadow-[0_0_8px_rgba(255,47,208,0.7)]">
                   ✓ EQUIPPED
                 </span>
               )}

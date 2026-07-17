@@ -11,10 +11,13 @@ import type { PlayerId } from '@/types/game';
  * Void opens the full VoidInspectModal grid.
  *
  * Commit 45 - deck boxes are scrapped (per direction): both piles are now
- * full-bleed sleeved card-back stacks - the equipped sleeve's tint AND its
- * printed overlay layer cover the entire card. Physicality from Commit 44
- * stays: two-part shadows, and a paper-edge strip whose thickness tracks the
- * REAL card count so the deck visibly thins over a match.
+ * full-bleed sleeved card-back stacks. Physicality from Commit 44 stays:
+ * two-part shadows, and a paper-edge strip whose thickness tracks the REAL
+ * card count so the deck visibly thins over a match.
+ *
+ * Commit 50.4 - sleeves are real full-back-REPLACEMENT art now, not a tint
+ * layered over the original back. `sleeve.image` (null for 'none') decides
+ * which single image renders; there's no filter/overlay compositing left.
  */
 
 const CARD_W = 104;
@@ -46,20 +49,12 @@ function PaperEdge({ count, width }: { count: number; width: number }) {
   );
 }
 
-/** One sleeved card back: base art + tint filter + optional printed overlay. */
+/** One sleeved card back: the sleeve's own art if it has one, otherwise the
+ *  original printed back - a straight image swap, no filter/overlay. */
 function SleevedBack({ sleeve }: { sleeve: SleeveSkin }) {
   return (
-    <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" style={{ filter: sleeve.filter }} draggable={false} />
-      {sleeve.overlay && (
-        <div
-          aria-hidden
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: sleeve.overlay, mixBlendMode: (sleeve.overlayBlend ?? 'normal') as React.CSSProperties['mixBlendMode'] }}
-        />
-      )}
-    </>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={sleeve.image ?? SLEEVE_BASE_SRC} alt="" className="w-full h-full object-cover" draggable={false} />
   );
 }
 
@@ -119,7 +114,7 @@ export default function DeckVoidStack({
                   height: CARD_H,
                   left: i * 3,
                   top: -i * 3,
-                  borderColor: sleeve.id === 'asphyxia' ? `${accentColor}55` : sleeve.rim,
+                  borderColor: sleeve.id === 'none' ? `${accentColor}55` : sleeve.rim,
                 }}
               >
                 <SleevedBack sleeve={sleeve} />
