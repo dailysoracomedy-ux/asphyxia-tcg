@@ -490,6 +490,15 @@ function ApexVfxOverlay({
           <div className="vfx-impact-sparks" />
         </div>
       )}
+      {/* Commit 47 particles: debris chunks + faction embers when destroyed,
+          a dust puff when a card lands on the slot. */}
+      {(() => {
+        const destroyEvent = events.find((e) => e.type === 'CARD_DESTROYED');
+        if (destroyEvent) return <div key={destroyEvent.id} className="vfx-debris" />;
+        const placedEvent = events.find((e) => e.type === 'CARD_PLACED');
+        if (placedEvent) return <div key={placedEvent.id} className="vfx-place-dust" />;
+        return null;
+      })()}
       {popups.map((p) => {
         // Severity read straight off the label the game store already
         // formatted ("-650", "-200 O2") - no new rule knowledge here.
@@ -621,22 +630,29 @@ function SupportSlot({
   const chainLabel = getChainLabelForSupport(state, playerId, support.instanceId);
   const supportDef = getCardDef(support.defId);
   const placeTheme = factionTheme(supportDef.faction);
+  // Commit 47 - Engines short-circuit: played or triggering engines get an
+  // erratic electric spark burst plus an arc-flicker on the card itself.
+  const engineSparkEvent = events.find((e) => e.type === 'CARD_PLACED' || e.type === 'ENGINE_TRIGGER');
+  const supportDestroyEvent = events.find((e) => e.type === 'CARD_DESTROYED');
   const vfxClass = events.some((e) => e.type === 'CARD_DESTROYED')
     ? 'vfx-destroy-shatter'
     : events.some((e) => e.type === 'ENGINE_TRIGGER')
-    ? 'vfx-engine-pulse'
+    ? 'vfx-engine-pulse vfx-engine-arc'
     : events.some((e) => e.type === 'CARD_PLACED')
-    ? 'vfx-place-slam vfx-place-glow'
+    ? 'vfx-place-slam vfx-place-glow vfx-engine-arc'
     : '';
 
   return (
     <div
-      className={`rounded-md ${vfxClass} ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
+      className={`relative rounded-md ${vfxClass} ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
       style={{
         ['--place-glow-color' as string]: `${placeTheme.primary}dd`,
         ['--engine-pulse-color' as string]: `${placeTheme.primary}cc`,
+        ['--impact-color' as string]: placeTheme.secondary,
       }}
     >
+      {engineSparkEvent && <div key={engineSparkEvent.id} className="vfx-engine-sparks" />}
+      {supportDestroyEvent && <div key={supportDestroyEvent.id} className="vfx-debris" />}
       <Card
         instance={support}
         size="supportBoard"

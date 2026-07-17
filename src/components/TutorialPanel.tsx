@@ -108,9 +108,11 @@ export default function TutorialPanel() {
               playSfx('ui.confirm');
               setStep(step + 1);
             }}
-            className="px-3 py-1.5 rounded border text-[11px] font-bold border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10 animate-pulse"
+            // Commit 47 - hand-made CONTINUE art (label baked in, sr-only for a11y).
+            className="btn-art w-[180px] h-[44px] rounded animate-pulse hover:shadow-[0_0_14px_rgba(52,211,153,0.5)]"
+            style={{ backgroundImage: 'url(/ui/continue-button.webp)' }}
           >
-            Continue
+            <span className="sr-only">Continue</span>
           </button>
         )}
       </div>

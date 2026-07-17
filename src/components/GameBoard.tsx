@@ -904,11 +904,15 @@ export default function GameBoard() {
           type="button"
           onClick={scrollSafeClick(() => state.endTurn())}
           disabled={state.phase !== 'Combat' || aiIsActing || mode.kind === 'attackerChosen'}
-          className={`btn-3d px-3 py-1.5 rounded text-xs font-bold tracking-wide ${
-            state.phase === 'Combat' ? 'bg-red-500/80 hover:bg-red-500 text-black' : 'bg-white/5 text-white/25 cursor-not-allowed'
+          // Commit 47 - the art carries the red itself; old bg classes would
+          // tint through its transparent pixels. Disabled look comes from
+          // .btn-art:disabled (grayscale), driven by the real disabled attr.
+          className={`btn-art w-[240px] h-[30px] rounded ${
+            state.phase === 'Combat' ? 'hover:shadow-[0_0_14px_rgba(248,60,60,0.55)]' : 'cursor-not-allowed'
           }`}
+          style={{ backgroundImage: 'url(/ui/end-turn-button.webp)' }}
         >
-          End Turn
+          <span className="sr-only">End Turn</span>
         </button>
       </div>
 

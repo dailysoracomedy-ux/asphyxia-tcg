@@ -27,9 +27,23 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   // drop-zone and visual-event logic - the life is layered AROUND them.
   const o2Critical = player.o2 <= 6 && state.status === 'playing';
 
+  // Commit 47 - hand-made per-faction stat plate (public/ui/, 255x60 at 1x,
+  // opaque art with its own border baked in). Fixed box so the art never
+  // stretches; typography sized so every stat fits inside the art's border
+  // (same principle as the Apex overlay's scaledPx clamping - the box is a
+  // constant 255px, so the clamp resolves to fixed sizes chosen to fit).
+  const STAT_BOX_ART: Record<string, string> = {
+    'Neon Underground': '/ui/stat-box-neon.webp',
+    'Dark White': '/ui/stat-box-dark-white.webp',
+    'Synth Ascendancy': '/ui/stat-box-synth-ascendancy.webp',
+  };
+
   return (
-    <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2.5 py-1.5">
-      <div className={`font-bold tracking-wide text-[12px] mb-1 ${isActive ? '' : 'opacity-60'}`}>
+    <div
+      className="relative w-[255px] h-[60px] rounded-lg overflow-hidden px-3.5 py-1.5"
+      style={{ backgroundImage: `url(${STAT_BOX_ART[player.faction] ?? STAT_BOX_ART['Neon Underground']})`, backgroundSize: '100% 100%' }}
+    >
+      <div className={`font-bold tracking-wide text-[11px] leading-none mb-[3px] ${isActive ? '' : 'opacity-60'}`}>
         <span
           className={`stencil-tag ${isActive ? 'text-shadow-glow neon-flicker' : ''}`}
           style={{ color: theme.primary, ['--tag-color' as string]: theme.primary }}
@@ -38,7 +52,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
           {isActive ? ' ◂' : ''}
         </span>
       </div>
-      <div className="flex items-center gap-1.5 font-mono text-[12px] whitespace-nowrap">
+      <div className="flex items-center gap-1 font-mono text-[11.5px] leading-none whitespace-nowrap">
         <span className={o2Critical ? 'o2-critical' : undefined}>
           <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
         </span>
@@ -49,7 +63,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
         <span className="text-white/20">|</span>
         <span className="text-fuchsia-300">Sync {player.availableSync}</span>
       </div>
-      <div className="flex items-center gap-1 mt-1" aria-hidden>
+      <div className="flex items-center gap-1 mt-[4px]" aria-hidden>
         {[0, 1, 2].map((i) => (
           <span
             key={i}

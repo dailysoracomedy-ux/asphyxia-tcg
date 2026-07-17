@@ -19,6 +19,19 @@ function randomFaction(): Faction {
   return FACTIONS[Math.floor(Math.random() * FACTIONS.length)];
 }
 
+// Commit 47 - bespoke button art (public/ui/, provided at 4x, served at 2x).
+const DECK_BUTTON_ART: Record<Faction, string> = {
+  'Neon Underground': '/ui/deck-neon.webp',
+  'Dark White': '/ui/deck-dark-white.webp',
+  'Synth Ascendancy': '/ui/deck-synth-ascendancy.webp',
+};
+const O2_BUTTON_ART: Record<number, string> = {
+  12: '/ui/o2-12.webp',
+  24: '/ui/o2-24.webp',
+  48: '/ui/o2-48.webp',
+  96: '/ui/o2-96.webp',
+};
+
 function FactionPicker({
   label,
   value,
@@ -44,17 +57,15 @@ function FactionPicker({
                 onChange(f);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className={`btn-3d text-left px-3 py-2 rounded-md border-2 transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              // Commit 47 - hand-made deck button art (text baked in; the
+              // real label is sr-only). Glow + sounds kept, per direction.
+              className={`btn-art w-full h-[44px] rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
-                borderColor: theme.border,
-                background: theme.bg,
+                backgroundImage: `url(${DECK_BUTTON_ART[f]})`,
                 boxShadow: active ? `0 0 14px ${theme.primary}` : 'none',
-                color: theme.text,
               }}
             >
-              <div className="font-bold" style={{ color: theme.primary }}>
-                {f}
-              </div>
+              <span className="sr-only">{f}</span>
             </button>
           );
         })}
@@ -81,13 +92,14 @@ function O2Selector({ value, onChange }: { value: number; onChange: (n: number) 
                 onChange(n);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className={`btn-3d flex-1 px-3 py-2 rounded-md border-2 font-bold text-sm transition-all ${
-                active
-                  ? 'border-cyan-400 bg-cyan-400/15 text-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.6)] scale-[1.02]'
-                  : 'border-white/15 text-white/50 hover:opacity-90 hover:border-white/30'
+              // Commit 47 - art has a taller aspect than the old buttons
+              // (295:158), so the container resizes to the art, not vice versa.
+              className={`btn-art flex-1 rounded-md transition-all ${
+                active ? 'shadow-[0_0_14px_rgba(34,211,238,0.6)] scale-[1.02]' : 'opacity-60 hover:opacity-90'
               }`}
+              style={{ backgroundImage: `url(${O2_BUTTON_ART[n]})`, aspectRatio: '295 / 158' }}
             >
-              {n}
+              <span className="sr-only">{n}</span>
             </button>
           );
         })}
@@ -104,7 +116,11 @@ function MenuButton({
   colorClass,
   glowColorClass,
   onClick,
+  art,
 }: {
+  /** Commit 47.1 - hand-made button plate (text baked in). When set, the
+   *  image is the button; label/sublabel stay in the DOM as sr-only. */
+  art?: string;
   label: string;
   sublabel: string;
   colorClass: string;
@@ -119,10 +135,23 @@ function MenuButton({
         onClick();
       }}
       onMouseEnter={() => playSfx('ui.hover')}
-      className={`btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`}
+      className={
+        art
+          ? `btn-art group w-full rounded-lg transition-all ${glowColorClass}`
+          : `btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`
+      }
+      style={art ? { backgroundImage: `url(${art})`, aspectRatio: '2657 / 592' } : undefined}
     >
-      {label}
-      <div className="text-[10px] font-normal tracking-normal opacity-60 mt-0.5 normal-case">{sublabel}</div>
+      {art ? (
+        <span className="sr-only">
+          {label} — {sublabel}
+        </span>
+      ) : (
+        <>
+          {label}
+          <div className="text-[10px] font-normal tracking-normal opacity-60 mt-0.5 normal-case">{sublabel}</div>
+        </>
+      )}
     </button>
   );
 }
@@ -215,7 +244,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     <div className="min-h-screen flex items-center justify-center scanlines">
       {/* Commit 46 - living film grain over the whole menu scene. */}
       <div className="world-grain" aria-hidden />
-      <div className="panel-3d-deep max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black/70 p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+      <div className="max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
             competes with the toss. Every other view keeps the full header. */}
@@ -225,17 +254,29 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 Transparent PNG built for a dark background - fits the card's own
                 black backdrop with no extra framing needed. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full max-w-[280px] mx-auto mb-2 select-none pointer-events-none" draggable={false} />
+            {/* Commit 47 - the deck-select screen drops the version pill and
+                audio sliders and runs the logo at 80%, so the hand-made deck
+                buttons own the screen. Other views keep the full header. */}
+            <img
+              src="/images/asphyxia-logo.png"
+              alt="ASPHYXIA"
+              className={`w-full mx-auto mb-2 select-none pointer-events-none ${view === 'new-game' ? 'max-w-[224px]' : 'max-w-[280px]'}`}
+              draggable={false}
+            />
 
-            <div className="text-center mb-6">
-              <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">
-                {BUILD_VERSION}
-              </span>
-            </div>
+            {view !== 'new-game' && (
+              <>
+                <div className="text-center mb-6">
+                  <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">
+                    {BUILD_VERSION}
+                  </span>
+                </div>
 
-            <div className="flex justify-center mb-6">
-              <AudioSettingsControl />
-            </div>
+                <div className="flex justify-center mb-6">
+                  <AudioSettingsControl />
+                </div>
+              </>
+            )}
           </>
         )}
 
@@ -243,6 +284,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
           <div className="flex flex-col gap-3">
             <MenuButton
               label="New Game"
+              art="/ui/menu-new-game.webp"
               sublabel="Pick your deck. Your opponent's is a surprise."
               colorClass="border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(232,121,249,0.4)]"
@@ -250,6 +292,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             />
             <MenuButton
               label="Learn To Play"
+              art="/ui/menu-learn-to-play.webp"
               sublabel="A guided walkthrough of the whole game."
               colorClass="border-emerald-400/60 text-emerald-200 bg-emerald-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(52,211,153,0.4)]"
@@ -263,6 +306,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             />
             <MenuButton
               label="Simulated Match"
+              art="/ui/menu-simulated.webp"
               sublabel="Watch two AI decks of your choice fight it out."
               colorClass="border-cyan-400/60 text-cyan-200 bg-cyan-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(34,211,238,0.4)]"
@@ -271,6 +315,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
             <MenuButton
               label="The Locker"
+              art="/ui/menu-locker.webp"
               sublabel="Playmats, sleeves, deck boxes & coins."
               colorClass="border-purple-400/60 text-purple-200 bg-purple-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(192,132,252,0.4)]"
@@ -320,9 +365,10 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 beginCoinFlip(hotseat ? p2 : randomFaction(), hotseat);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className="mt-6 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
+              className="btn-art mt-6 w-full rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
+              style={{ backgroundImage: 'url(/ui/start-button.webp)', aspectRatio: '448 / 109' }}
             >
-              START
+              <span className="sr-only">START</span>
             </button>
             <p className="text-center text-white/25 text-[10px] mt-3">
               {hotseat
@@ -367,7 +413,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         )}
 
         {view === 'coin-flip' && (
-          <div className="flex flex-col items-center gap-6 py-2">
+          <div className="flex flex-col items-center gap-3 py-2 -mx-8 -my-4">
             <div className="text-center">
               <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">Coin Flip</div>
               <div className="text-lg font-black text-fuchsia-300">
@@ -377,9 +423,13 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               </div>
             </div>
 
+            {/* Commit 47 - the coin's canvas runs edge-to-edge on the menu
+                card (-mx-8 escapes the card padding; 446 = card inner width
+                including it), and taller, so neither the toss arc nor the
+                bloom can ever clip against a canvas boundary. */}
             <CoinFlip3D
-              width={300}
-              height={430}
+              width={446}
+              height={600}
               skinFilter={coinSkin.filter}
               flipId={flipId}
               flipTo={(coinResult ?? null) as CoinFace | null}
@@ -392,17 +442,19 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                   type="button"
                   onClick={() => callCoin('heads')}
                   onMouseEnter={() => playSfx('ui.hover')}
-                  className="btn-3d px-5 py-2.5 rounded-lg border-2 border-fuchsia-400/60 text-fuchsia-200 bg-fuchsia-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
+                  className="btn-art w-[113px] h-[48px] rounded-lg hover:scale-105 transition-all hover:shadow-[0_0_16px_rgba(255,47,208,0.5)]"
+                  style={{ backgroundImage: 'url(/ui/heads-button.webp)' }}
                 >
-                  HEADS
+                  <span className="sr-only">HEADS</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => callCoin('tails')}
                   onMouseEnter={() => playSfx('ui.hover')}
-                  className="btn-3d px-5 py-2.5 rounded-lg border-2 border-cyan-400/60 text-cyan-200 bg-cyan-400/10 font-bold tracking-widest hover:scale-105 hover:brightness-110 transition-all"
+                  className="btn-art w-[113px] h-[48px] rounded-lg hover:scale-105 transition-all hover:shadow-[0_0_16px_rgba(34,211,238,0.5)]"
+                  style={{ backgroundImage: 'url(/ui/tails-button.webp)' }}
                 >
-                  TAILS
+                  <span className="sr-only">TAILS</span>
                 </button>
               </div>
             )}
