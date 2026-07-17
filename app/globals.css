@@ -490,9 +490,15 @@ html, body {
    subliminal "this is a UI, not a table" signals. */
 
 /* Empty slots: etched into the mat surface rather than dashed neon rectangles
-   floating above it. */
+   floating above it.
+   Commit 50.4 - background is now fully OPAQUE black (was rgba(0,0,0,0.28),
+   intentionally semi-transparent to read against the old CSS-only mats).
+   Real playmat art is far busier than a flat gradient, and letting it show
+   through a "card slot" reads as visual noise, not a recessed cutout. Solid
+   black actually SELLS the etched-in look better regardless of mat type -
+   it's a real physical playmat convention (die-cut card wells). */
 .slot-etched {
-  background: rgba(0, 0, 0, 0.28);
+  background: #000;
   border: 1px solid rgba(0, 0, 0, 0.55);
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.5),   /* engraved: recessed top */
