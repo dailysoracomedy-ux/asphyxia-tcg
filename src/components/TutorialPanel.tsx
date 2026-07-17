@@ -58,7 +58,7 @@ export default function TutorialPanel() {
   const isGuided = !!current.guided;
 
   return (
-    <div className="fixed top-1/2 left-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
+    <div className="panel-3d-deep fixed top-1/2 right-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[80vh] overflow-y-auto rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-widest text-emerald-300/80 font-bold">
           Learn To Play &middot; Step {step + 1} / {TUTORIAL_STEPS.length}
@@ -66,14 +66,14 @@ export default function TutorialPanel() {
         <button
           type="button"
           onClick={() => useGameStore.getState().resetToMenu()}
-          className="text-[10px] text-white/40 hover:text-white/70 underline"
+          className="btn-3d px-2 py-0.5 rounded border border-white/15 text-[10px] text-white/50 hover:text-white/80"
         >
           Exit
         </button>
       </div>
 
       <div className="text-base font-bold text-emerald-200 mb-1.5">{current.title}</div>
-      <div className="text-[12px] text-white/80 leading-relaxed mb-3">{resolvedText}</div>
+      <div className="text-[13px] text-white/85 leading-relaxed mb-3">{resolvedText}</div>
 
       {helperMessage && (
         <div className="text-[11px] text-amber-300 bg-amber-400/10 border border-amber-400/30 rounded px-2 py-1.5 mb-3">
@@ -97,7 +97,7 @@ export default function TutorialPanel() {
             useTutorialStore.getState().setSlideIndex(0);
             setStep(0);
           }}
-          className="px-2 py-1 rounded border border-white/15 text-[10px] text-white/50 hover:bg-white/10"
+          className="btn-3d px-2 py-1 rounded border border-white/15 text-[10px] text-white/55 hover:text-white/85"
         >
           Restart
         </button>

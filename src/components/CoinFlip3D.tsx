@@ -142,7 +142,9 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
   /** Imperative bridge into the render loop - re-renders never rebuild the scene. */
   const controlRef = useRef<{ flip: (to: CoinFace) => void } | null>(null);
   const onLandedRef = useRef(onLanded);
-  onLandedRef.current = onLanded;
+  useEffect(() => {
+    onLandedRef.current = onLanded;
+  }, [onLanded]);
   const lastFlipId = useRef(0);
   // No-WebGL fallback (jsdom test harness, blocked/absent GPU): a flat coin
   // image that still honors the exact same flip contract - same sounds, same
@@ -162,7 +164,11 @@ export default function CoinFlip3D({ width = 300, height = 430, skinFilter = 'no
     try {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
-      setFallback(true);
+      // Deferred one microtask so this isn't a synchronous setState call
+      // inside the effect body (react-hooks/set-state-in-effect) - fires
+      // before the next paint, so there's no observable timing change for
+      // the fallback path (used by the jsdom test harness / no-GPU cases).
+      queueMicrotask(() => setFallback(true));
       const timeouts: ReturnType<typeof setTimeout>[] = [];
       controlRef.current = {
         flip(to: CoinFace) {

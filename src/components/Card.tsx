@@ -211,6 +211,24 @@ export default function Card({
     hand: { w: 155, h: 194, text: 'text-[11.5px]' },
   };
   const { w, h, text: textScale } = SIZE_MAP[size];
+  // Commit 50 (section 7) - viewport-height-aware sizing for the three sizes
+  // that actually live on the fixed-height gameplay screen. A pure-CSS
+  // clamp() (linear-interpolated between two window-height breakpoints, not
+  // a JS resize listener) so it responds instantly with zero re-render cost
+  // and getBoundingClientRect always reflects real layout - drag-and-drop
+  // hit-testing needs nothing else. Floor is 78% of the full size: legible
+  // down to ~720px window height per the spec's tested breakpoints; caps out
+  // at the original px size on anything taller than ~1000px, so nothing
+  // changes on already-comfortable screens. Every other size (modals, the
+  // hover/inspect preview, galleries) is untouched.
+  const isBoardScaled = size === 'apexBoard' || size === 'supportBoard' || size === 'hand';
+  const fluidH = (() => {
+    if (!isBoardScaled) return null;
+    const min = Math.round(h * 0.78);
+    const slope = (h - min) / 360; // px gained per 1px of window height, between the two breakpoints below
+    const intercept = min - slope * 640; // window-height breakpoints: 640px (min) .. 1000px (max)
+    return `clamp(${min}px, calc(${intercept.toFixed(2)}px + ${(slope * 100).toFixed(4)}vh), ${h}px)`;
+  })();
   // Purely visual - isPlayable defaults to undefined everywhere except Hand.tsx, so
   // every other caller (board, inspect modal, gallery, hover preview) is completely
   // unaffected by this and stays exactly as bright as it always was.
@@ -247,12 +265,13 @@ export default function Card({
     // Apex art is 600x900 (2:3); every other card type's art is 1500x2100 (5:7).
     const artRatio = getArtAspectRatio(def.type);
     const artW = Math.round(h * artRatio);
+    const artWCss = fluidH ? `calc(${fluidH} * ${artRatio.toFixed(4)})` : artW;
     return (
       <div
         className={`relative inline-block shrink-0 ${
           highlight === 'tutorial-target' ? 'tutorial-spotlight' : highlight === 'tutorial-dim' ? 'pointer-events-none' : ''
         } ${size === 'apexBoard' || size === 'supportBoard' ? 'board-card-shadow' : ''}`}
-        style={{ width: artW, height: h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms' }}
+        style={{ width: artWCss, height: fluidH ?? h, opacity: highlight === 'tutorial-dim' ? 0.35 : undefined, filter: highlight === 'tutorial-dim' ? 'grayscale(70%)' : undefined, transition: 'opacity 150ms, filter 150ms' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >

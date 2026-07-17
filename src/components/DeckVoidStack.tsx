@@ -101,7 +101,7 @@ export default function DeckVoidStack({
       style={pulsing ? { ['--place-glow-color' as string]: `${accentColor}cc` } : undefined}
       title={label === 'VOID' ? (isEmpty ? 'Void is empty' : 'Click to inspect Void') : undefined}
     >
-      <span className="text-[10px] font-bold tracking-wider leading-none" style={{ color: accentColor }}>
+      <span className="text-[11px] font-bold tracking-wider leading-none" style={{ color: accentColor }}>
         {label} {count}
       </span>
       <div className="relative" style={{ width: CARD_W, height: CARD_H }}>

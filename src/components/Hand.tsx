@@ -58,7 +58,7 @@ export default function Hand({
 
   return (
     <div className="shrink-0 w-fit max-w-full mx-auto px-1.5 relative z-20 pointer-events-auto" style={{ minWidth }}>
-      <div className="text-[9px] uppercase tracking-widest text-white/40 mb-1">{label ?? 'Hand'} ({cards.length})</div>
+      <div className="text-[10px] uppercase tracking-widest text-white/50 mb-1">{label ?? 'Hand'} ({cards.length})</div>
       {/* The reserved track - sized to exactly the tucked peek height, not the
           full card height, so there's no empty reserved space above the
           peeking cards. Overflow switches to visible only while a card is
@@ -66,8 +66,12 @@ export default function Hand({
           full height - safe since nothing above this in the page clips
           anymore (confirmed in earlier work), while every other card stays
           cropped to its normal peek. */}
-      <div className="relative" style={{ height: HAND_PEEK_H, overflow: hoveredId ? 'visible' : 'hidden' }}>
-        <div className="flex gap-2 pb-1 justify-center h-full">
+      {/* Commit 50 (section 7) - intentional horizontal scroll instead of
+          accidental cropping: a hand that genuinely overflows the viewport
+          width now scrolls rather than spilling off-screen. Vertical
+          overflow keeps its existing hover-peek toggle untouched. */}
+      <div className="relative" style={{ height: HAND_PEEK_H, overflowX: 'auto', overflowY: hoveredId ? 'visible' : 'hidden' }}>
+        <div className="flex gap-2 pb-1 justify-center h-full w-fit mx-auto">
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
           {cards.map((c) => {
             const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;

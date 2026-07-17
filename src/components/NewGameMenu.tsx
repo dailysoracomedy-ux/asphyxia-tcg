@@ -36,10 +36,16 @@ function FactionPicker({
   label,
   value,
   onChange,
+  glowColorOverride,
 }: {
   label: string;
   value: Faction;
   onChange: (f: Faction) => void;
+  /** Commit 50 (section 10) - Simulated Match wants Deck A always magenta and
+   *  Deck B always cyan regardless of which faction is picked, to make the
+   *  two columns instantly distinguishable; New Game's single deck picker
+   *  omits this and keeps its per-faction theme color as before. */
+  glowColorOverride?: string;
 }) {
   return (
     <div className="flex-1 min-w-[150px]">
@@ -71,7 +77,7 @@ function FactionPicker({
                 width: '340px',
                 height: '58px',
                 maxWidth: '100%',
-                boxShadow: active ? `0 0 14px ${theme.primary}` : 'none',
+                boxShadow: active ? `0 0 14px ${glowColorOverride ?? theme.primary}` : 'none',
               }}
             >
               <span className="sr-only">{f}</span>
@@ -146,7 +152,7 @@ function MenuButton({
       onMouseEnter={() => playSfx('ui.hover')}
       className={
         art
-          ? `btn-art group block w-[270px] mx-auto rounded-lg transition-all ${glowColorClass}`
+          ? `btn-art group block w-[305px] mx-auto rounded-lg transition-all ${glowColorClass}`
           : `btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`
       }
       style={art ? { backgroundImage: `url(${art})`, aspectRatio: '2657 / 592' } : undefined}
@@ -174,7 +180,7 @@ function BackButton({ onClick }: { onClick: () => void }) {
         onClick();
       }}
       onMouseEnter={() => playSfx('ui.hover')}
-      className="text-xs text-white/40 hover:text-white/70 mb-4 flex items-center gap-1"
+      className="text-xs text-white/45 hover:text-cyan-300 transition-colors mb-4 flex items-center gap-1"
     >
       &larr; Back
     </button>
@@ -253,7 +259,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
     <div className="min-h-screen flex items-center justify-center scanlines">
       {/* Commit 46 - living film grain over the whole menu scene. */}
       <div className="world-grain" aria-hidden />
-      <div className="max-w-md w-full mx-4 rounded-xl border border-cyan-500/30 bg-black p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]">
+      <div className="panel-textured w-full mx-4 rounded-xl border border-cyan-500/30 bg-black p-8 shadow-[0_0_40px_rgba(34,211,238,0.15)]" style={{ width: 'min(600px, calc(100vw - 32px))' }}>
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
             competes with the toss. Every other view keeps the full header. */}
@@ -262,29 +268,30 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             {/* Commit 33 - the real Asphyxia logo, replacing the plain text header.
                 Transparent PNG built for a dark background - fits the card's own
                 black backdrop with no extra framing needed. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             {/* Commit 47 - the deck-select screen drops the version pill and
                 audio sliders and runs the logo at 80%, so the hand-made deck
                 buttons own the screen. Other views keep the full header. */}
+            {/* Commit 50 (section 3) - logo down ~9% on the main menu (256px,
+                was 280) to tighten the top of the composition; deck-select
+                keeps its own smaller 224px. Commit badge + audio sliders are
+                now one compact utility row instead of two stacked blocks,
+                cutting the empty space between the logo and the buttons. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/asphyxia-logo.png"
               alt="ASPHYXIA"
-              className={`w-full mx-auto mb-2 select-none pointer-events-none ${view === 'new-game' ? 'max-w-[224px]' : 'max-w-[280px]'}`}
+              className={`w-full mx-auto mb-3 select-none pointer-events-none ${view === 'new-game' ? 'max-w-[224px]' : 'max-w-[256px]'}`}
               draggable={false}
             />
 
             {view !== 'new-game' && (
-              <>
-                <div className="text-center mb-6">
-                  <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">
-                    {BUILD_VERSION}
-                  </span>
-                </div>
-
-                <div className="flex justify-center mb-6">
-                  <AudioSettingsControl />
-                </div>
-              </>
+              <div className="flex items-center justify-center gap-3 mb-5">
+                <span className="inline-block px-3 py-1 rounded-full border border-fuchsia-400/40 bg-fuchsia-400/10 text-fuchsia-300 text-[10px] font-mono tracking-widest">
+                  {BUILD_VERSION}
+                </span>
+                <span className="w-px h-4 bg-white/15" aria-hidden />
+                <AudioSettingsControl />
+              </div>
             )}
           </>
         )}
@@ -349,21 +356,29 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             <BackButton onClick={() => setView('main')} />
             <FactionPicker label="Your Deck" value={p1} onChange={setP1} />
 
-            <label className="flex items-center gap-2 mt-4 text-xs text-white/50 cursor-pointer select-none">
+            {/* Commit 50 (section 5) - clearer spacing blocks between each
+                stage of setup (mt-6 instead of mt-4), and the checkbox is now
+                a custom grunge square (.grunge-checkbox in globals.css) - the
+                real <input type="checkbox"> is still there and still drives
+                everything, just visually hidden, so keyboard/SR behavior is
+                unchanged. */}
+            <label className="flex items-center gap-2.5 mt-6 text-[13px] text-white/60 cursor-pointer select-none">
               <input
                 type="checkbox"
+                className="grunge-checkbox"
                 checked={hotseat}
                 onChange={(e) => {
                   playSfx('ui.click');
                   setHotseat(e.target.checked);
                 }}
               />
+              <span aria-hidden />
               2-Player (pass and play — pick both decks)
             </label>
 
-            {hotseat && <div className="mt-4"><FactionPicker label="Player 2's Deck" value={p2} onChange={setP2} /></div>}
+            {hotseat && <div className="mt-6"><FactionPicker label="Player 2's Deck" value={p2} onChange={setP2} /></div>}
 
-            <div className="mt-4">
+            <div className="mt-6">
               <O2Selector value={o2Amount} onChange={setO2Amount} />
             </div>
 
@@ -376,12 +391,12 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               onMouseEnter={() => playSfx('ui.hover')}
               // Fixed 280x42 per explicit spec - smaller and not full-width,
               // sitting centered beneath the O2 row.
-              className="btn-art block mt-5 mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
+              className="btn-art block mt-6 mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
               style={{ backgroundImage: 'url(/ui/start-button.webp)', width: '280px', height: '42px', maxWidth: '100%' }}
             >
               <span className="sr-only">START</span>
             </button>
-            <p className="text-center text-white/25 text-[10px] mt-3">
+            <p className="text-center text-white/35 text-[11px] leading-relaxed mt-4">
               {hotseat
                 ? 'Local 2-player game only. No accounts, no network play, no blockchain — just cards on a table.'
                 : "You play as Player 1. The opponent's deck is chosen at random, and the built-in AI controls them."}
@@ -392,25 +407,44 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         {view === 'simulated' && (
           <div>
             <BackButton onClick={() => setView('main')} />
-            <div className="flex gap-6 flex-wrap justify-center">
-              <FactionPicker label="Deck A" value={p1} onChange={setP1} />
-              <FactionPicker label="Deck B" value={p2} onChange={setP2} />
+            {/* Commit 50 (section 10) - Deck A/Deck B are now visually
+                distinct (magenta vs cyan glow via glowColorOverride) with a
+                central VS divider, equal-width columns either side. */}
+            <div className="flex items-center justify-center gap-4">
+              <div className="flex-1 max-w-[180px]">
+                <FactionPicker label="Deck A" value={p1} onChange={setP1} glowColorOverride="#ff2fd0" />
+              </div>
+              <div className="shrink-0 flex flex-col items-center justify-center pt-6" aria-hidden>
+                <span className="text-[11px] font-black tracking-widest text-white/30">VS</span>
+              </div>
+              <div className="flex-1 max-w-[180px]">
+                <FactionPicker label="Deck B" value={p2} onChange={setP2} glowColorOverride="#22d3ee" />
+              </div>
             </div>
-            <div className="mt-4">
+            <div className="mt-6">
               <O2Selector value={o2Amount} onChange={setO2Amount} />
             </div>
+            {/* Commit 50 (section 10) - the new hand-made plate replaces the
+                old pink-to-cyan gradient button entirely. Exact 383x48
+                (served at 2x, public/ui/start-simulated-match.webp), text
+                baked into the art (no HTML label over it), aria-label carries
+                accessibility, display:block avoids baseline gap, max-width:
+                100% keeps it responsive without ever distorting the art
+                (object-fit:contain preserves the 383:48 ratio exactly). */}
             <button
               type="button"
+              aria-label="Start Simulated Match"
               onClick={() => {
                 playSfx('ui.confirm');
                 startNewGame(p1, p2, false, true, false, undefined, o2Amount);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className="mt-6 w-full py-3 rounded-md font-bold tracking-widest text-black bg-gradient-to-r from-fuchsia-400 to-cyan-300 hover:brightness-110 transition-all"
+              className="simulated-match-start-button block mt-6 mx-auto rounded-md"
             >
-              START SIMULATED MATCH
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/ui/start-simulated-match.webp" alt="" aria-hidden="true" draggable={false} />
             </button>
-            <p className="text-center text-white/25 text-[10px] mt-3">
+            <p className="text-center text-white/35 text-[11px] leading-relaxed mt-4">
               Both decks are AI-controlled. Sit back and watch the match play out.
             </p>
           </div>
@@ -428,7 +462,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             {/* Commit 48 - the canvas top is toss headroom (empty at rest);
                 title and controls overlap into the transparent canvas so the
                 idle layout is tight while the arc keeps its full runway. */}
-            <div className="text-center relative z-10 -mb-[110px] pt-2">
+            <div className="text-center relative z-10 -mb-[90px] pt-2">
               <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">Coin Flip</div>
               <div className="text-lg font-black text-fuchsia-300">
                 {coinStage === 'calling' && 'Call it in the air'}
@@ -443,7 +477,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 bloom can ever clip against a canvas boundary. */}
             <CoinFlip3D
               width={446}
-              height={560}
+              height={460}
               skinFilter={coinSkin.filter}
               flipId={flipId}
               flipTo={(coinResult ?? null) as CoinFace | null}
@@ -451,7 +485,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             />
 
             {coinStage === 'calling' && (
-              <div className="flex gap-4 relative z-10 -mt-[72px] pb-2">
+              <div className="flex gap-4 relative z-10 -mt-[59px] pb-2">
                 <button
                   type="button"
                   onClick={() => callCoin('heads')}
@@ -474,7 +508,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             )}
 
             {coinStage === 'result' && called && coinResult && (
-              <div className="text-center flex flex-col items-center gap-3 relative z-10 -mt-[88px] pb-2">
+              <div className="text-center flex flex-col items-center gap-3 relative z-10 -mt-[72px] pb-2">
                 <div className="text-xs text-white/60">
                   You called <span className="font-bold text-white/90">{called}</span>, it landed on{' '}
                   <span className="font-bold text-white/90">{coinResult}</span>.

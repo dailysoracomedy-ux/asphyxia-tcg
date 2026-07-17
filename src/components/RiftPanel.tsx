@@ -12,7 +12,7 @@ export default function RiftPanel({ rift }: { rift: RiftSpace | null }) {
   if (!rift) return null;
   return (
     <div
-      className={`relative rounded-lg border border-fuchsia-500/40 bg-[#05050a] px-3 py-1 text-[11px] shrink-0 w-fit max-w-full mx-auto ${pulsing ? 'vfx-rift-pulse' : ''}`}
+      className={`relative rounded-lg border border-fuchsia-500/40 bg-[#05050a] px-3 py-1.5 text-[12px] leading-relaxed shrink-0 w-fit max-w-full mx-auto ${pulsing ? 'vfx-rift-pulse' : ''}`}
       style={{ ['--rift-pulse-color' as string]: 'rgba(232,121,249,0.7)' }}
     >
       <div className="flex items-start gap-2 justify-center flex-wrap">
@@ -26,7 +26,7 @@ export default function RiftPanel({ rift }: { rift: RiftSpace | null }) {
         >
           i
         </button>
-        <span className="text-white/50 basis-full" title={rift.description}>
+        <span className="text-white/60 basis-full" title={rift.description}>
           — {rift.shortDescription}
         </span>
       </div>

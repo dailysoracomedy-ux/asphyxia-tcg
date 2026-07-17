@@ -344,7 +344,7 @@ function ApexSlot({
     const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
     return (
       <div
-        className={`rounded-md slot-etched flex items-center justify-center text-[9px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
+        className={`rounded-md slot-etched flex items-center justify-center text-[10px] text-white/35 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: APEX_BOARD_HEIGHT }}
       >
         empty Apex slot
@@ -620,7 +620,7 @@ function SupportSlot({
     const emptyWidth = Math.round(SUPPORT_BOARD_HEIGHT * getArtAspectRatio('AbilitySupport'));
     return (
       <div
-        className={`rounded-md slot-etched flex items-center justify-center text-[8.5px] text-white/25 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
+        className={`rounded-md slot-etched flex items-center justify-center text-[9.5px] text-white/35 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
         style={{ width: emptyWidth, height: SUPPORT_BOARD_HEIGHT }}
       >
         empty Support slot

@@ -1004,7 +1004,11 @@ export default function GameBoard() {
 
       <div className="flex-1 min-h-0 flex gap-3">
         {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
-        <div className="w-[255px] shrink-0 flex flex-col gap-2 justify-center">
+        {/* Commit 50 (section 8) - gap-2 (8px) let the logo, Rift panel and
+            both stat plates visually run into each other; gap-3.5 (14px)
+            gives each element its own breathing room without materially
+            growing the column's footprint. */}
+        <div className="w-[255px] shrink-0 flex flex-col gap-3.5 justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" style={{ maxHeight: 90, objectFit: 'contain' }} draggable={false} />
           <RiftPanel rift={state.riftSpace} />
@@ -1400,7 +1404,11 @@ function ShowcaseControls() {
       <button
         type="button"
         onClick={togglePaused}
-        className={`px-2 py-0.5 rounded border font-bold ${paused ? 'border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10' : 'border-yellow-400/60 text-yellow-300 hover:bg-yellow-400/10'}`}
+        // Commit 50 (section 11) - Pause used the app-wide 'warning' yellow
+        // for a routine, non-warning state; swapped for cyan (the other
+        // established neutral system color) so yellow stays reserved for
+        // actual alerts elsewhere in the UI.
+        className={`px-2 py-0.5 rounded border font-bold ${paused ? 'border-emerald-400/60 text-emerald-300 hover:bg-emerald-400/10' : 'border-cyan-400/60 text-cyan-300 hover:bg-cyan-400/10'}`}
       >
         {paused ? 'Resume' : 'Pause'}
       </button>
@@ -1413,7 +1421,7 @@ function ShowcaseControls() {
           step={0.1}
           value={speedMultiplier}
           onChange={(e) => setSpeedMultiplier(Number(e.target.value))}
-          className="w-28 accent-fuchsia-400"
+          className="grunge-range w-28 accent-fuchsia-400"
           title={`${speedMultiplier.toFixed(1)}x`}
         />
         <span className="text-white/40 text-[10px]">Slow</span>
