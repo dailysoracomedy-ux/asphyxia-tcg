@@ -40,30 +40,35 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
 
   return (
     <div
-      className="relative w-[255px] h-[60px] rounded-lg overflow-hidden px-3.5 py-1.5"
-      style={{ backgroundImage: `url(${STAT_BOX_ART[player.faction] ?? STAT_BOX_ART['Neon Underground']})`, backgroundSize: '100% 100%' }}
+      className="relative w-[255px] h-[60px] rounded-lg overflow-hidden px-4 flex flex-col justify-center"
+      style={{
+        backgroundImage: `url(${STAT_BOX_ART[player.faction] ?? STAT_BOX_ART['Neon Underground']})`,
+        backgroundSize: '100% 100%',
+        // Commit 48 - the faction NAME is painted into the plate art itself,
+        // so the chip no longer renders its own name line (the two were
+        // colliding). Active turn reads as a glow ring + arrow; stats are a
+        // single clean centered row inside the art's border, pips below.
+        boxShadow: isActive ? `0 0 12px ${theme.primary}aa, inset 0 0 10px ${theme.primary}33` : 'none',
+        transition: 'box-shadow 250ms ease',
+      }}
     >
-      <div className={`font-bold tracking-wide text-[11px] leading-none mb-[3px] ${isActive ? '' : 'opacity-60'}`}>
-        <span
-          className={`stencil-tag ${isActive ? 'text-shadow-glow neon-flicker' : ''}`}
-          style={{ color: theme.primary, ['--tag-color' as string]: theme.primary }}
-        >
-          {player.faction.toUpperCase()}
-          {isActive ? ' ◂' : ''}
-        </span>
-      </div>
-      <div className="flex items-center gap-1 font-mono text-[11.5px] leading-none whitespace-nowrap">
+      <div className="flex items-center gap-1.5 font-mono text-[11.5px] leading-none whitespace-nowrap justify-center">
         <span className={o2Critical ? 'o2-critical' : undefined}>
           <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
         </span>
-        <span className="text-white/20">|</span>
+        <span className="text-white/25">|</span>
         <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
-        <span className="text-white/20">|</span>
-        <span className="text-white/40">Hand {player.hand.length}</span>
-        <span className="text-white/20">|</span>
+        <span className="text-white/25">|</span>
+        <span className="text-white/50">Hand {player.hand.length}</span>
+        <span className="text-white/25">|</span>
         <span className="text-fuchsia-300">Sync {player.availableSync}</span>
+        {isActive && (
+          <span className="neon-flicker font-black" style={{ color: theme.primary }}>
+            ◂
+          </span>
+        )}
       </div>
-      <div className="flex items-center gap-1 mt-[4px]" aria-hidden>
+      <div className="flex items-center gap-1 mt-[5px] justify-center" aria-hidden>
         {[0, 1, 2].map((i) => (
           <span
             key={i}
@@ -76,9 +81,6 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
   );
 }
 
-/** Commit 37 - Options, genuinely collapsed by default, directly below the
- *  identity row. Same collapse behavior as Commit 36's sidebar version, just
- *  laid out as a small centered dropdown instead of a full sidebar block. */
 export function OptionsInline({ state, onOpenLog, logHasUnread }: { state: GameState; onOpenLog: () => void; logHasUnread: boolean }) {
   const [open, setOpen] = useState(false);
 

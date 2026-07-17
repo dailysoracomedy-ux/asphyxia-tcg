@@ -867,7 +867,13 @@ export default function GameBoard() {
     return false;
   }
 
-  const reconfigureDisabled = activePlayer.turnFlags.reconfigureUsedThisTurn || state.phase !== 'Main';
+  // Commit 48 - BUG FIX: this gate still demanded phase === 'Main', but
+  // Commit 30.4 merged Main into Combat (advancePhase('Main') chains straight
+  // to phase = 'Combat'), so the game is never observably in 'Main' and
+  // Engine Reconfig has been permanently disabled ever since. The store's own
+  // reconfigure() action already accepts Main OR Combat - the UI now matches.
+  const reconfigureDisabled =
+    activePlayer.turnFlags.reconfigureUsedThisTurn || (state.phase !== 'Main' && state.phase !== 'Combat');
   const supportBudgetSpent = activePlayer.turnFlags.supportsPlayedThisTurn >= 1;
   const eligibleReconfigurePlays =
     mode.kind === 'reconfigurePlay' && !supportBudgetSpent
@@ -907,7 +913,7 @@ export default function GameBoard() {
           // Commit 47 - the art carries the red itself; old bg classes would
           // tint through its transparent pixels. Disabled look comes from
           // .btn-art:disabled (grayscale), driven by the real disabled attr.
-          className={`btn-art w-[240px] h-[30px] rounded ${
+          className={`btn-art w-[184px] h-[23px] rounded ${
             state.phase === 'Combat' ? 'hover:shadow-[0_0_14px_rgba(248,60,60,0.55)]' : 'cursor-not-allowed'
           }`}
           style={{ backgroundImage: 'url(/ui/end-turn-button.webp)' }}
@@ -1487,7 +1493,7 @@ function OpeningApexScreen() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="panel-3d-deep max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-[#05050a] p-6">
+      <div className="max-w-3xl w-full rounded-xl border border-cyan-400/40 bg-black p-6">
         <div className="text-center mb-4">
           <div className="text-[11px] uppercase tracking-widest text-white/40">Opening Hand — choose your starting Apex</div>
           <div className="text-xl font-bold text-cyan-300">

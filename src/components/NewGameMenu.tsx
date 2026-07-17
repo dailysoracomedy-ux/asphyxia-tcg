@@ -59,9 +59,10 @@ function FactionPicker({
               onMouseEnter={() => playSfx('ui.hover')}
               // Commit 47 - hand-made deck button art (text baked in; the
               // real label is sr-only). Glow + sounds kept, per direction.
-              className={`btn-art w-full h-[44px] rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              className={`btn-art block w-full max-w-[330px] mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
                 backgroundImage: `url(${DECK_BUTTON_ART[f]})`,
+                aspectRatio: '1528 / 176',
                 boxShadow: active ? `0 0 14px ${theme.primary}` : 'none',
               }}
             >
@@ -365,7 +366,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 beginCoinFlip(hotseat ? p2 : randomFaction(), hotseat);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className="btn-art mt-6 w-full rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
+              className="btn-art block mt-5 w-[280px] mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
               style={{ backgroundImage: 'url(/ui/start-button.webp)', aspectRatio: '448 / 109' }}
             >
               <span className="sr-only">START</span>
@@ -413,8 +414,11 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         )}
 
         {view === 'coin-flip' && (
-          <div className="flex flex-col items-center gap-3 py-2 -mx-8 -my-4">
-            <div className="text-center">
+          <div className="flex flex-col items-center gap-0 -mx-8 -my-4">
+            {/* Commit 48 - the canvas top is toss headroom (empty at rest);
+                title and controls overlap into the transparent canvas so the
+                idle layout is tight while the arc keeps its full runway. */}
+            <div className="text-center relative z-10 -mb-[110px] pt-2">
               <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">Coin Flip</div>
               <div className="text-lg font-black text-fuchsia-300">
                 {coinStage === 'calling' && 'Call it in the air'}
@@ -429,7 +433,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 bloom can ever clip against a canvas boundary. */}
             <CoinFlip3D
               width={446}
-              height={600}
+              height={560}
               skinFilter={coinSkin.filter}
               flipId={flipId}
               flipTo={(coinResult ?? null) as CoinFace | null}
@@ -437,7 +441,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             />
 
             {coinStage === 'calling' && (
-              <div className="flex gap-4">
+              <div className="flex gap-4 relative z-10 -mt-[72px] pb-2">
                 <button
                   type="button"
                   onClick={() => callCoin('heads')}
@@ -460,7 +464,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             )}
 
             {coinStage === 'result' && called && coinResult && (
-              <div className="text-center flex flex-col items-center gap-4">
+              <div className="text-center flex flex-col items-center gap-3 relative z-10 -mt-[88px] pb-2">
                 <div className="text-xs text-white/60">
                   You called <span className="font-bold text-white/90">{called}</span>, it landed on{' '}
                   <span className="font-bold text-white/90">{coinResult}</span>.
