@@ -913,7 +913,7 @@ export default function GameBoard() {
           // Commit 47 - the art carries the red itself; old bg classes would
           // tint through its transparent pixels. Disabled look comes from
           // .btn-art:disabled (grayscale), driven by the real disabled attr.
-          className={`btn-art w-[184px] h-[23px] rounded ${
+          className={`btn-art w-[156px] h-[20px] rounded ${
             state.phase === 'Combat' ? 'hover:shadow-[0_0_14px_rgba(248,60,60,0.55)]' : 'cursor-not-allowed'
           }`}
           style={{ backgroundImage: 'url(/ui/end-turn-button.webp)' }}
@@ -928,7 +928,7 @@ export default function GameBoard() {
             <button type="button"
               disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
               onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-              className="btn-3d px-2 py-1 rounded border border-teal-400/50 hover:bg-teal-400/10 disabled:opacity-30 font-bold text-teal-200"
+              className="px-2.5 py-1 rounded border border-teal-400/50 bg-black/70 hover:bg-teal-400/15 disabled:opacity-30 font-bold text-teal-200 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors"
             >
               Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
             </button>
@@ -936,7 +936,7 @@ export default function GameBoard() {
               <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
             )}
             {mode.kind === 'reconfigurePlay' && (
-              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="btn-3d px-2 py-1 rounded bg-white/10 hover:bg-white/20">
+              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2.5 py-1 rounded border border-white/20 bg-black/70 hover:bg-white/15 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors">
                 Skip — finish Engine Reconfig
               </button>
             )}

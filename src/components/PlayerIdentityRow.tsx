@@ -40,7 +40,7 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
 
   return (
     <div
-      className="relative w-[255px] h-[60px] rounded-lg overflow-hidden px-4 flex flex-col justify-center"
+      className="relative w-[255px] h-[60px] rounded-lg overflow-hidden px-4 pt-[16px] flex flex-col justify-center"
       style={{
         backgroundImage: `url(${STAT_BOX_ART[player.faction] ?? STAT_BOX_ART['Neon Underground']})`,
         backgroundSize: '100% 100%',

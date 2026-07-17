@@ -59,7 +59,7 @@ function FactionPicker({
               onMouseEnter={() => playSfx('ui.hover')}
               // Commit 47 - hand-made deck button art (text baked in; the
               // real label is sr-only). Glow + sounds kept, per direction.
-              className={`btn-art block w-full max-w-[330px] mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              className={`btn-art block w-full max-w-[264px] mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
                 backgroundImage: `url(${DECK_BUTTON_ART[f]})`,
                 aspectRatio: '1528 / 176',
@@ -81,7 +81,7 @@ function O2Selector({ value, onChange }: { value: number; onChange: (n: number) 
   return (
     <div>
       <div className="text-xs uppercase tracking-widest text-white/40 mb-2">Select O2 Amount</div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 justify-center">
         {O2_OPTIONS.map((n) => {
           const active = value === n;
           return (
@@ -95,7 +95,7 @@ function O2Selector({ value, onChange }: { value: number; onChange: (n: number) 
               onMouseEnter={() => playSfx('ui.hover')}
               // Commit 47 - art has a taller aspect than the old buttons
               // (295:158), so the container resizes to the art, not vice versa.
-              className={`btn-art flex-1 rounded-md transition-all ${
+              className={`btn-art w-[72px] rounded-md transition-all ${
                 active ? 'shadow-[0_0_14px_rgba(34,211,238,0.6)] scale-[1.02]' : 'opacity-60 hover:opacity-90'
               }`}
               style={{ backgroundImage: `url(${O2_BUTTON_ART[n]})`, aspectRatio: '295 / 158' }}
@@ -138,7 +138,7 @@ function MenuButton({
       onMouseEnter={() => playSfx('ui.hover')}
       className={
         art
-          ? `btn-art group w-full rounded-lg transition-all ${glowColorClass}`
+          ? `btn-art group block w-[270px] mx-auto rounded-lg transition-all ${glowColorClass}`
           : `btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`
       }
       style={art ? { backgroundImage: `url(${art})`, aspectRatio: '2657 / 592' } : undefined}
@@ -366,7 +366,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 beginCoinFlip(hotseat ? p2 : randomFaction(), hotseat);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className="btn-art block mt-5 w-[280px] mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
+              className="btn-art block mt-5 w-[230px] mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
               style={{ backgroundImage: 'url(/ui/start-button.webp)', aspectRatio: '448 / 109' }}
             >
               <span className="sr-only">START</span>
