@@ -59,10 +59,18 @@ function FactionPicker({
               onMouseEnter={() => playSfx('ui.hover')}
               // Commit 47 - hand-made deck button art (text baked in; the
               // real label is sr-only). Glow + sounds kept, per direction.
-              className={`btn-art block w-full max-w-[220px] mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
+              // Fixed 340x58 per explicit spec - intentionally distorts the
+              // source art (1528:176) rather than preserving its aspect
+              // ratio, for a chunkier button. .btn-art already sets
+              // background-size:100% 100%, which is the background-image
+              // equivalent of an <img> with object-fit:fill - the art
+              // stretches to exactly match the wrapper's box, no cropping.
+              className={`btn-art block mx-auto rounded-md transition-all ${active ? 'scale-[1.02]' : 'opacity-60 hover:opacity-90'}`}
               style={{
                 backgroundImage: `url(${DECK_BUTTON_ART[f]})`,
-                aspectRatio: '1528 / 176',
+                width: '340px',
+                height: '58px',
+                maxWidth: '100%',
                 boxShadow: active ? `0 0 14px ${theme.primary}` : 'none',
               }}
             >
@@ -366,8 +374,10 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 beginCoinFlip(hotseat ? p2 : randomFaction(), hotseat);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
-              className="btn-art block mt-5 w-[190px] mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
-              style={{ backgroundImage: 'url(/ui/start-button.webp)', aspectRatio: '448 / 109' }}
+              // Fixed 280x42 per explicit spec - smaller and not full-width,
+              // sitting centered beneath the O2 row.
+              className="btn-art block mt-5 mx-auto rounded-md transition-all hover:shadow-[0_0_18px_rgba(255,47,208,0.45)]"
+              style={{ backgroundImage: 'url(/ui/start-button.webp)', width: '280px', height: '42px', maxWidth: '100%' }}
             >
               <span className="sr-only">START</span>
             </button>
