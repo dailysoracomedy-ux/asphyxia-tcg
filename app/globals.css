@@ -839,3 +839,153 @@ html, body {
     opacity: 0 !important;
   }
 }
+
+/* ===== Commit 50: interface cohesion pass ===== */
+
+/* Section 2 - subtle black-panel surface treatment: faint vertical gradient,
+   whisper-thin scanlines, a restrained inner border, and a barely-there
+   cyan/purple ambient edge haze. All effects sit in the 3-8% strength range
+   the spec calls for - the panel must still read as flat black at a glance.
+   Applied to the main menu/setup card only (panel-3d/panel-3d-deep already
+   carry their own grunge-plate treatment from Commit 46/49 and are untouched). */
+.panel-textured {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.12) 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px),
+    #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.05),
+    inset 0 0 60px rgba(34,211,238,0.035),
+    inset 0 0 100px rgba(232,121,249,0.025);
+}
+
+/* Section 5 - custom industrial checkbox, replacing the default HTML control.
+   A visually-hidden real checkbox drives a painted grunge square via the
+   sibling selector, so keyboard/screen-reader behavior is completely
+   unchanged (Tab, Space, and assistive tech all just work). */
+.grunge-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.grunge-checkbox + span {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.28);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.3));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+  flex-shrink: 0;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.grunge-checkbox:checked + span {
+  border-color: #ff2fd0;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 0 8px rgba(255,47,208,0.5);
+}
+.grunge-checkbox:checked + span::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid #ff9be9;
+  border-bottom: 2px solid #ff9be9;
+  transform: rotate(40deg);
+}
+.grunge-checkbox:focus-visible + span {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Section 13 - a shared cyberpunk focus-visible ring for anything not already
+   using .btn-3d/.btn-art's own focus treatment (links, checkboxes, native
+   controls picked up incidentally by this pass). */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Section 10 - the new START SIMULATED MATCH image button. Exact 383x48
+   design size, aspect-ratio-locked so it can only ever scale down (never
+   crop/stretch/distort), object-fit:contain on the img as a second layer of
+   protection. Interaction states match the rest of the image-button family
+   (.btn-art) - lift+brighten on hover, press-down+dim on active, a glow that
+   never shifts layout since it's a box-shadow, not a border/scale change on
+   the wrapper. */
+.simulated-match-start-button {
+  width: 383px;
+  max-width: 100%;
+  aspect-ratio: 383 / 48;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transition: transform 90ms ease, filter 90ms ease, box-shadow 90ms ease;
+}
+.simulated-match-start-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.simulated-match-start-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.4);
+}
+.simulated-match-start-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(0.86);
+}
+.simulated-match-start-button:disabled {
+  opacity: 0.4;
+}
+.simulated-match-start-button:disabled:hover {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simulated-match-start-button,
+  .simulated-match-start-button:hover:not(:disabled),
+  .simulated-match-start-button:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Section 11 - a themed track for the showcase speed slider, replacing the
+   bare default browser range input. Thumb color still follows Tailwind's
+   accent-* utility (kept on the element); this just gives the track a dark
+   industrial groove instead of a flat system-gray bar. */
+.grunge-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(255,255,255,0.08));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
+}
+.grunge-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor, inset 0 1px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+}
+.grunge-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 3px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor, inset 0 1px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+}
