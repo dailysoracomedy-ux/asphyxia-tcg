@@ -7,6 +7,7 @@ import type { AttackDamagePreview } from '@/game/rules';
 import { getCardDef } from '@/data/cards';
 import { factionTheme, getCardTypeLabel } from '@/lib/theme';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
+import { fluidBoardDimension } from '@/lib/responsiveCard';
 import ApexCardRenderer from './ApexCardRenderer';
 import GenericArtCard from './GenericArtCard';
 
@@ -222,13 +223,7 @@ export default function Card({
   // changes on already-comfortable screens. Every other size (modals, the
   // hover/inspect preview, galleries) is untouched.
   const isBoardScaled = size === 'apexBoard' || size === 'supportBoard' || size === 'hand';
-  const fluidH = (() => {
-    if (!isBoardScaled) return null;
-    const min = Math.round(h * 0.78);
-    const slope = (h - min) / 360; // px gained per 1px of window height, between the two breakpoints below
-    const intercept = min - slope * 640; // window-height breakpoints: 640px (min) .. 1000px (max)
-    return `clamp(${min}px, calc(${intercept.toFixed(2)}px + ${(slope * 100).toFixed(4)}vh), ${h}px)`;
-  })();
+  const fluidH = isBoardScaled ? fluidBoardDimension(h) : null;
   // Purely visual - isPlayable defaults to undefined everywhere except Hand.tsx, so
   // every other caller (board, inspect modal, gallery, hover preview) is completely
   // unaffected by this and stays exactly as bright as it always was.

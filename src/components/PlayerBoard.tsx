@@ -12,6 +12,7 @@ import { factionTheme } from '@/lib/theme';
 import { getPlaymat } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
 import { getCardArt, getArtAspectRatio } from '@/lib/cardArt';
+import { fluidBoardDimension } from '@/lib/responsiveCard';
 import { useApexVisualEvents, usePlayerVisualEvents, useSlotGhost } from '@/store/animationStore';
 import type { DragState } from '@/ui/dragDrop/dragDropTypes';
 import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
@@ -341,11 +342,16 @@ function ApexSlot({
   flipped?: boolean;
 }) {
   if (!apex) {
-    const emptyWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
+    // Commit 50.2 - fluid-matched to a real Apex card (see the EquipFlap fix
+    // below for the actual reported bug this is adjacent to): an empty slot
+    // now shrinks in lockstep with filled ones instead of staying pinned at
+    // the old static size, so slots don't visually mismatch on short screens.
+    const emptyHeight = fluidBoardDimension(APEX_BOARD_HEIGHT);
+    const emptyWidth = `calc(${emptyHeight} * ${getArtAspectRatio('Apex').toFixed(4)})`;
     return (
       <div
         className={`rounded-md slot-etched flex items-center justify-center text-[10px] text-white/35 text-center px-1 ${state.tutorialMode ? 'tutorial-stay-bright' : ''}`}
-        style={{ width: emptyWidth, height: APEX_BOARD_HEIGHT }}
+        style={{ width: emptyWidth, height: emptyHeight }}
       >
         empty Apex slot
       </div>
@@ -403,7 +409,15 @@ function ApexSlot({
   // (still rendered inside Card's flow-layout path) instead.
   const hasApexArt = !!getCardArt(apex.defId);
   if (apex.equip && hasApexArt) {
-    const apexArtWidth = Math.round(APEX_BOARD_HEIGHT * getArtAspectRatio('Apex'));
+    // Commit 50.2 - BUG FIX: this was `Math.round(APEX_BOARD_HEIGHT * ratio)`,
+    // a static number computed from the OLD fixed apex height. Commit 50 made
+    // the actual Apex card (Card.tsx) shrink fluidly on short viewports via
+    // fluidBoardDimension() - this width fed to EquipFlap never followed, so
+    // the flap silently drifted wider than the real card on any window under
+    // ~1000px tall (the reported bug: "EQUIP is much larger than it should
+    // be"). Now built from the exact same shared formula Card.tsx uses, so
+    // the two are always pixel-identical, not just usually close.
+    const apexArtWidth = `calc(${fluidBoardDimension(APEX_BOARD_HEIGHT)} * ${getArtAspectRatio('Apex').toFixed(4)})`;
     return (
       <div className="flex flex-col shrink-0" style={{ width: apexArtWidth }}>
         <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'} flipped={flipped}>

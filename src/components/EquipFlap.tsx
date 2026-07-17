@@ -13,6 +13,16 @@ import { CardHoverPreview } from './Card';
  * not separately-generated flap art. Independently hoverable/clickable from the
  * Apex above it - hovering shows the full Equip card, same as hovering any other
  * card, via the same CardHoverPreview the rest of the app uses.
+ *
+ * Commit 50.2 - `width` is now a CSS length expression (string), not a plain
+ * number. The caller (PlayerBoard.tsx) passes the exact same fluidBoardDimension()
+ * calc() string used for the real Apex card next to it, so this flap can never
+ * silently drift out of sync with it again (that drift was the reported bug: on
+ * short viewports the Apex card shrank via CSS clamp() while this flap stayed at
+ * a stale fixed width, rendering visibly larger than the card it's attached to).
+ * All the derived measurements (full art height, crop height, vertical offset)
+ * are now computed with CSS calc() instead of JS arithmetic, so they scale
+ * perfectly in lockstep with whatever `width` resolves to at render time.
  */
 export default function EquipFlap({
   equipInstance,
@@ -20,9 +30,9 @@ export default function EquipFlap({
   onInspect,
 }: {
   equipInstance: CardInstance;
-  /** Must match the Apex card's own rendered width exactly, so the flap lines up
-   *  seamlessly beneath it with no visible width mismatch. */
-  width: number;
+  /** A CSS length/calc() expression matching the Apex card's own rendered
+   *  width exactly, so the flap lines up seamlessly beneath it. */
+  width: string;
   onInspect?: () => void;
 }) {
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
@@ -38,8 +48,11 @@ export default function EquipFlap({
   const def = getCardDef(equipInstance.defId);
   const art = getCardArt(equipInstance.defId);
   const ratio = getArtAspectRatio(def.type); // 5:7 for Equip art
-  const fullArtHeight = width / ratio;
-  const flapHeight = Math.round(fullArtHeight * EQUIP_FLAP_CROP_RATIO);
+  // All CSS calc() now, since `width` is itself a fluid clamp() expression,
+  // not a plain number - see the Commit 50.2 note above.
+  const fullArtHeight = `calc(${width} / ${ratio.toFixed(4)})`;
+  const flapHeight = `calc(${fullArtHeight} * ${EQUIP_FLAP_CROP_RATIO})`;
+  const peekOffset = `calc(-1 * (${fullArtHeight} - ${flapHeight}))`;
 
   function handleMouseEnter(e: React.MouseEvent) {
     if (typeof window !== 'undefined' && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
@@ -69,7 +82,7 @@ export default function EquipFlap({
         onClick={onInspect}
         title={`Equip: ${def.name}`}
         className={`absolute w-full ${onInspect ? 'cursor-pointer hover:brightness-125' : 'cursor-default'}`}
-        style={{ left: 0, top: -(fullArtHeight - flapHeight), width, height: fullArtHeight }}
+        style={{ left: 0, top: peekOffset, width, height: fullArtHeight }}
       >
         {art && (
           // eslint-disable-next-line @next/next/no-img-element

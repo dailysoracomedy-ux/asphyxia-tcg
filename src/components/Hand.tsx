@@ -70,7 +70,17 @@ export default function Hand({
           accidental cropping: a hand that genuinely overflows the viewport
           width now scrolls rather than spilling off-screen. Vertical
           overflow keeps its existing hover-peek toggle untouched. */}
-      <div className="relative" style={{ height: HAND_PEEK_H, overflowX: 'auto', overflowY: hoveredId ? 'visible' : 'hidden' }}>
+      {/* Commit 50.1 - BUG FIX: 'auto' on one axis silently upgrades a
+          'visible' value on the OTHER axis to 'auto' too (a real CSS interop
+          rule, not a browser quirk) - so the Commit 50 horizontal-scroll
+          addition was quietly clipping the hover-lifted card's escape above
+          the row (the reported bug: hand cards popping up UNDER the play
+          area instead of over it). Horizontal scroll now only applies in the
+          non-hovered baseline state, where overflow-y is already 'hidden'
+          (non-visible) and the interop rule doesn't apply. On hover, both
+          axes are genuinely 'visible' again - identical to the pre-Commit-50
+          behavior that worked correctly. */}
+      <div className="relative" style={{ height: HAND_PEEK_H, overflowX: hoveredId ? 'visible' : 'auto', overflowY: hoveredId ? 'visible' : 'hidden' }}>
         <div className="flex gap-2 pb-1 justify-center h-full w-fit mx-auto">
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
           {cards.map((c) => {
