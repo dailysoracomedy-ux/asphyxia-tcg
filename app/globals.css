@@ -999,3 +999,24 @@ html, body {
   box-shadow: 0 0 6px currentColor, inset 0 1px 0 rgba(255,255,255,0.4);
   cursor: pointer;
 }
+
+/* ===== Commit 50.9: kill drag-selection highlighting ===== */
+
+/* When you click-and-drag a card, the browser's native text/image selection
+   was kicking in - highlighting card text blue and ghosting a drag-image of
+   the card art. The whole game surface is a drag interface, not a document
+   to select, so selection is disabled across it. Inputs/textareas are
+   deliberately NOT covered (none exist in-game, but this keeps the rule safe
+   if one is ever added). draggable=false on imagery is also enforced so no
+   native image-drag ghost appears mid-drag. */
+.game-surface,
+.game-surface * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.game-surface img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
