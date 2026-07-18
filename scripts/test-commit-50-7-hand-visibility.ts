@@ -66,6 +66,17 @@ async function main() {
   const outerWrappers = [...dom.window.document.querySelectorAll('.vfx-draw-in')];
   check('the hand genuinely rendered one wrapper per card', outerWrappers.length === cards.length);
 
+  // Geometry invariants (the actual bug across 50.6/50.7 was vertical
+  // geometry, not transform sign): the OUTER hitbox must be PEEK height so
+  // it occupies the same row space the known-good single card did - if it's
+  // full card height (194) instead, the row misaligns and the hand clips to
+  // a sliver. The INNER lift box must be FULL card height so its top peek
+  // shows and it has something to lift.
+  const firstOuterEl = outerWrappers[0] as HTMLElement;
+  const firstInnerEl = firstOuterEl.querySelector('div[style*="translateY"]') as HTMLElement;
+  check('the outer hitbox is genuinely PEEK height (97px), matching the clip window - not full card height (which misaligns the row into a sliver)', firstOuterEl.style.height === '97px');
+  check('the inner lift box is genuinely FULL card height (194px)', firstInnerEl.style.height === '194px');
+
   const innerDivs = outerWrappers.map((w) => w.querySelector('div[style*="translateY"]'));
   check('every card genuinely has a translateY-driven inner lift element', innerDivs.every((d) => !!d));
 
