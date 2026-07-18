@@ -29,15 +29,18 @@ export default function ActionZone({ playerId, drag, tutorialMode }: { playerId:
           ? isHovered
             ? 'border-emerald-300 text-emerald-200 ring-4 ring-emerald-300 shadow-[0_0_30px_rgba(52,211,153,0.9)] bg-emerald-400/10'
             : 'border-emerald-400/70 text-emerald-300/80 ring-2 ring-emerald-400/70 shadow-[0_0_16px_rgba(52,211,153,0.5)]'
-          : 'border-white/10 text-white/25'
+          : 'border-white/10 text-white'
       }`}
-      style={{ width: 104, height: 110, zIndex: isLegalDropTarget ? 25 : undefined }}
+      style={{ width: 104, height: 110, zIndex: isLegalDropTarget ? 25 : undefined, textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}
     >
-      {/* Commit 50.4 - a dedicated opaque black base layer, separate from the
+      {/* Commit 50.4 - a dedicated black base layer, separate from the
           bg-emerald-400/10 drop-target highlight class above, so real
           playmat art can't show through the Action box at rest without
-          fighting Tailwind class-order specificity for the highlight state. */}
-      <div className="absolute inset-0 rounded-md bg-black -z-10" aria-hidden />
+          fighting Tailwind class-order specificity for the highlight state.
+          Commit 50.5 - dialed back to 55% opacity (was fully opaque) to
+          match the slot-etched fix, and the label text brightened to full
+          white so it reads clearly against whatever art shows through. */}
+      <div className="absolute inset-0 rounded-md bg-black/55 -z-10" aria-hidden />
       Action
     </div>
   );

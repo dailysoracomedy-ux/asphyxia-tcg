@@ -144,7 +144,20 @@ export default function Card({
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tilt everywhere except the giant hover-preview copy ('xl'), which floats
   // free of the pointer and would just wobble confusingly.
-  const { tiltStyle, glare, onTiltMove, onTiltEnd } = useCardTilt(!disableHoverPreview && size !== 'xl');
+  // Commit 50.5 - BUG FIX: "hand cards jitter before the hover-preview pops
+  // up" (confirmed by two people, two browsers). Root cause: onTiltMove
+  // re-measures getBoundingClientRect() on every mousemove with no guard
+  // against the element being mid-animation - and Hand.tsx animates a hand
+  // card's own `top` position for 150ms the instant it's hovered (the lift
+  // that reveals the card's full height). Any mousemove event landing in
+  // that 150ms window - which is essentially guaranteed, since entering the
+  // card at all requires cursor motion - computes tilt against a rect that's
+  // actively sliding upward, producing real visible wobble. No other card
+  // size has this problem: board cards don't reposition themselves on
+  // hover, so their tilt tracking has a stable rect to measure against.
+  // Hand is the one place tilt and a position transition run concurrently on
+  // the same element, so hand is the one place tilt gets turned off.
+  const { tiltStyle, glare, onTiltMove, onTiltEnd } = useCardTilt(!disableHoverPreview && size !== 'xl' && size !== 'hand');
 
   function clearHoverTimer() {
     if (hoverTimer.current) {
