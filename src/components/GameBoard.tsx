@@ -833,7 +833,7 @@ export default function GameBoard() {
           className={`btn-art rounded ${
             state.phase === 'Combat' ? 'hover:shadow-[0_0_14px_rgba(248,60,60,0.55)]' : 'cursor-not-allowed'
           }`}
-          style={{ backgroundImage: 'url(/ui/end-turn-button.webp)', height: '28px', aspectRatio: '764 / 96' }}
+          style={{ backgroundImage: 'url(/ui/end-turn-button.webp)', height: '26px', aspectRatio: '764 / 96' }}
         >
           <span className="sr-only">End Turn</span>
         </button>
@@ -955,7 +955,7 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5" style={{ transform: 'translateX(-16px)' }}>
+        <div className="flex-1 min-w-0 flex flex-col gap-4 justify-center">
 
       {/* Row 3: opponent board */}
       <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
@@ -1075,7 +1075,7 @@ export default function GameBoard() {
           simply and naturally sized, none of them able to shrink below or
           spill into each other. Its own position (baseline gap vs shifted
           down toward the hand while a decision is pending) is handled below. */}
-      <div className="shrink-0" style={{ marginTop: decisionPending ? 10 : 'auto', marginBottom: decisionPending ? 0 : 12, transition: 'margin-top 200ms ease-out, margin-bottom 200ms ease-out' }}>
+      <div className="shrink-0" style={{ marginTop: decisionPending ? 10 : 0, marginBottom: decisionPending ? 0 : 4, transition: 'margin-top 200ms ease-out, margin-bottom 200ms ease-out' }}>
         <PlayerBoard
           state={state}
           playerId={viewerBottomId}

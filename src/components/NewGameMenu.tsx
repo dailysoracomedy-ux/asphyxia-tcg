@@ -270,7 +270,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
             competes with the toss. Every other view keeps the full header. */}
-        {view !== 'coin-flip' && (
+        {view !== 'coin-flip' && view !== 'locker' && (
           <>
             {/* Commit 33 - the real Asphyxia logo, replacing the plain text header.
                 Transparent PNG built for a dark background - fits the card's own

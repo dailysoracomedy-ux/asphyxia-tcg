@@ -26,28 +26,6 @@ const CARD_H = 146;
 /** Two-part shadow: tight contact + soft ambient (unified top-left light). */
 const PILE_SHADOW = 'drop-shadow(0 2px 2px rgba(0,0,0,0.6)) drop-shadow(0 9px 12px rgba(0,0,0,0.38))';
 
-function edgePx(count: number): number {
-  return Math.max(2, Math.min(10, Math.round(count * 0.35)));
-}
-
-function PaperEdge({ count, width }: { count: number; width: number }) {
-  const h = edgePx(count);
-  return (
-    <div
-      aria-hidden
-      className="absolute left-[2px] rounded-b-[2px]"
-      style={{
-        top: '100%',
-        marginTop: -1,
-        width: width - 4,
-        height: h,
-        background:
-          'repeating-linear-gradient(0deg, #b7b2a9 0px, #b7b2a9 1px, #6e6a62 1px, #6e6a62 2px)',
-        boxShadow: 'inset 0 -1px 1px rgba(0,0,0,0.5)',
-      }}
-    />
-  );
-}
 
 /** One sleeved card back: the sleeve's own art if it has one, otherwise the
  *  original printed back - a straight image swap, no filter/overlay. */
@@ -120,7 +98,6 @@ export default function DeckVoidStack({
                 <SleevedBack sleeve={sleeve} />
               </div>
             ))}
-            <PaperEdge count={count} width={CARD_W} />
           </div>
         )}
       </div>

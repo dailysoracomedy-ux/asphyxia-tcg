@@ -22,7 +22,7 @@
  * Coin Flip screen, just tuned down to render ~10 of them at once cheaply.
  */
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { PlayerId } from '@/types/game';
 import {
   PLAYMATS,
@@ -34,6 +34,7 @@ import {
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
 import { playSfx } from '@/audio/sfx';
 import CoinPreview3D from './CoinPreview3D';
+import LockerHeroPreview3D, { type HeroKind } from './LockerHeroPreview3D';
 
 const TABS: { kind: CosmeticKind; label: string }[] = [
   { kind: 'playmat', label: 'Playmats' },
@@ -90,14 +91,43 @@ export default function LockerMenu() {
 
   const selectedId = loadout[tab];
 
-  // Typed per-tab: (preview, name, blurb) rows - avoids union-narrowing
-  // gymnastics across three structurally different skin shapes.
-  const rows: { id: string; name: string; blurb: string; preview: React.ReactNode }[] =
-    tab === 'playmat'
-      ? PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview image={p.image} edge={p.edge} /> }))
-      : tab === 'sleeve'
-      ? SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview image={s.image} rim={s.rim} /> }))
-      : COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview3D frontSrc={c.frontImage ?? undefined} size={104} /> }));
+  // Typed per-tab rows: each carries the small tile preview + the data the big
+  // hero preview needs (image + accent color).
+  type Row = { id: string; name: string; blurb: string; preview: React.ReactNode; heroImage: string | null; heroAccent: string | null };
+  const rows: Row[] = useMemo(() => {
+    if (tab === 'playmat') return PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview image={p.image} edge={p.edge} />, heroImage: p.image, heroAccent: p.edge }));
+    if (tab === 'sleeve') return SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview image={s.image} rim={s.rim} />, heroImage: s.image ?? SLEEVE_BASE_SRC, heroAccent: s.rim }));
+    return COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview3D frontSrc={c.frontImage ?? undefined} size={104} />, heroImage: c.frontImage, heroAccent: '#ff2fd0' }));
+  }, [tab]);
+
+  const selectedRow = rows.find((r) => r.id === selectedId) ?? rows[0];
+
+  // Horizontal drag-scroll for the carousel (mouse-drag to scrub).
+  const trackRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ down: boolean; startX: number; startScroll: number; moved: boolean }>({ down: false, startX: 0, startScroll: 0, moved: false });
+  const [grabbing, setGrabbing] = useState(false);
+
+  function onDragDown(e: React.PointerEvent) {
+    const el = trackRef.current;
+    if (!el) return;
+    dragState.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
+    setGrabbing(true);
+    el.setPointerCapture?.(e.pointerId);
+  }
+  function onDragMove(e: React.PointerEvent) {
+    const el = trackRef.current;
+    const ds = dragState.current;
+    if (!el || !ds.down) return;
+    const dx = e.clientX - ds.startX;
+    if (Math.abs(dx) > 4) ds.moved = true;
+    el.scrollLeft = ds.startScroll - dx;
+  }
+  function onDragUp(e: React.PointerEvent) {
+    const el = trackRef.current;
+    dragState.current.down = false;
+    setGrabbing(false);
+    el?.releasePointerCapture?.(e.pointerId);
+  }
 
   return (
     <div>
@@ -124,8 +154,37 @@ export default function LockerMenu() {
         ))}
       </div>
 
+      {/* THE HERO PREVIEW - one big ALIVE 3D preview of the selected gear that
+          the user steers with the mouse (Commit 51). Sits where the logo used
+          to, dominating the top of the Locker. */}
+      <div className="relative mb-4 rounded-lg border border-white/10 bg-black/60 overflow-hidden" style={{ boxShadow: 'inset 0 0 40px rgba(0,0,0,0.7)' }}>
+        <div
+          aria-hidden
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: `radial-gradient(ellipse at 50% 40%, ${(selectedRow?.heroAccent || '#ff2fd0')}18, transparent 70%)` }}
+        />
+        <div className="relative py-5 flex items-center justify-center min-h-[220px]">
+          {selectedRow && (
+            <LockerHeroPreview3D
+              key={`${tab}-${selectedRow.id}`}
+              kind={tab as HeroKind}
+              image={selectedRow.heroImage}
+              accent={selectedRow.heroAccent}
+              size={tab === 'playmat' ? 380 : 240}
+            />
+          )}
+        </div>
+        {selectedRow && (
+          <div className="relative pb-3 px-4 text-center">
+            <div className="text-[15px] font-bold tracking-wide" style={{ color: '#ffd6f7' }}>{selectedRow.name}</div>
+            <div className="text-[11px] text-white/45 leading-snug mt-0.5">{selectedRow.blurb}</div>
+            <div className="text-[9px] text-white/30 tracking-widest uppercase mt-1">Drag to tilt · currently equipped</div>
+          </div>
+        )}
+      </div>
+
       {/* Category tabs: shallow grunge plates, illuminated top edge = active. */}
-      <div className="flex gap-1 mb-4">
+      <div className="flex gap-1 mb-3">
         {TABS.map((t) => (
           <button
             key={t.kind}
@@ -152,9 +211,17 @@ export default function LockerMenu() {
         ))}
       </div>
 
-      {/* Cosmetic tiles: textured grunge card surface, EQUIPPED badge,
-          responsive 2-col -> 1-col collapse. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
+      {/* Horizontal drag-scroll carousel (Commit 51): scrub through options by
+          dragging with the mouse. Selecting one updates the hero preview above. */}
+      <div
+        ref={trackRef}
+        onPointerDown={onDragDown}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragUp}
+        onPointerCancel={onDragUp}
+        className="locker-carousel flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1"
+        style={{ cursor: grabbing ? 'grabbing' : 'grab', scrollbarWidth: 'thin' }}
+      >
         {rows.map((item) => {
           const active = selectedId === item.id;
           return (
@@ -162,14 +229,17 @@ export default function LockerMenu() {
               key={item.id}
               type="button"
               onClick={() => {
+                // Suppress the click that ends a drag-scrub.
+                if (dragState.current.moved) return;
                 playSfx('ui.confirm');
                 setItem(seat, tab, item.id);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
               aria-pressed={active}
-              className={`panel-3d relative text-left rounded-lg border-2 p-2.5 transition-all ${
+              className={`panel-3d relative text-left rounded-lg border-2 p-2.5 shrink-0 w-[190px] transition-all ${
                 active ? 'border-fuchsia-400/80 shadow-[0_0_14px_rgba(255,47,208,0.35)]' : 'border-white/10 hover:border-white/30'
               }`}
+              style={{ scrollSnapAlign: 'start' }}
             >
               {active && (
                 <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-fuchsia-500/90 text-black text-[8px] font-black tracking-wider shadow-[0_0_8px_rgba(255,47,208,0.7)]">
@@ -180,7 +250,7 @@ export default function LockerMenu() {
               <div className="mt-2 text-[12px] font-bold" style={{ color: active ? '#ffd6f7' : 'rgba(255,255,255,0.8)' }}>
                 {item.name}
               </div>
-              <div className="text-[10px] text-white/40 leading-snug mt-0.5">{item.blurb}</div>
+              <div className="text-[10px] text-white/40 leading-snug mt-0.5 line-clamp-2">{item.blurb}</div>
             </button>
           );
         })}

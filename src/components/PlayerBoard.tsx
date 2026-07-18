@@ -114,7 +114,7 @@ export default function PlayerBoard({
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-lg border p-1.5 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
+      className={`relative rounded-lg border p-3 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
       style={{
         borderColor: playmat.edge ? `${playmat.edge}66` : `${theme.border}55`,
         // Commit 50.4 - real playmat art (cover, centered) replaces the old
