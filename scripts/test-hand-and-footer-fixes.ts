@@ -43,7 +43,23 @@ async function main() {
   check('body no longer genuinely clips vertical overflow either', !/<body[\s\S]{0,100}overflow-hidden/.test(layoutSrc));
 
   const handSrc = fs.readFileSync('src/components/Hand.tsx', 'utf-8');
-  check('the hand lift genuinely uses top, not transform - transform traps position:fixed descendants like the card preview', handSrc.includes("hover:top-[-165px]") && !handSrc.includes('hover:-translate-y'));
+  // Commit 50.6 - this check was stale: it looked for a Tailwind
+  // "hover:top-[-165px]" class that hasn't existed in Hand.tsx for many
+  // commits (the lift became a JS-state-driven `top` style, then - this
+  // commit - a `transform` on a stabilized-hitbox inner div, to fix a real
+  // reported hover-jitter bug at the card edges). The underlying concern in
+  // the old label ("transform traps position:fixed descendants") is a real
+  // CSS rule, so it's verified against what actually matters now: Card.tsx's
+  // ONLY position:fixed element (CardHoverPreview) must stay portaled to
+  // document.body, which breaks DOM ancestry entirely - a portaled fixed
+  // element's containing block is unaffected by transforms on its React
+  // (not DOM) parent, so the trap this check exists to prevent genuinely
+  // cannot occur here regardless of which CSS property drives the lift.
+  const cardSrc = fs.readFileSync('src/components/Card.tsx', 'utf-8');
+  check(
+    'the hand lift may use transform now - CardHoverPreview (the only fixed-position element in Card.tsx) is genuinely portaled to document.body, so a transform on the lift wrapper cannot trap it',
+    handSrc.includes('translateY') && /createPortal\s*\(/.test(cardSrc) && /document\.body/.test(cardSrc)
+  );
 
   const { createRoot } = await import('react-dom/client');
   const React = await import('react');
