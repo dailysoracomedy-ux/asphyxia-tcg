@@ -24,7 +24,6 @@ import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@
 import { useTutorialStore } from '@/store/tutorialStore';
 import AudioController from '@/audio/AudioController';
 import { playSfx } from '@/audio/sfx';
-import { canPlayCardFromHand } from '@/lib/cardPlayability';
 import { useCeremonyBusy } from '@/store/animationStore';
 import { useShowcaseStore, currentShowcaseMultiplier, SHOWCASE_SPEED_MIN, SHOWCASE_SPEED_MAX } from '@/store/showcaseStore';
 import VoidInspectModal from './VoidInspectModal';
@@ -42,8 +41,6 @@ import {
   getEffectiveDef,
   overflowToO2Loss,
 } from '@/game/rules';
-
-const PHASE_LABEL: Record<string, string> = { Start: 'Draw', Main: 'Main', Combat: 'Combat', End: 'End' };
 
 const ACTION_LOCK_MS = 500;
 /** Module-level, not inside the component, specifically so the Date.now() call
@@ -395,99 +392,11 @@ export default function GameBoard() {
   // selection UI explains itself there; this specifically covers the "idle, no
   // card selected yet" moments where a new player would otherwise have no idea
   // what their options even are.
-  function derivePhasePrompt(): string {
-    if (aiIsActing) return 'Waiting for the AI...';
-    if (!bottomIsActingPlayer) return "Waiting for the other player's turn...";
-    if (mode.kind !== 'idle') return ''; // that mode's own ConfirmBar/prompt already explains itself
-    if (state.phase === 'Start') return 'Drawing for the turn...';
-    if (state.phase === 'Main' || state.phase === 'Combat') {
-      const canPlayAnything = activePlayer.hand.some((c) => canPlayCardFromHand(state, activeId, c));
-      const canStillAttack = activePlayer.apexSlots.some((a) => a && !a.hasAttacked);
-      if (canPlayAnything && canStillAttack) return 'Drag a card to play it, or click an Apex to attack.';
-      if (canPlayAnything) return 'Drag a card to play it.';
-      if (canStillAttack) return 'Click an Apex to attack, or End Turn when ready.';
-      return 'Nothing left to do - End Turn when ready.';
-    }
-    return '';
-  }
-  const phasePrompt = derivePhasePrompt();
 
   const selectedCard = mode.kind !== 'idle' && 'cardId' in mode ? activePlayer.hand.find((c) => c.instanceId === mode.cardId) : undefined;
 
   function resetMode() {
     setMode({ kind: 'idle' });
-  }
-
-  function selectHandCard(cardId: string) {
-    const card = activePlayer.hand.find((c) => c.instanceId === cardId);
-    if (!card || state.phase !== 'Main') return;
-    if (isActionLocked()) return;
-    if (blockedByTutorial()) return;
-    if (mode.kind === 'equipSwapSelectCard') {
-      if (card.type !== 'Equip') return;
-      state.equipSwap(mode.apexId, cardId);
-      lockActions();
-      resetMode();
-      return;
-    }
-    if (mode.kind !== 'idle' && 'cardId' in mode && mode.cardId === cardId) {
-      resetMode();
-      return;
-    }
-    if (card.type === 'Special' && activePlayer.turnFlags.specialsPlayedThisTurn >= 1) return;
-    if (
-      (card.type === 'AbilitySupport' || card.type === 'BatterySupport') &&
-      activePlayer.turnFlags.supportsPlayedThisTurn >= 1
-    ) {
-      return;
-    }
-    switch (card.type) {
-      case 'Apex': {
-        const emptySlots = activePlayer.apexSlots.filter((s) => s === null).length;
-        if (emptySlots === 1) {
-          state.playApexCard(cardId);
-          lockActions();
-        } else {
-          setMode({ kind: 'apexReady', cardId });
-        }
-        break;
-      }
-      case 'AbilitySupport':
-        setMode({ kind: 'supportChooseChain', cardId });
-        break;
-      case 'BatterySupport': {
-        const emptySlots = activePlayer.supportSlots.filter((s) => s === null).length;
-        if (emptySlots === 1) {
-          state.playSupportCard(cardId);
-          lockActions();
-        } else {
-          setMode({ kind: 'supportReady', cardId });
-        }
-        break;
-      }
-      case 'Equip': {
-        const eligibleApexes = activePlayer.apexSlots.filter((a): a is CardInstance => !!a && !a.equip);
-        if (eligibleApexes.length === 1) {
-          state.playEquipCard(cardId, eligibleApexes[0].instanceId);
-          lockActions();
-        } else {
-          setMode({ kind: 'equipReady', cardId });
-        }
-        break;
-      }
-      case 'Special': {
-        const def = getCardDef(card.defId) as SpecialDef;
-        if (!def.requiresTarget) {
-          state.playSpecialCard(cardId);
-          lockActions();
-        } else {
-          setMode({ kind: 'specialReady', cardId, requiresTarget: def.requiresTarget });
-        }
-        break;
-      }
-      default:
-        break;
-    }
   }
 
   const handDisabledIds = new Set(
@@ -1188,7 +1097,6 @@ export default function GameBoard() {
         />
       </div>
 
-
         </div>
       </div>
 
@@ -1314,44 +1222,6 @@ export default function GameBoard() {
       )}
       <DragDropLayer drag={drag} label={dragLabel} cardInstance={dragCardInstance} />
     </div>
-  );
-}
-
-function PhaseButton({
-  label,
-  active,
-  enabled,
-  onClick,
-  highlighted,
-}: {
-  label: string;
-  active: boolean;
-  enabled: boolean;
-  onClick: () => void;
-  highlighted?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.currentTarget.blur();
-        const scrollY = window.scrollY;
-        onClick();
-        requestAnimationFrame(() => {
-          if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
-        });
-      }}
-      disabled={!enabled}
-      className={`px-3 py-1.5 rounded text-xs font-bold tracking-wide border ${
-        active
-          ? 'border-cyan-300 bg-cyan-300/20 text-cyan-100'
-          : enabled
-          ? 'border-cyan-400/50 hover:bg-cyan-400/10 text-cyan-200'
-          : 'border-white/10 text-white/20 cursor-not-allowed'
-      } ${highlighted ? 'pulse-border ring-2 ring-emerald-400 tutorial-spotlight' : ''}`}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -1493,7 +1363,6 @@ function AttackOutcomePreview({ state, mode }: { state: GameState; mode: Extract
     </div>
   );
 }
-
 
 function OpeningApexScreen() {
   const state = useGameStore();

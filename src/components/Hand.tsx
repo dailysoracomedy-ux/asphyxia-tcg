@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CardInstance, GameState, PlayerId } from '@/types/game';
-import Card from './Card';
+import Card, { CardHoverPreview } from './Card';
 import { canPlayCardFromHand, getCardPlayabilityReason } from '@/lib/cardPlayability';
 import { playSfx } from '@/audio/sfx';
+import { handCssVars, HAND_GEOMETRY } from '@/lib/responsiveCard';
 
 interface HandProps {
   cards: CardInstance[];
@@ -14,42 +15,48 @@ interface HandProps {
   label?: string;
   onInspectCard?: (instance: CardInstance) => void;
   /** Floor for the container's width, in px - typically the board's own measured
-   *  width, so Hand never reads narrower than the board above it. The container
-   *  still hugs its actual content otherwise, and grows past this floor for a
-   *  large hand rather than ever clipping or wrapping unexpectedly. */
+   *  width, so Hand never reads narrower than the board above it. */
   minWidth?: number;
-  /** Needed to compute per-card playability for hand-dimming (Commit 23). Optional
-   *  so any future non-interactive read-only hand display can skip dimming
-   *  entirely by simply not passing these. */
+  /** Needed to compute per-card playability for hand-dimming (Commit 23). */
   state?: GameState;
   playerId?: PlayerId;
   /** Commit 30 - starts a potential drag for a playable hand card. Only
-   *  playable cards get this wired (see the `playable` check below) - an
-   *  unplayable card has no legal drop zones anyway, so dragging it would
-   *  never do anything, and this keeps that explicit rather than relying on
-   *  an empty legal-zone set to silently no-op. */
+   *  playable cards get this wired. */
   onCardPointerDown?: (e: React.PointerEvent, card: CardInstance) => void;
   /** Commit 31 - during a guided tutorial step, exactly one hand card is the
-   *  correct one to drag. That card gets the spotlight; everything else in
-   *  hand dims and stops responding to pointer events entirely (not just
-   *  disabled styling - the tutorial's whole point is that only the
-   *  correct thing can be touched right now). */
+   *  correct one to drag; everything else dims and stops responding. */
   tutorialSpotlightInstanceId?: string | null;
 }
 
-const HAND_CARD_W = 155; // matches Card.tsx's 'hand' size preset width exactly
-const HAND_CARD_H = 194; // matches Card.tsx's 'hand' size preset height exactly
-const HAND_PEEK_H = 97; // how much of a tucked card's top is visible by default - about half the card
-const HAND_TUCK_OFFSET = HAND_CARD_H - HAND_PEEK_H;
-// Commit 50.8 - cards overlap by this much (each card's left edge tucks under
-// its left neighbor), so the hand reads as a held fan, not spaced tiles.
-const HAND_CARD_OVERLAP = 46;
-// The hover/interaction trigger is inset this far from every card edge, so
-// overlapping cards' triggers never touch - the gutter between them is a
-// neutral no-hover zone that stops enter/leave thrash (the jitter). Large
-// enough that the top-right info (i) button sits OUTSIDE the pad and stays
-// directly clickable.
-const HAND_TRIGGER_INSET = 24;
+/**
+ * Commit 50.10 - Stable Hand Hover Hitboxes & Preview Ownership.
+ *
+ * Hand is now the SINGLE owner of hand-card hover behavior. The previous
+ * design had two competing hover owners (Hand's inset trigger pad AND each
+ * Card's own CardHoverPreview timer) plus overlapping, z-index-sensitive hit
+ * regions - moving horizontally could change which DOM element sat under the
+ * pointer, flipping hoveredId/transform/z-index in a self-invalidating loop
+ * (the jitter/flicker). The architecture now:
+ *
+ *  - Visual cards may overlap (the fan look), but POINTER HIT REGIONS DO NOT.
+ *    Each card gets one static, contiguous, non-overlapping interaction slice
+ *    (its exposed horizontal width); the last card takes the remaining full
+ *    width. These slices never move and are never covered by a lifted card,
+ *    so hit-testing is stable regardless of transform/z-index.
+ *  - The moving/lifting visual layer is pointer-events:none, so raising a
+ *    card can never change which slice is under the cursor.
+ *  - Per-slice pointerenter activates that card; hover is cleared only when
+ *    the pointer leaves the ENTIRE hand track - so A->B transfers directly,
+ *    never A->null->B.
+ *  - Card size="hand" gets disableHoverPreview; Hand renders the one and only
+ *    hand CardHoverPreview, on a single centralized ~320ms intent timer
+ *    anchored to the stable slice rect. Rapid scrubbing mounts no preview.
+ *  - Hand sizing derives from the same fluid height curve Card renders with
+ *    (handCssVars / responsiveCard.ts), so hitboxes and cards can't drift
+ *    apart at short viewport heights.
+ */
+
+const PREVIEW_DELAY_MS = 320;
 
 export default function Hand({
   cards,
@@ -65,34 +72,119 @@ export default function Hand({
   tutorialSpotlightInstanceId,
 }: HandProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ id: string; x: number; y: number } | null>(null);
+
+  // One shared hover-intent timer for the whole hand (never per-card).
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while a drag is in progress from a hand card, to suppress hover
+  // sounds / preview mounting until it ends.
+  const draggingRef = useRef(false);
+  // Track the last card we played a hover sound for, so scrubbing doesn't
+  // machine-gun the sound - it fires only on a genuine change of hovered card.
+  const lastSoundId = useRef<string | null>(null);
+
+  const clearPreviewTimer = useCallback(() => {
+    if (previewTimer.current) {
+      clearTimeout(previewTimer.current);
+      previewTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearPreviewTimer, [clearPreviewTimer]);
+
+  const canHover = useCallback(() => {
+    return typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  }, []);
+
+  // Activate a card as hovered (from its static slice). Sets the raised card
+  // immediately, cancels any prior preview, and starts one fresh intent timer
+  // anchored to this slice's stable rect.
+  const activateCard = useCallback(
+    (instanceId: string, slice: HTMLElement, playable: boolean) => {
+      if (!canHover()) return;
+      if (draggingRef.current) return;
+      if (hoveredId === instanceId) return; // already raised; nothing changes
+
+      setHoveredId(instanceId);
+
+      // Hover sound only on a genuine change of hovered card.
+      if (playable && lastSoundId.current !== instanceId) {
+        playSfx('ui.hover');
+        lastSoundId.current = instanceId;
+      }
+
+      // Restart the single preview timer against the STABLE slice rect (not
+      // the cursor), so rapid scrubbing never mounts a preview and a settled
+      // card shows exactly one, positioned consistently.
+      clearPreviewTimer();
+      setPreview(null);
+      const rect = slice.getBoundingClientRect();
+      const anchorX = rect.left + rect.width / 2;
+      const anchorY = rect.top;
+      previewTimer.current = setTimeout(() => {
+        setPreview({ id: instanceId, x: anchorX, y: anchorY });
+      }, PREVIEW_DELAY_MS);
+    },
+    [canHover, hoveredId, clearPreviewTimer]
+  );
+
+  // Clear hover for the whole hand - only when the pointer leaves the entire
+  // track, never between adjacent cards.
+  const clearHand = useCallback(() => {
+    setHoveredId(null);
+    setPreview(null);
+    clearPreviewTimer();
+    lastSoundId.current = null;
+  }, [clearPreviewTimer]);
+
+  const vars = handCssVars();
+  const previewCard = preview ? cards.find((c) => c.instanceId === preview.id) : null;
+  const reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   return (
     <div className="shrink-0 w-fit max-w-full mx-auto px-1.5 relative z-20 pointer-events-auto" style={{ minWidth }}>
-      <div className="text-[10px] uppercase tracking-widest text-white/50 mb-1">{label ?? 'Hand'} ({cards.length})</div>
-      {/* The reserved track - sized to exactly the tucked peek height, not the
-          full card height, so there's no empty reserved space above the
-          peeking cards. Overflow switches to visible only while a card is
-          actually hovered, letting just that card escape upward to show its
-          full height - safe since nothing above this in the page clips
-          anymore (confirmed in earlier work), while every other card stays
-          cropped to its normal peek. */}
-      {/* Commit 50 (section 7) - intentional horizontal scroll instead of
-          accidental cropping: a hand that genuinely overflows the viewport
-          width now scrolls rather than spilling off-screen. Vertical
-          overflow keeps its existing hover-peek toggle untouched. */}
-      {/* Commit 50.1 - BUG FIX: 'auto' on one axis silently upgrades a
-          'visible' value on the OTHER axis to 'auto' too (a real CSS interop
-          rule, not a browser quirk) - so the Commit 50 horizontal-scroll
-          addition was quietly clipping the hover-lifted card's escape above
-          the row (the reported bug: hand cards popping up UNDER the play
-          area instead of over it). Horizontal scroll now only applies in the
-          non-hovered baseline state, where overflow-y is already 'hidden'
-          (non-visible) and the interop rule doesn't apply. On hover, both
-          axes are genuinely 'visible' again - identical to the pre-Commit-50
-          behavior that worked correctly. */}
-      <div className="relative" style={{ height: HAND_PEEK_H, overflowX: hoveredId ? 'visible' : 'auto', overflowY: hoveredId ? 'visible' : 'hidden' }}>
-        <div className="flex justify-center items-start h-full w-fit mx-auto" style={{ paddingLeft: HAND_CARD_OVERLAP, paddingRight: HAND_CARD_OVERLAP }}>
+      <div className="text-[10px] uppercase tracking-widest text-white/50 mb-1">
+        {label ?? 'Hand'} ({cards.length})
+      </div>
+
+      {/* The hand track: reserved to the tucked peek height. It is the
+          horizontal-scroll container for oversized hands (hand-track-scroll:
+          overflow-x auto, overflow-y visible). The inner row and the lifted
+          card visuals stay overflow-visible so a raised card escapes upward
+          freely. No overflow mode ever changes on hover (that used to shift
+          geometry mid-hover and was a source of the jitter) - the lift is a
+          pure pointer-events:none transform on a high-z visual layer.
+          Clearing hover is bound HERE, at the whole-track level, so moving
+          between adjacent cards transfers A->B directly and only leaving the
+          entire hand clears the raised card. */}
+      <div
+        data-hand-track
+        onPointerLeave={clearHand}
+        className="relative hand-track-scroll"
+        style={{
+          height: vars.peekH,
+          // Custom props available to any descendant that wants them.
+          ['--hand-card-h' as string]: vars.cardH,
+          ['--hand-card-w' as string]: vars.cardW,
+          ['--hand-peek-h' as string]: vars.peekH,
+          ['--hand-lift' as string]: vars.lift,
+          ['--hand-overlap' as string]: vars.overlap,
+        }}
+      >
+        {/* Inner row: fully overflow-visible (scrolling lives on the track
+            above). The lifted card is a pointer-events:none child that
+            overflows upward from a row whose height equals the peek - no
+            hover state drives overflow here, so it never toggles mid-
+            interaction. */}
+        <div
+          className="flex justify-center items-start h-full w-fit mx-auto hand-scroll-row"
+          style={{ paddingLeft: vars.overlap, paddingRight: vars.overlap }}
+        >
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
+
           {cards.map((c, idx) => {
             const playable = state && playerId ? canPlayCardFromHand(state, playerId, c) : true;
             const reason = state && playerId && !playable ? getCardPlayabilityReason(state, playerId, c) : null;
@@ -104,72 +196,82 @@ export default function Hand({
                 : 'tutorial-dim';
             const isHovered = hoveredId === c.instanceId;
             const isFirst = idx === 0;
+            const isLast = idx === cards.length - 1;
+            const tutorialInert = tutorialHighlight === 'tutorial-dim';
+
+            // Static hitbox width: every card exposes exactly its non-
+            // overlapped slice; the last card claims its full width (nothing
+            // overlaps it on the right). These are contiguous and never
+            // overlap, so hit-testing is stable no matter what the visual
+            // layer does.
+            const hitboxWidth = isLast ? vars.cardW : vars.exposedW;
+
             return (
-              // Commit 50.8 - two fixes at once:
-              //  (1) cards OVERLAP (negative left margin) so the hand reads as
-              //      a held fan, not spaced-out tiles.
-              //  (2) hover is driven by an INSET trigger pad (user's idea) that
-              //      covers only the MIDDLE of the card, never its edges. With
-              //      overlapping cards, a full-card hover region means the
-              //      cursor sits over two cards' regions near every seam and
-              //      tiny motion flips the winner - rapid enter/leave thrash =
-              //      jitter. Insetting the trigger leaves a neutral gutter
-              //      around each card where nothing is hovered, so adjacent
-              //      triggers never touch and the state can't oscillate.
-              // Interaction (click/drag/inspect) stays entirely on the Card
-              // exactly as before - the pad is hover-ONLY and forwards nothing,
-              // so gameplay and drag-drop are byte-for-byte unchanged. The pad
-              // sits BELOW the card (z) but is revealed for hover because the
-              // card's own transparent margins/rounded corners don't capture
-              // pointer there; to guarantee hover regardless, the pad is a
-              // sibling positioned above via z and made click-through with
-              // pointer-events so only hover reaches it while clicks fall to
-              // the card. See the pad element below.
               <div
                 key={c.instanceId}
+                data-hand-card-id={c.instanceId}
                 className="vfx-draw-in relative shrink-0"
                 style={{
-                  width: HAND_CARD_W,
-                  height: HAND_PEEK_H,
-                  marginLeft: isFirst ? 0 : -HAND_CARD_OVERLAP,
+                  width: hitboxWidth,
+                  height: vars.peekH,
+                  marginLeft: isFirst ? 0 : `calc(-1 * ${vars.overlap})`,
+                  // The raised card's VISUAL layer sits above others; but since
+                  // that layer is pointer-events:none, this z only affects
+                  // paint order, never hit-testing.
                   zIndex: isHovered ? 40 : idx,
                 }}
               >
-                {/* Inset hover trigger: middle-of-card only, so overlapping
-                    cards' hover regions never touch (the anti-jitter gutter).
-                    Hover-only - it sets/clears the hovered card. It sits on
-                    top (z-30) but is CLICK-THROUGH: onClick/onPointerDown are
-                    forwarded to the same handlers the Card would fire, so a
-                    click selects and a drag starts exactly as before, and the
-                    real interactive Card underneath is what tests/gameplay
-                    still drive too (the pad is aria-hidden and buttonless). */}
+                {/* STATIC INTERACTION SLICE - the only pointer surface. Never
+                    moves, never overlaps a neighbor, never covered by a lifted
+                    card. Owns hover activation + click + drag-start. */}
                 <div
-                  aria-hidden
+                  data-hand-card-hitbox
                   title={reason ?? undefined}
-                  onMouseEnter={() => {
-                    if (playable) playSfx('ui.hover');
-                    setHoveredId(c.instanceId);
-                  }}
-                  onMouseLeave={() => setHoveredId((cur) => (cur === c.instanceId ? null : cur))}
+                  onPointerEnter={
+                    tutorialInert
+                      ? undefined
+                      : (e) => activateCard(c.instanceId, e.currentTarget as HTMLElement, playable)
+                  }
                   onPointerDown={
-                    playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim'
-                      ? (e) => onCardPointerDown(e, c)
+                    playable && onCardPointerDown && !tutorialInert
+                      ? (e) => {
+                          // A drag is starting: kill any pending preview and
+                          // suppress hover churn until it ends.
+                          draggingRef.current = true;
+                          clearPreviewTimer();
+                          setPreview(null);
+                          const end = () => {
+                            draggingRef.current = false;
+                            window.removeEventListener('pointerup', end);
+                            window.removeEventListener('pointercancel', end);
+                          };
+                          window.addEventListener('pointerup', end);
+                          window.addEventListener('pointercancel', end);
+                          onCardPointerDown(e, c);
+                        }
                       : undefined
                   }
-                  onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
-                  className="absolute pointer-events-auto"
+                  onClick={onSelect && !tutorialInert ? () => onSelect(c.instanceId) : undefined}
+                  className="absolute inset-0"
                   style={{
-                    left: HAND_TRIGGER_INSET,
-                    right: HAND_TRIGGER_INSET,
-                    top: HAND_TRIGGER_INSET,
-                    height: HAND_PEEK_H - HAND_TRIGGER_INSET * 2,
-                    zIndex: 45,
-                    cursor: onSelect || onCardPointerDown ? 'pointer' : undefined,
+                    zIndex: 2,
+                    cursor: !tutorialInert && (onSelect || (playable && onCardPointerDown)) ? 'pointer' : undefined,
+                    pointerEvents: tutorialInert ? 'none' : 'auto',
                   }}
                 />
+
+                {/* VISUAL LAYER - pointer-events:none so it can never affect
+                    hit-testing. Holds the full-height card and does the lift.
+                    Left-anchored to the hitbox so overlap reads correctly. */}
                 <div
-                  className="absolute inset-x-0 top-0 transition-transform duration-150 ease-out"
-                  style={{ height: HAND_CARD_H, transform: isHovered ? `translateY(-${HAND_TUCK_OFFSET}px)` : 'translateY(0)' }}
+                  data-hand-card-visual
+                  className="absolute top-0 left-0 transition-transform ease-out pointer-events-none"
+                  style={{
+                    width: vars.cardW,
+                    height: vars.cardH,
+                    transform: isHovered ? `translateY(calc(-1 * ${vars.lift}))` : 'translateY(0)',
+                    transitionDuration: reducedMotion ? '0ms' : '155ms',
+                  }}
                 >
                   <Card
                     instance={c}
@@ -178,16 +280,47 @@ export default function Hand({
                     disabled={disabledIds?.has(c.instanceId)}
                     isPlayable={playable}
                     highlight={tutorialHighlight}
-                    onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
-                    onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
-                    onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
+                    disableHoverPreview
                   />
                 </div>
+
+                {/* INSPECT BUTTON - restored as its own stable pointer surface
+                    (the visual card layer is pointer-events:none). Sits in the
+                    top-right of the peek band, above the hitbox, so a click
+                    inspects rather than selects/drags. */}
+                {onInspectCard && !tutorialInert && (
+                  <button
+                    type="button"
+                    data-hand-card-inspect
+                    title="View full card details"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInspectCard(c);
+                    }}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 border border-white/30 text-white/70 text-[9px] leading-none flex items-center justify-center hover:bg-black/90 hover:text-white"
+                    style={{ zIndex: 3 }}
+                  >
+                    i
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
       </div>
+
+      {/* The ONE hand hover preview - centralized here, portaled to body,
+          pointer-events:none, viewport-clamped by CardHoverPreview itself. */}
+      {preview && previewCard && (
+        <div data-hand-hover-preview>
+          <CardHoverPreview x={preview.x} y={preview.y} instance={previewCard} />
+        </div>
+      )}
     </div>
   );
 }
+
+// Re-export the max constants for any consumer/test that wants the intended
+// desktop proportions without recomputing them.
+export const HAND_MAX = HAND_GEOMETRY;
