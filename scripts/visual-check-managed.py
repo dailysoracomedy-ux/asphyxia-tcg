@@ -141,6 +141,20 @@ def run_checks(args):
                             }
                         }
                     }
+                    // Also flag any full-height container whose CONTENT spills
+                    // below its box with a non-clipping overflow-y (visible),
+                    // which renders a scrollbar in some browsers even when
+                    // html/body are hidden. This is the class of bug that
+                    // produced the reported right-side scrollbar.
+                    let spiller = null;
+                    const vh = window.innerHeight;
+                    for (const el of document.querySelectorAll('.game-surface, [class*="h-full"], [class*="min-h-screen"]')) {
+                        const s = getComputedStyle(el);
+                        if (s.overflowY === 'visible' && el.scrollHeight > el.clientHeight + 2 && el.getBoundingClientRect().height >= vh - 4) {
+                            spiller = { tag: el.tagName, cls: (el.className||'').toString().slice(0,60), sh: el.scrollHeight, ch: el.clientHeight };
+                            break;
+                        }
+                    }
                     return {
                         trackOverflowX: cs ? cs.overflowX : null,
                         trackOverflowY: cs ? cs.overflowY : null,
@@ -155,6 +169,7 @@ def run_checks(args):
                         pageScrollH: de.scrollHeight,
                         pageClientH: de.clientHeight,
                         culprit,
+                        spiller,
                         hitboxes: document.querySelectorAll('[data-hand-card-hitbox]').length,
                         visuals: document.querySelectorAll('[data-hand-card-visual]').length,
                     };
@@ -191,6 +206,8 @@ def run_checks(args):
             problems.append(f"VERTICAL SCROLLBAR on hand (scrollH {metrics['scrollH']} > clientH {metrics['clientH']})")
         if metrics.get("pageVScroll"):
             problems.append(f"WHOLE-PAGE VERTICAL SCROLLBAR (pageScrollH {metrics['pageScrollH']} > clientH {metrics['pageClientH']}); culprit: {metrics.get('culprit')}")
+        if metrics.get("spiller"):
+            problems.append(f"CONTENT SPILLS BELOW A FULL-HEIGHT CONTAINER with overflow-y:visible (renders a scrollbar in some browsers): {metrics.get('spiller')}")
         if metrics["hitboxes"] == 0:
             problems.append("no hand hitboxes")
     if errors:
