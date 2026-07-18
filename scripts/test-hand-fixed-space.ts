@@ -75,8 +75,9 @@ async function main() {
   const wrapperClass = handWrapper?.getAttribute('class') ?? '';
   check('the visible bordered "container" box around the hand is genuinely gone - the actual reported complaint', !wrapperClass.includes('border') && !wrapperClass.includes('bg-[#05050a]'));
 
-  // The fixed-height track exists, sized to exactly one card's height.
-  const track = handWrapper?.querySelector('[style*="height"]');
+  // The fixed-height track exists, sized to the peek height. Commit 50.10+
+  // marks it with data-hand-track (and still carries an inline height).
+  const track = handWrapper?.querySelector('[data-hand-track]') || handWrapper?.querySelector('[style*="height"]') || container.querySelector('[data-hand-track]');
   check('a real fixed-height track exists for the hand, reserved within normal layout', !!track);
 
   const cardImg = container.querySelectorAll('img[alt=""]');

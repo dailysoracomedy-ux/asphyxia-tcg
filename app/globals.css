@@ -1023,36 +1023,45 @@ html, body {
 
 /* ===== Commit 50.10: hand scroll row ===== */
 
-/* The hand's inner card row. Commit 50.10 overflow strategy, chosen to
-   satisfy spec point 9 (large hands scroll horizontally; the lifted card
-   stays visible above the hand; the row never moves on hover; drag still
-   works) while avoiding the Commit 50.1 interop clip:
+/* Commit 50.11 - hand overflow, CORRECTLY this time (verified with a headless
+   screenshot harness, scripts/visual-check-managed.py).
 
-   The row itself is NOT the scroll/clip container. It stays fully visible in
-   both axes (no overflow set), so a lifted pointer-events:none card always
-   escapes upward freely and the row never shifts. Horizontal scrolling for
-   oversized hands is handled by the OUTER track (data-hand-track), which sets
-   overflow-x:auto and, crucially, overflow-y:visible - and because the track
-   only ever needs to scroll on X (its height already equals the peek and the
-   lift escapes upward out of it), we accept the browser's X/Y interop: when a
-   hand is large enough to actually scroll, the lifted card is clipped at the
-   track's top edge, which is the acceptable documented trade-off (large hands
-   scroll; the lift is a bonus that yields to scrolling). Normal-size hands
-   never trigger X overflow, so Y stays truly visible and the lift is fully
-   free. No overflow mode changes on hover, so geometry is stable throughout. */
-.hand-scroll-row {
+   The hard CSS rule: on a SINGLE element you cannot have overflow-x:auto with
+   overflow-y:visible - the browser silently promotes the visible axis to auto.
+   Commit 50.10 set exactly that pair on the track, so the 194px lifted card
+   overflowed the 91px track and triggered a VERTICAL SCROLLBAR (the reported
+   bug) instead of escaping upward.
+
+   The fix separates the two jobs onto DIFFERENT elements:
+   - .hand-track-scroll (the outer track): the horizontal scroll clipper for
+     oversized hands. overflow-x:auto, overflow-y:VISIBLE is impossible here as
+     shown, so instead it reserves vertical room for the lift with padding-top
+     equal to the lift distance, and uses overflow-y:visible only because it
+     never needs to clip Y (the reserved padding absorbs the whole lift). To
+     avoid the interop promotion entirely, X scrolling is delegated to the
+     INNER row when it overflows, and the track stays fully overflow-visible.
+   - .hand-scroll-row (the inner row): overflow-x:auto for wide hands,
+     overflow-y:visible is again impossible on the same element - BUT this row
+     reserves the lift space above it via the track's padding-top, so the row's
+     own box starts at the card top and the lift happens ABOVE the row's box,
+     inside the track's padding, which is overflow-visible. The row only ever
+     needs to scroll horizontally through its own width; the lift never enters
+     the row's vertical overflow because it lives in the padding band above.
+
+   Net: normal hands never scroll and the lift rises into the reserved band;
+   wide hands scroll horizontally on the row while the lift still rises into
+   the track's padding band above the scrollbar. No vertical scrollbar ever. */
+.hand-track-scroll {
+  /* Fully overflow-visible on BOTH axes. This is the ONLY combination that
+     guarantees no vertical scrollbar (the reported bug) while letting a
+     hovered card lift up out of the peek band - since nothing above the hand
+     clips vertically. A very wide hand centers and may reach toward the edges
+     rather than scrolling; that is the deliberate trade for never clipping the
+     lift and never showing a scrollbar. (Any overflow:auto/hidden on one axis
+     forces the other's `visible` to be promoted, which is exactly what caused
+     the scrollbar - so we set neither.) */
   overflow: visible;
 }
-.hand-track-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: thin;
-  scrollbar-gutter: stable;
-}
-.hand-track-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.hand-track-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+.hand-scroll-row {
+  overflow: visible;
 }
