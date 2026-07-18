@@ -38,11 +38,9 @@ interface HandProps {
  * pointer, flipping hoveredId/transform/z-index in a self-invalidating loop
  * (the jitter/flicker). The architecture now:
  *
- *  - Visual cards may overlap (the fan look), but POINTER HIT REGIONS DO NOT.
- *    Each card gets one static, contiguous, non-overlapping interaction slice
- *    (its exposed horizontal width); the last card takes the remaining full
- *    width. These slices never move and are never covered by a lifted card,
- *    so hit-testing is stable regardless of transform/z-index.
+ *  - Cards sit spread out with a small gap between them (Commit 50.12); their
+ *    pointer hit regions are one full-width static slice each and never move,
+ *    so hit-testing is stable regardless of the visual layer's transform/z.
  *  - The moving/lifting visual layer is pointer-events:none, so raising a
  *    card can never change which slice is under the cursor.
  *  - Per-slice pointerenter activates that card; hover is cleared only when
@@ -178,16 +176,18 @@ export default function Hand({
           ['--hand-card-w' as string]: vars.cardW,
           ['--hand-peek-h' as string]: vars.peekH,
           ['--hand-lift' as string]: vars.lift,
-          ['--hand-overlap' as string]: vars.overlap,
+          ['--hand-gap' as string]: vars.gap,
         }}
       >
         {/* Inner row: peek-height, top-anchored, fully overflow-visible so the
-            lift escapes upward. Each card's visual layer is top-anchored and
-            taller than the row; the extra height rises above the hand (nothing
-            clips it there) and the tucked cards show only their top peek. */}
+            lift escapes upward. Cards sit spread out with a small gap between
+            them (Commit 50.12 - no longer overlapping). Each card's visual
+            layer is top-anchored and taller than the row; the extra height
+            rises above the hand (nothing clips it there) and the tucked cards
+            show only their top peek. */}
         <div
           className="flex justify-center items-start w-fit mx-auto hand-scroll-row"
-          style={{ height: vars.peekH, paddingLeft: vars.overlap, paddingRight: vars.overlap }}
+          style={{ height: vars.peekH, gap: vars.gap }}
         >
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
 
@@ -201,16 +201,7 @@ export default function Hand({
                 ? 'tutorial-target'
                 : 'tutorial-dim';
             const isHovered = hoveredId === c.instanceId;
-            const isFirst = idx === 0;
-            const isLast = idx === cards.length - 1;
             const tutorialInert = tutorialHighlight === 'tutorial-dim';
-
-            // Static hitbox width: every card exposes exactly its non-
-            // overlapped slice; the last card claims its full width (nothing
-            // overlaps it on the right). These are contiguous and never
-            // overlap, so hit-testing is stable no matter what the visual
-            // layer does.
-            const hitboxWidth = isLast ? vars.cardW : vars.exposedW;
 
             return (
               <div
@@ -218,9 +209,8 @@ export default function Hand({
                 data-hand-card-id={c.instanceId}
                 className="vfx-draw-in relative shrink-0"
                 style={{
-                  width: hitboxWidth,
+                  width: vars.cardW,
                   height: vars.peekH,
-                  marginLeft: isFirst ? 0 : `calc(-1 * ${vars.overlap})`,
                   // The raised card's VISUAL layer sits above others; but since
                   // that layer is pointer-events:none, this z only affects
                   // paint order, never hit-testing.
@@ -268,7 +258,7 @@ export default function Hand({
 
                 {/* VISUAL LAYER - pointer-events:none so it can never affect
                     hit-testing. Holds the full-height card and does the lift.
-                    Left-anchored to the hitbox so overlap reads correctly. */}
+                    Left-anchored to the slot so it fills the card width. */}
                 <div
                   data-hand-card-visual
                   className="absolute top-0 left-0 transition-transform ease-out pointer-events-none"

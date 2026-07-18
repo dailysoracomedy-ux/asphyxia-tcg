@@ -45,8 +45,10 @@ export const HAND_GEOMETRY = {
   MAX_W: 155,
   /** Peek fraction of height that stays visible when tucked. */
   PEEK_RATIO: 0.5,
-  /** Overlap fraction of width at full size (46 / 155 ≈ 0.2968). */
-  OVERLAP_RATIO: 46 / 155,
+  /** Commit 50.12 - cards now sit spread out with a small GAP between them
+   *  (not overlapping into a fan). Gap as a fraction of card width at full
+   *  size (~10px / 155 ≈ 0.065), scaled down proportionally on short screens. */
+  GAP_RATIO: 10 / 155,
 } as const;
 
 export interface HandCssVars {
@@ -58,11 +60,9 @@ export interface HandCssVars {
   peekH: string;
   /** Fluid lift distance (cardH - peekH). */
   lift: string;
-  /** Fluid overlap (how far each card tucks under its left neighbor). */
-  overlap: string;
-  /** Fluid exposed width per non-final card (cardW - overlap) = the static
-   *  hitbox width for every card except the last. */
-  exposedW: string;
+  /** Fluid gap between adjacent cards (Commit 50.12 - replaces the old
+   *  overlap; cards are spread out, not fanned). */
+  gap: string;
 }
 
 /** A fluid clamp() scaled by a constant factor, kept as a FLAT clamp (bounds
@@ -85,7 +85,6 @@ export function handCssVars(): HandCssVars {
   const peekH = fluidScaled(HAND_GEOMETRY.MAX_H, HAND_GEOMETRY.PEEK_RATIO);
   // lift = cardH - peekH = cardH * (1 - PEEK_RATIO), also a flat clamp.
   const lift = fluidScaled(HAND_GEOMETRY.MAX_H, 1 - HAND_GEOMETRY.PEEK_RATIO);
-  const overlap = fluidScaled(HAND_GEOMETRY.MAX_W, HAND_GEOMETRY.OVERLAP_RATIO);
-  const exposedW = fluidScaled(HAND_GEOMETRY.MAX_W, 1 - HAND_GEOMETRY.OVERLAP_RATIO);
-  return { cardH, cardW, peekH, lift, overlap, exposedW };
+  const gap = fluidScaled(HAND_GEOMETRY.MAX_W, HAND_GEOMETRY.GAP_RATIO);
+  return { cardH, cardW, peekH, lift, gap };
 }
