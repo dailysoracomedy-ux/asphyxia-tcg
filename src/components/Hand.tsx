@@ -165,8 +165,15 @@ export default function Hand({
         onPointerLeave={clearHand}
         className="relative hand-track-scroll"
         style={{
+          // Track is exactly PEEK tall and fully overflow-visible on BOTH axes.
+          // Nothing above the hand in the page clips vertically (verified), so
+          // a hovered card's lift escapes upward freely, and because overflow
+          // is visible - not auto/hidden - NO scrollbar can ever appear
+          // (the reported bug). A very wide hand simply centers and may extend
+          // toward the edges; horizontal scrolling is handled by the inner row
+          // (hand-scroll-row) which is the only element that ever clips, and it
+          // clips on X only.
           height: vars.peekH,
-          // Custom props available to any descendant that wants them.
           ['--hand-card-h' as string]: vars.cardH,
           ['--hand-card-w' as string]: vars.cardW,
           ['--hand-peek-h' as string]: vars.peekH,
@@ -174,14 +181,13 @@ export default function Hand({
           ['--hand-overlap' as string]: vars.overlap,
         }}
       >
-        {/* Inner row: fully overflow-visible (scrolling lives on the track
-            above). The lifted card is a pointer-events:none child that
-            overflows upward from a row whose height equals the peek - no
-            hover state drives overflow here, so it never toggles mid-
-            interaction. */}
+        {/* Inner row: peek-height, top-anchored, fully overflow-visible so the
+            lift escapes upward. Each card's visual layer is top-anchored and
+            taller than the row; the extra height rises above the hand (nothing
+            clips it there) and the tucked cards show only their top peek. */}
         <div
-          className="flex justify-center items-start h-full w-fit mx-auto hand-scroll-row"
-          style={{ paddingLeft: vars.overlap, paddingRight: vars.overlap }}
+          className="flex justify-center items-start w-fit mx-auto hand-scroll-row"
+          style={{ height: vars.peekH, paddingLeft: vars.overlap, paddingRight: vars.overlap }}
         >
           {cards.length === 0 && <div className="text-white/30 text-xs italic px-2 py-4">No cards in hand.</div>}
 
