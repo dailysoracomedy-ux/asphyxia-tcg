@@ -42,7 +42,7 @@ async function main() {
 
   const gbSrc = fs.readFileSync('src/components/GameBoard.tsx', 'utf-8');
   check('the fragile negative-margin hack is genuinely gone - replaced with a real fix, not just made conditional', !/marginBottom:\s*-110|marginBottom:\s*state\.aiVsAiMode/.test(gbSrc));
-  check('the board is genuinely shifted left', /translateX\(-16px\)/.test(gbSrc));
+  check('the board column no longer uses the translateX(-16px) magic-number shift (Commit 51 - centers naturally via panel padding instead)', !/translateX\(-16px\)/.test(gbSrc) && /justify-center/.test(gbSrc));
 
   const menuSrc = fs.readFileSync('src/components/NewGameMenu.tsx', 'utf-8');
   // Commit 42 - the 41.8 spin-speed doubling (18-22 face swaps) lived inside

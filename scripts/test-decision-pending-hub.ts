@@ -101,7 +101,7 @@ async function main() {
   const handWrapperBaseline = findHandOpacityWrapper();
   check('at baseline, hand is genuinely fully visible', (handWrapperBaseline?.getAttribute('style') ?? '').includes('opacity: 1'));
   const boardWrapperBaseline = findBoardMarginWrapper();
-  check('at baseline, Player 1\u2019s board genuinely sits at the small 12px gap', (boardWrapperBaseline?.getAttribute('style') ?? '').includes('margin-bottom: 12px'));
+  check('at baseline, Player 1\u2019s board genuinely sits at the small baseline gap (Commit 51: 4px)', (boardWrapperBaseline?.getAttribute('style') ?? '').includes('margin-bottom: 4px'));
 
   // --- Trigger a real attack-targeting decision via actual clicks ---
   function click(el: Element) {
@@ -135,7 +135,7 @@ async function main() {
   check('decisionPending genuinely includes the Control Conflict condition', /decisionPending =[\s\S]{0,600}ControlConflict/.test(gbSrc));
   check('decisionPending genuinely includes any pending response item', /!!pendingResponseItem/.test(gbSrc));
   check('the hand wrapper genuinely uses decisionPending for opacity and pointer-events', /opacity: decisionPending \? 0 : 1, pointerEvents: decisionPending \? 'none' : 'auto'/.test(gbSrc));
-  check('Player 1\u2019s board genuinely uses decisionPending for its position', /marginTop: decisionPending \? 10 : 'auto'/.test(gbSrc));
+  check('Player 1\u2019s board genuinely uses decisionPending for its position', /marginTop: decisionPending \? 10 : 0/.test(gbSrc));
   check('Row 5 genuinely has the response-hub-target portal mount point', /id="response-hub-target"/.test(gbSrc));
 
   const modalSrc = fs.readFileSync('src/components/ResponseModal.tsx', 'utf-8');
