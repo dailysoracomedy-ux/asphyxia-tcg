@@ -915,7 +915,7 @@ export default function GameBoard() {
   );
 
   return (
-    <div className={`game-surface h-full max-h-full overflow-x-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative ${screenShakeClass}`}>
+    <div className={`game-surface h-full max-h-full overflow-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative ${screenShakeClass}`}>
       {/* Commit 46 - living film grain over the whole scene (one grade =
           one physical world). Fixed + pointer-transparent. */}
       <div className="world-grain" aria-hidden />
