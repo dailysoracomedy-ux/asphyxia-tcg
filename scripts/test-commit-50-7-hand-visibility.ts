@@ -25,7 +25,9 @@ Object.defineProperty(global, 'navigator', { value: dom.window.navigator, config
 (global as unknown as { requestAnimationFrame: unknown }).requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(cb, 0) as unknown as number;
 (global as unknown as { cancelAnimationFrame: unknown }).cancelAnimationFrame = (id: number) => clearTimeout(id);
 (global as unknown as { ResizeObserver: unknown }).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
-(global as unknown as { matchMedia: unknown }).matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} });
+(global as unknown as { matchMedia: unknown }).matchMedia = (q: string) => ({ matches: /hover: hover/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} });
+dom.window.matchMedia = (global as unknown as { matchMedia: (q: string) => MediaQueryList }).matchMedia as typeof dom.window.matchMedia;
+dom.window.HTMLElement.prototype.getBoundingClientRect = function () { return { left: 100, top: 600, width: 109, height: 48, right: 209, bottom: 648, x: 100, y: 600, toJSON: () => ({}) } as DOMRect; };
 (global as unknown as { AudioContext: unknown }).AudioContext = class {
   state = 'running'; currentTime = 0;
   createOscillator() { return { type: '', frequency: { value: 0 }, connect: () => {}, start: () => {}, stop: () => {} }; }
@@ -41,11 +43,6 @@ function check(label: string, cond: boolean) {
   else { failed++; console.log(`  FAIL: ${label}`); }
 }
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-function parseTranslateY(transform: string): number | null {
-  const m = transform.match(/translateY\((-?[\d.]+)px\)/);
-  return m ? parseFloat(m[1]) : transform.includes('translateY(0)') ? 0 : null;
-}
 
 async function main() {
   const { createRoot } = await import('react-dom/client');
@@ -63,51 +60,49 @@ async function main() {
   root.render(React.createElement(Hand, { cards }));
   await wait(150);
 
-  const outerWrappers = [...dom.window.document.querySelectorAll('.vfx-draw-in')];
-  check('the hand genuinely rendered one wrapper per card', outerWrappers.length === cards.length);
+  const slots = [...dom.window.document.querySelectorAll('[data-hand-card-id]')] as HTMLElement[];
+  check('the hand genuinely rendered one slot per card', slots.length === cards.length);
 
-  // Geometry invariants (the actual bug across 50.6/50.7 was vertical
-  // geometry, not transform sign): the OUTER hitbox must be PEEK height so
-  // it occupies the same row space the known-good single card did - if it's
-  // full card height (194) instead, the row misaligns and the hand clips to
-  // a sliver. The INNER lift box must be FULL card height so its top peek
-  // shows and it has something to lift.
-  const firstOuterEl = outerWrappers[0] as HTMLElement;
-  const firstInnerEl = firstOuterEl.querySelector('div[style*="translateY"]') as HTMLElement;
-  check('the outer hitbox is genuinely PEEK height (97px), matching the clip window - not full card height (which misaligns the row into a sliver)', firstOuterEl.style.height === '97px');
-  check('the inner lift box is genuinely FULL card height (194px)', firstInnerEl.style.height === '194px');
+  // Commit 50.10 geometry (fluid now, so values are clamp()/calc() strings,
+  // not literal px): the slot is PEEK height (its height expression must
+  // reference the peek, i.e. contain a 0.5 factor or the peek var), and the
+  // visual layer is FULL card height. The visibility invariant that matters
+  // is that the visual is TALLER than the slot (so a peek shows and the rest
+  // is available to lift), and at rest the visual is NOT pushed downward.
+  const firstSlot = slots[0];
+  const firstVisual = firstSlot.querySelector('[data-hand-card-visual]') as HTMLElement;
+  const firstHitbox = firstSlot.querySelector('[data-hand-card-hitbox]') as HTMLElement;
+  // jsdom's CSS parser drops clamp() values entirely, so we can't read the
+  // rendered heights back through it. Validate the computed geometry at the
+  // source instead: peek must be ~half the full card height, and they must be
+  // distinct fluid clamps - this is the invariant that keeps the peek visible
+  // and the lift possible (the historical invisibility/sliver bugs were both
+  // geometry-value bugs).
+  const { handCssVars, HAND_GEOMETRY } = await import('@/lib/responsiveCard');
+  const g = handCssVars();
+  check('the peek is a distinct clamp from the full card height (peek < card)', g.peekH.startsWith('clamp(') && g.cardH.startsWith('clamp(') && g.peekH !== g.cardH);
+  check('the peek maxes at ~half the full card height (proportion preserved)', g.peekH.includes((HAND_GEOMETRY.MAX_H * HAND_GEOMETRY.PEEK_RATIO).toFixed(2)) && g.cardH.includes(String(HAND_GEOMETRY.MAX_H)));
+  check('a stable interaction hitbox exists in the slot', !!firstHitbox);
+  check('a visual lift layer exists in the slot', !!firstVisual);
 
-  const innerDivs = outerWrappers.map((w) => w.querySelector('div[style*="translateY"]'));
-  check('every card genuinely has a translateY-driven inner lift element', innerDivs.every((d) => !!d));
-
-  const restY = innerDivs.map((d) => parseTranslateY((d as HTMLElement).style.transform));
+  const visuals = slots.map((sl) => sl.querySelector('[data-hand-card-visual]') as HTMLElement);
+  check('every card has a visual lift layer', visuals.every((d) => !!d));
   check(
-    'at rest (not hovered), translateY is genuinely 0 - NOT a positive push that would shove the card below the visible clip window (the actual reported bug: hand cards were invisible)',
-    restY.every((y) => y === 0)
+    'at rest (not hovered), the visual is at translateY(0) - NOT pushed down out of the clip window (the historical invisibility bug)',
+    visuals.every((d) => d.style.transform === 'translateY(0)' || d.style.transform === '' || /translateY\(0\)/.test(d.style.transform))
   );
 
-  // Hover the first card and check its lift flips to a genuine upward (negative) shift.
-  const firstOuter = outerWrappers[0] as HTMLElement;
-  // Commit 50.8 - hover now lives on the inset trigger pad (the last absolute
-  // child, with no translateY), not the outer wrapper. Find it and confirm
-  // it's genuinely inset from the edges (left offset > 0), which is what
-  // creates the anti-jitter dead gutter between overlapping cards.
-  const triggerPad = [...firstOuter.querySelectorAll('div')].find(
-    (d) => (d as HTMLElement).style.left && (d as HTMLElement).style.left !== '0px' && !(d as HTMLElement).style.transform
-  ) as HTMLElement | undefined;
-  check('the inset hover trigger pad genuinely exists and is inset from the card edges (creates the anti-jitter gutter)', !!triggerPad && parseFloat(triggerPad.style.left) > 0);
-  // React synthesizes onMouseEnter from native 'mouseover' (bubbling).
-  const enterEvent = new dom.window.MouseEvent('mouseover', { bubbles: true, cancelable: true });
-  (triggerPad ?? firstOuter).dispatchEvent(enterEvent);
+  // Hover the first card via its hitbox (pointerover -> React onPointerEnter)
+  // and confirm the lift flips to a genuine upward (negative) shift.
+  firstHitbox.dispatchEvent(new dom.window.PointerEvent('pointerover', { bubbles: true, cancelable: true }));
   await wait(80);
 
-  const hoveredInner = firstOuter.querySelector('div[style*="translateY"]') as HTMLElement;
-  const hoveredY = parseTranslateY(hoveredInner.style.transform);
+  const hoveredVisual = firstSlot.querySelector('[data-hand-card-visual]') as HTMLElement;
+  const hoveredTransform = hoveredVisual.style.transform;
   check(
-    'once hovered, translateY is genuinely NEGATIVE (shifts up, out of the clip) - not zero (no lift) and not positive (pushes further into the clip)',
-    hoveredY !== null && hoveredY < 0
+    'once hovered, the lift is a genuine upward shift (negative / calc(-1 * ...)), not zero and not downward',
+    /-1 \*|translateY\(-/.test(hoveredTransform)
   );
-
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
   process.exit(failed > 0 ? 1 : 0);

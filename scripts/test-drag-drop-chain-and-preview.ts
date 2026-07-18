@@ -81,10 +81,10 @@ async function main() {
   root.render(React.createElement(GameBoard));
   await wait(200);
 
-  const handButtons = Array.from(dom.window.document.querySelectorAll('button')).filter(
-    (b) => b.closest('[data-dropzone]') === null && b.getAttribute('disabled') === null && b.textContent !== 'i'
+  const handHitboxes = Array.from(dom.window.document.querySelectorAll('[data-hand-card-hitbox]')).filter(
+    (b) => b.closest('[data-dropzone]') === null && (b as HTMLElement).style.pointerEvents !== 'none'
   );
-  const target = handButtons[handButtons.length - 1];
+  const target = handHitboxes[handHitboxes.length - 1];
   const startX = 100, startY = 700;
   firePointer(target, 'pointerdown', startX, startY);
   await wait(20);

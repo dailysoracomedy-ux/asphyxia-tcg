@@ -79,6 +79,13 @@ async function main() {
     s = useGameStore.getState();
     const card = s.players.player1.hand.find((c) => c.defId === defId);
     if (!card) return null;
+    // Commit 50.10 - the hand card's drag surface is the stable hitbox
+    // (data-hand-card-hitbox) in the card's slot, not a <button> inside the
+    // spotlit visual. Locate the slot by instance id, then its hitbox.
+    const slot = dom.window.document.querySelector(`[data-hand-card-id="${card.instanceId}"]`);
+    const hitbox = slot?.querySelector('[data-hand-card-hitbox]');
+    if (hitbox && (hitbox as HTMLElement).style.pointerEvents !== 'none') return hitbox as HTMLElement;
+    // Fallback for any other card location that still uses a button.
     const candidates = Array.from(dom.window.document.querySelectorAll('.tutorial-spotlight button'));
     const real = candidates.find((b) => b.textContent !== 'i');
     return (real as HTMLElement) ?? null;

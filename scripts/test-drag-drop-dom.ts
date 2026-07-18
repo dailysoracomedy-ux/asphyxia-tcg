@@ -89,15 +89,16 @@ async function main() {
   root.render(React.createElement(GameBoard));
   await wait(200);
 
-  // Find the actual rendered button for the injected Engine card, via its
-  // real title tooltip text (Hand.tsx sets title to the playability reason,
-  // or omits it when playable - so instead locate by DOM position: it's the
-  // last hand card rendered, since it was appended last to the hand array).
-  const handButtons = Array.from(dom.window.document.querySelectorAll('button')).filter(
-    (b) => b.closest('[data-dropzone]') === null && b.getAttribute('disabled') === null && b.textContent !== 'i'
+  // Commit 50.10 - the hand card's drag/interaction surface is now a stable
+  // hitbox div (data-hand-card-hitbox) overlaying the card, not the card's
+  // own <button>. In a real browser this hitbox sits above the card face, so
+  // the pointer lands on it; fire the drag there. It's the last hand card
+  // (the injected Engine was appended last).
+  const handHitboxes = Array.from(dom.window.document.querySelectorAll('[data-hand-card-hitbox]')).filter(
+    (b) => b.closest('[data-dropzone]') === null && (b as HTMLElement).style.pointerEvents !== 'none'
   );
-  check('test setup: at least one enabled hand card button rendered', handButtons.length > 0);
-  const target = handButtons[handButtons.length - 1];
+  check('test setup: at least one enabled hand card hitbox rendered', handHitboxes.length > 0);
+  const target = handHitboxes[handHitboxes.length - 1];
 
   const startX = 100, startY = 700;
   firePointer(target, 'pointerdown', startX, startY);

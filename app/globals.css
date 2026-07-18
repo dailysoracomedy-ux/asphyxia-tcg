@@ -1020,3 +1020,39 @@ html, body {
   -webkit-user-drag: none;
   user-select: none;
 }
+
+/* ===== Commit 50.10: hand scroll row ===== */
+
+/* The hand's inner card row. Commit 50.10 overflow strategy, chosen to
+   satisfy spec point 9 (large hands scroll horizontally; the lifted card
+   stays visible above the hand; the row never moves on hover; drag still
+   works) while avoiding the Commit 50.1 interop clip:
+
+   The row itself is NOT the scroll/clip container. It stays fully visible in
+   both axes (no overflow set), so a lifted pointer-events:none card always
+   escapes upward freely and the row never shifts. Horizontal scrolling for
+   oversized hands is handled by the OUTER track (data-hand-track), which sets
+   overflow-x:auto and, crucially, overflow-y:visible - and because the track
+   only ever needs to scroll on X (its height already equals the peek and the
+   lift escapes upward out of it), we accept the browser's X/Y interop: when a
+   hand is large enough to actually scroll, the lifted card is clipped at the
+   track's top edge, which is the acceptable documented trade-off (large hands
+   scroll; the lift is a bonus that yields to scrolling). Normal-size hands
+   never trigger X overflow, so Y stays truly visible and the lift is fully
+   free. No overflow mode changes on hover, so geometry is stable throughout. */
+.hand-scroll-row {
+  overflow: visible;
+}
+.hand-track-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+.hand-track-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.hand-track-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
