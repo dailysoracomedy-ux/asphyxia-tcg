@@ -125,21 +125,36 @@ def run_checks(args):
             metrics = page.evaluate(
                 """() => {
                     const t = document.querySelector('[data-hand-track]');
-                    if (!t) return null;
-                    const cs = getComputedStyle(t);
+                    const cs = t ? getComputedStyle(t) : null;
+                    // Whole-page vertical scroll?
+                    const de = document.documentElement;
+                    const pageVScroll = de.scrollHeight > de.clientHeight + 1;
+                    // Find the tallest overflowing scroll container, if any.
+                    let culprit = null;
+                    if (pageVScroll) {
+                        const all = [...document.querySelectorAll('*')];
+                        for (const el of all) {
+                            const s = getComputedStyle(el);
+                            if (['auto','scroll'].includes(s.overflowY) && el.scrollHeight > el.clientHeight + 2) {
+                                culprit = { tag: el.tagName, cls: (el.className||'').toString().slice(0,60), sh: el.scrollHeight, ch: el.clientHeight };
+                                break;
+                            }
+                        }
+                    }
                     return {
-                        trackOverflowX: cs.overflowX, trackOverflowY: cs.overflowY,
-                        scrollH: t.scrollHeight, clientH: t.clientHeight,
-                        scrollW: t.scrollWidth, clientW: t.clientWidth,
-                        // A REAL vertical scrollbar only when overflow-y is
-                        // auto/scroll AND content exceeds the box. With
-                        // overflow:visible, excess content (the lift) shows no
-                        // scrollbar and is expected.
-                        hasVScroll: (['auto','scroll'].includes(cs.overflowY)) && t.scrollHeight > t.clientHeight + 1,
-                        hasHScroll: (['auto','scroll'].includes(cs.overflowX)) && t.scrollWidth > t.clientWidth + 1,
-                        // Also flag any actual rendered scrollbar via the
-                        // client/offset delta (a scrollbar steals a few px).
-                        vScrollbarPx: t.offsetWidth - t.clientWidth,
+                        trackOverflowX: cs ? cs.overflowX : null,
+                        trackOverflowY: cs ? cs.overflowY : null,
+                        scrollH: t ? t.scrollHeight : null,
+                        clientH: t ? t.clientHeight : null,
+                        scrollW: t ? t.scrollWidth : null,
+                        clientW: t ? t.clientWidth : null,
+                        hasVScroll: cs ? (['auto','scroll'].includes(cs.overflowY) && t.scrollHeight > t.clientHeight + 1) : false,
+                        hasHScroll: cs ? (['auto','scroll'].includes(cs.overflowX) && t.scrollWidth > t.clientWidth + 1) : false,
+                        vScrollbarPx: t ? (t.offsetWidth - t.clientWidth) : null,
+                        pageVScroll,
+                        pageScrollH: de.scrollHeight,
+                        pageClientH: de.clientHeight,
+                        culprit,
                         hitboxes: document.querySelectorAll('[data-hand-card-hitbox]').length,
                         visuals: document.querySelectorAll('[data-hand-card-visual]').length,
                     };
@@ -174,6 +189,8 @@ def run_checks(args):
             log(f"  {k}: {v}")
         if metrics["hasVScroll"]:
             problems.append(f"VERTICAL SCROLLBAR on hand (scrollH {metrics['scrollH']} > clientH {metrics['clientH']})")
+        if metrics.get("pageVScroll"):
+            problems.append(f"WHOLE-PAGE VERTICAL SCROLLBAR (pageScrollH {metrics['pageScrollH']} > clientH {metrics['pageClientH']}); culprit: {metrics.get('culprit')}")
         if metrics["hitboxes"] == 0:
             problems.append("no hand hitboxes")
     if errors:
