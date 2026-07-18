@@ -94,6 +94,25 @@ export default function Hand({
                 : 'tutorial-dim';
             const isHovered = hoveredId === c.instanceId;
             return (
+              // Commit 50.6 - BUG FIX: "jitters when hovering the edge of the
+              // card" - still happening after Commit 50.5's tilt fix. Real
+              // root cause: onMouseEnter/onMouseLeave were bound to the SAME
+              // element whose own `top` position ANIMATES in response to
+              // that hover state - a self-referential setup. Near any
+              // boundary (the clip edge before a card has ever been
+              // hovered, or the seam against a neighboring card while this
+              // one is mid-lift), the browser's hit-testing and the
+              // element's own animated position can disagree frame to
+              // frame, and each disagreement toggles the hover state again,
+              // which moves the element again - a feedback loop that reads
+              // as jitter. Fixed by splitting the two roles: this OUTER
+              // box's position is now completely stable (fixed height,
+              // never moves) and is the only thing with hover listeners, so
+              // its hoverable boundary can never move in response to its
+              // own hover state - no feedback loop is possible. The actual
+              // visual lift moves to an INNER child via `transform`
+              // (translateY), which cannot affect the outer box's stable
+              // hit-region at all.
               <div
                 key={c.instanceId}
                 title={reason ?? undefined}
@@ -102,20 +121,25 @@ export default function Hand({
                   setHoveredId(c.instanceId);
                 }}
                 onMouseLeave={() => setHoveredId((cur) => (cur === c.instanceId ? null : cur))}
-                className="vfx-draw-in relative shrink-0 transition-[top] duration-150 ease-out"
-                style={{ top: isHovered ? -HAND_TUCK_OFFSET : 0, zIndex: isHovered ? 40 : undefined }}
+                className="vfx-draw-in relative shrink-0"
+                style={{ height: HAND_CARD_H, zIndex: isHovered ? 40 : undefined }}
               >
-                <Card
-                  instance={c}
-                  size="hand"
-                  selected={selectedId === c.instanceId}
-                  disabled={disabledIds?.has(c.instanceId)}
-                  isPlayable={playable}
-                  highlight={tutorialHighlight}
-                  onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
-                  onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
-                  onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
-                />
+                <div
+                  className="absolute inset-x-0 bottom-0 transition-transform duration-150 ease-out"
+                  style={{ transform: isHovered ? 'translateY(0)' : `translateY(${HAND_TUCK_OFFSET}px)` }}
+                >
+                  <Card
+                    instance={c}
+                    size="hand"
+                    selected={selectedId === c.instanceId}
+                    disabled={disabledIds?.has(c.instanceId)}
+                    isPlayable={playable}
+                    highlight={tutorialHighlight}
+                    onClick={onSelect ? () => onSelect(c.instanceId) : undefined}
+                    onPointerDown={playable && onCardPointerDown && tutorialHighlight !== 'tutorial-dim' ? (e) => onCardPointerDown(e, c) : undefined}
+                    onInspect={onInspectCard ? () => onInspectCard(c) : undefined}
+                  />
+                </div>
               </div>
             );
           })}
