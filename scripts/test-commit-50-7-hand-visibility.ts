@@ -88,10 +88,17 @@ async function main() {
 
   // Hover the first card and check its lift flips to a genuine upward (negative) shift.
   const firstOuter = outerWrappers[0] as HTMLElement;
-  // React synthesizes onMouseEnter from native 'mouseover' (bubbling) plus
-  // relatedTarget checks, not from a native 'mouseenter' dispatch directly.
+  // Commit 50.8 - hover now lives on the inset trigger pad (the last absolute
+  // child, with no translateY), not the outer wrapper. Find it and confirm
+  // it's genuinely inset from the edges (left offset > 0), which is what
+  // creates the anti-jitter dead gutter between overlapping cards.
+  const triggerPad = [...firstOuter.querySelectorAll('div')].find(
+    (d) => (d as HTMLElement).style.left && (d as HTMLElement).style.left !== '0px' && !(d as HTMLElement).style.transform
+  ) as HTMLElement | undefined;
+  check('the inset hover trigger pad genuinely exists and is inset from the card edges (creates the anti-jitter gutter)', !!triggerPad && parseFloat(triggerPad.style.left) > 0);
+  // React synthesizes onMouseEnter from native 'mouseover' (bubbling).
   const enterEvent = new dom.window.MouseEvent('mouseover', { bubbles: true, cancelable: true });
-  firstOuter.dispatchEvent(enterEvent);
+  (triggerPad ?? firstOuter).dispatchEvent(enterEvent);
   await wait(80);
 
   const hoveredInner = firstOuter.querySelector('div[style*="translateY"]') as HTMLElement;
