@@ -9,17 +9,19 @@
  *
  * Each object type moves the way its real-world counterpart would, so all
  * three feel congruent yet physical:
- *   - COIN  : a real thick cylinder, reuses the coin toss's emissive/bloom
- *             look; steer-tilt on top of a slow idle spin so you see both faces.
- *   - PLAYMAT: a large flat plane with a subtle cloth/neoprene material and a
- *             soft specular sheen that rolls across as you tilt it - a mat lying
- *             on a table, banking to your cursor.
- *   - SLEEVE : a card-shaped plane with real thickness and a glossy plastic
- *             highlight that sweeps as you tilt - the sleeve's plastic sheen is
- *             what sells it as a physical object.
+ *   - COIN  : a real thick cylinder (reuses the coin toss's emissive/bloom
+ *             look). Rests facing the viewer (no auto-spin - that felt weird)
+ *             and is steered by the mouse, with a whisper of idle sway.
+ *   - PLAYMAT: a large ROUNDED-CORNER cloth plate, sized to the art's true
+ *             aspect ratio (never stretched), resting at a 3/4 tilt and
+ *             floating with a subtle idle bob; a raking light sweeps a real
+ *             highlight across it as you tilt.
+ *   - SLEEVE : a rounded card plate with a glossy plastic material, same
+ *             resting tilt + bob; the spec highlight sweep is what sells the
+ *             plastic sheen.
  *
- * At rest (no pointer) the object eases back toward neutral with a whisper of
- * idle drift, so it never looks dead but never fights your input either.
+ * At rest the object floats with a subtle bob/sway (alive, never dead); the
+ * moment you steer it, that idle fades out so it never fights your input.
  *
  * Only ONE of these is mounted at a time (the selected item), so it can afford
  * a richer scene than the tiny grid CoinPreview3D tiles.
@@ -72,16 +74,21 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
     camera.position.set(0, 0, 5.4);
     camera.lookAt(0, 0, 0);
 
-    // Unified top-left key light (matches the app-wide light convention),
-    // plus a soft accent fill so the mat/sleeve catch a colored sheen.
-    scene.add(new THREE.AmbientLight(0x8f8f9c, 1.05));
-    const key = new THREE.DirectionalLight(0xffffff, 1.5);
-    key.position.set(-3, 4, 5);
+    // Unified top-left key light (matches the app-wide light convention).
+    scene.add(new THREE.AmbientLight(0x8f8f9c, 0.85));
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(-4, 5, 6);
     scene.add(key);
     const accentColor = new THREE.Color(accent || '#ff2fd0');
-    const fill = new THREE.PointLight(accentColor.getHex(), 0.9, 20);
-    fill.position.set(3, -1, 3);
+    // Accent fill from the lower-right - colored bounce that reads as neon glow.
+    const fill = new THREE.PointLight(accentColor.getHex(), 1.3, 22);
+    fill.position.set(3.5, -2, 3.5);
     scene.add(fill);
+    // A tight raking spec light that sweeps a real highlight across the
+    // surface as the object tilts - the single biggest "this is physical" cue.
+    const rake = new THREE.PointLight(0xffffff, 1.6, 16);
+    rake.position.set(-1.5, 3.5, 3);
+    scene.add(rake);
 
     const disposables: { dispose(): void }[] = [];
     let obj: THREE.Object3D;
@@ -112,19 +119,58 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
       disposables.push(coin.geometry, matEdge, matHeads, matTails);
       scene.add(coin);
     } else {
-      // Playmat = wide plane (cloth), Sleeve = card plane (glossy plastic).
+      // Playmat = wide (cloth), Sleeve = card (glossy plastic). Both are built
+      // as ROUNDED-CORNER extruded plates so they read as real physical
+      // objects, and their dimensions are locked to the ART'S aspect ratio
+      // once it loads, so the image is never stretched or squashed.
       const isMat = kind === 'playmat';
-      const pw = isMat ? 3.9 : 2.0;
-      const ph = isMat ? 2.4 : 2.8;
-      const depth = 0.06;
-      const group = new THREE.Group();
 
       const faceMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        metalness: isMat ? 0.08 : 0.2,
-        roughness: isMat ? 0.82 : 0.28, // cloth = matte/rough; plastic sleeve = glossy
+        metalness: isMat ? 0.12 : 0.35,
+        roughness: isMat ? 0.7 : 0.16, // cloth = matte; plastic sleeve = glossy
+        emissive: new THREE.Color(accentColor).multiplyScalar(0.06),
       });
-      // Load the art (or a fallback) onto the face.
+      const sideMat = new THREE.MeshStandardMaterial({ color: 0x08080d, metalness: 0.4, roughness: 0.5 });
+      const group = new THREE.Group();
+      obj = group;
+
+      // Build (or rebuild) the rounded plate at a given width/height so we can
+      // resize it to the art's true aspect ratio the moment the texture loads.
+      let plate: THREE.Mesh | null = null;
+      let plateGeo: THREE.ExtrudeGeometry | null = null;
+      function buildPlate(pw: number, ph: number) {
+        const r = Math.min(pw, ph) * (isMat ? 0.06 : 0.05); // corner radius
+        const shape = new THREE.Shape();
+        const x = -pw / 2, y = -ph / 2;
+        shape.moveTo(x + r, y);
+        shape.lineTo(x + pw - r, y);
+        shape.quadraticCurveTo(x + pw, y, x + pw, y + r);
+        shape.lineTo(x + pw, y + ph - r);
+        shape.quadraticCurveTo(x + pw, y + ph, x + pw - r, y + ph);
+        shape.lineTo(x + r, y + ph);
+        shape.quadraticCurveTo(x, y + ph, x, y + ph - r);
+        shape.lineTo(x, y + r);
+        shape.quadraticCurveTo(x, y, x + r, y);
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.07, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 2, steps: 1 });
+        geo.center();
+        // UVs from ExtrudeGeometry are in world units - normalize the front-face
+        // UVs to 0..1 across the plate so the texture maps cleanly, no stretch.
+        const pos = geo.attributes.position;
+        const uv = geo.attributes.uv;
+        for (let i = 0; i < pos.count; i++) {
+          const px = pos.getX(i), py = pos.getY(i);
+          uv.setXY(i, (px + pw / 2) / pw, (py + ph / 2) / ph);
+        }
+        uv.needsUpdate = true;
+        if (plate) { group.remove(plate); plateGeo?.dispose(); }
+        plateGeo = geo;
+        plate = new THREE.Mesh(geo, [faceMat, sideMat]);
+        group.add(plate);
+      }
+      // Initial placeholder size (replaced once the art's ratio is known).
+      buildPlate(isMat ? 3.6 : 2.0, isMat ? 2.4 : 2.8);
+
       const src = image ?? (isMat ? null : SLEEVE_BASE_SRC);
       if (src) {
         loader.load(src, (tex) => {
@@ -132,23 +178,23 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
           tex.colorSpace = THREE.SRGBColorSpace;
           faceMat.map = tex;
           faceMat.needsUpdate = true;
+          // Lock the plate to the ART's real aspect ratio - never stretch it.
+          const img = tex.image as { width: number; height: number };
+          if (img?.width && img?.height) {
+            const ar = img.width / img.height;
+            const maxW = isMat ? 3.8 : 2.3;
+            const maxH = isMat ? 2.5 : 3.0;
+            let pw = maxW, ph = maxW / ar;
+            if (ph > maxH) { ph = maxH; pw = maxH * ar; }
+            buildPlate(pw, ph);
+          }
         });
       } else {
         // 'faction' default playmat with no art: a dark accent gradient look.
-        faceMat.color.set(0x11060f);
-        faceMat.emissive = new THREE.Color(accentColor).multiplyScalar(0.12);
+        faceMat.color.set(0x120610);
+        faceMat.emissive = new THREE.Color(accentColor).multiplyScalar(0.18);
       }
-      const sideMat = new THREE.MeshStandardMaterial({ color: 0x0a0a10, metalness: 0.3, roughness: 0.6 });
-      const geo = new THREE.BoxGeometry(pw, ph, depth);
-      // BoxGeometry material order: px,nx,py,ny,pz(front),nz(back)
-      const mats = [sideMat, sideMat, sideMat, sideMat, faceMat, sideMat];
-      const plane = new THREE.Mesh(geo, mats);
-      group.add(plane);
-
-      // A glossy specular streak for the sleeve (a moving plastic highlight),
-      // and a soft accent rim for the mat.
-      obj = group;
-      disposables.push(geo, faceMat, sideMat);
+      disposables.push(faceMat, sideMat, { dispose: () => plateGeo?.dispose() });
       scene.add(group);
     }
 
@@ -158,7 +204,7 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
     composer.addPass(rp);
     // Coins get strong bloom (emissive engraving); mats/sleeves get a gentle
     // bloom just to lift the specular highlights.
-    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), kind === 'coin' ? 0.7 : 0.35, 0.3, kind === 'coin' ? 0.72 : 0.82);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), kind === 'coin' ? 0.7 : 0.5, 0.35, kind === 'coin' ? 0.72 : 0.78);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     composer.setSize(w, h);
@@ -194,32 +240,41 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
       const t = clock.getElapsedTime();
       const tgt = targetRef.current;
 
-      // Idle drift when not steering, so it never looks dead.
-      const idleX = reduced ? 0 : Math.sin(t * 0.7) * 0.05;
-      const idleY = reduced ? 0 : Math.sin(t * 0.5) * 0.08;
+      // Steer targets from the pointer (−1..1 within the canvas).
+      const steerY = tgt.active ? tgt.x * MAXY : 0;
+      const steerX = tgt.active ? tgt.y * MAXX : 0;
+      // Ease toward the steer target (smooth, like the in-game card tilt).
+      curX += (steerX - curX) * 0.1;
+      curY += (steerY - curY) * 0.1;
 
-      const wantY = tgt.active ? tgt.x * MAXY : idleY;
-      const wantX = tgt.active ? tgt.y * MAXX : idleX;
-      // Ease toward the target (smooth, like the card tilt's transition).
-      curX += (wantX - curX) * 0.12;
-      curY += (wantY - curY) * 0.12;
+      // Subtle idle bob/drift so it's alive even untouched. Fades out while the
+      // user is actively steering so it never fights their input.
+      const idleAmt = reduced ? 0 : (tgt.active ? 0.25 : 1);
+      const bob = reduced ? 0 : Math.sin(t * 1.1) * 0.045 * idleAmt;       // vertical float
+      const driftY = reduced ? 0 : Math.sin(t * 0.6) * 0.09 * idleAmt;      // slow yaw sway
+      const driftX = reduced ? 0 : Math.cos(t * 0.5) * 0.05 * idleAmt;      // slow pitch sway
 
       if (kind === 'coin') {
-        // Steer on top of a slow idle spin so both faces show.
-        const spin = reduced ? 0 : t * 0.5;
-        obj.rotation.x = Math.PI / 2 + curX;
-        obj.rotation.y = spin + curY;
-        obj.rotation.z = curX * 0.1;
+        // No auto-spin (felt weird). Coin rests facing the viewer and is
+        // steered by the mouse; a whisper of idle sway keeps it alive.
+        obj.rotation.x = Math.PI / 2 + curX + driftX;
+        obj.rotation.y = curY + driftY;
+        obj.rotation.z = curX * 0.08;
+        obj.position.y = bob;
         if (coinMats) {
           const breathe = 1.3 + (reduced ? 0 : Math.sin(t * 2) * 0.2);
           coinMats.forEach((m) => { m.emissiveIntensity = m.emissiveMap ? breathe : 0; });
         }
       } else {
-        // Mat/sleeve: bank toward the cursor. rotateX from vertical cursor,
-        // rotateY from horizontal - exactly the in-game card feel.
-        obj.rotation.x = -curX; // cursor down -> top tilts toward viewer
-        obj.rotation.y = curY;
-        obj.rotation.z = curY * 0.04;
+        // Mat/sleeve rest at a natural 3/4 tilt (so they always read as a
+        // dimensional object), and the mouse pushes the tilt from there. The
+        // resting angles + idle bob make it feel like it's floating and alive.
+        const baseYaw = -0.32;   // resting turn to the right
+        const basePitch = 0.14;  // resting lean back
+        obj.rotation.y = baseYaw + curY + driftY;
+        obj.rotation.x = basePitch - curX + driftX;
+        obj.rotation.z = (curY + driftY) * 0.05;
+        obj.position.y = bob;
       }
       composer.render();
     }

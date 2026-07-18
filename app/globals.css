@@ -1065,3 +1065,17 @@ html, body {
 .hand-scroll-row {
   overflow: visible;
 }
+
+/* ===== Commit 51: Locker carousel - hide the scrollbar ===== */
+/* The horizontal drag-scroll carousel scrubs by mouse-drag; the visible
+   partial next-card already signals "more to scroll", so the scrollbar is
+   redundant clutter. Hidden on all engines while keeping it scrollable. */
+.locker-carousel {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* old Edge */
+}
+.locker-carousel::-webkit-scrollbar {
+  display: none;                  /* WebKit/Chromium */
+  width: 0;
+  height: 0;
+}

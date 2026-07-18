@@ -220,7 +220,7 @@ export default function LockerMenu() {
         onPointerUp={onDragUp}
         onPointerCancel={onDragUp}
         className="locker-carousel flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1"
-        style={{ cursor: grabbing ? 'grabbing' : 'grab', scrollbarWidth: 'thin' }}
+        style={{ cursor: grabbing ? 'grabbing' : 'grab' }}
       >
         {rows.map((item) => {
           const active = selectedId === item.id;
