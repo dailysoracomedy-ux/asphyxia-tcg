@@ -125,8 +125,8 @@ export default function Hand({
                 style={{ height: HAND_CARD_H, zIndex: isHovered ? 40 : undefined }}
               >
                 <div
-                  className="absolute inset-x-0 bottom-0 transition-transform duration-150 ease-out"
-                  style={{ transform: isHovered ? 'translateY(0)' : `translateY(${HAND_TUCK_OFFSET}px)` }}
+                  className="absolute inset-x-0 top-0 transition-transform duration-150 ease-out"
+                  style={{ transform: isHovered ? `translateY(-${HAND_TUCK_OFFSET}px)` : 'translateY(0)' }}
                 >
                   <Card
                     instance={c}
