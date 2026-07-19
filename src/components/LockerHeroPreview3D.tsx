@@ -302,6 +302,9 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
         obj.rotation.x = basePitch - curX + driftX;
         obj.rotation.z = (curY + driftY) * 0.05;
         obj.position.y = bob;
+        // The resting yaw + perspective push the visual mass rightward; nudge
+        // the object left so it reads centered in the canvas.
+        obj.position.x = -0.28;
       }
       composer.render();
     }
