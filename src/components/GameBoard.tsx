@@ -647,6 +647,8 @@ export default function GameBoard() {
       playEquipCard: state.playEquipCard,
       equipSwap: state.equipSwap,
       playSpecialCard: state.playSpecialCard,
+      returnEquipToHand: state.returnEquipToHand,
+      returnEngineToHand: state.returnEngineToHand,
     });
     if (result.ok) {
       lockActions();
@@ -676,6 +678,28 @@ export default function GameBoard() {
       if (tutorialGate(matchesCard, 'Not that one yet. Let\u2019s play the highlighted card first.')) return;
     }
     const source: DragSource = { kind: 'hand-card', playerId: viewerBottomId, instanceId: card.instanceId, cardType: card.type };
+    beginPotentialDrag(e, source, legalZonesFor(state, source));
+  }
+
+  /** Commit 52 - start dragging a board Equip (attached to one of the acting
+   *  player's Apexes) back into hand. Free; the only legal drop is the hand. */
+  function onBoardEquipDragStart(e: React.PointerEvent, equipInstanceId: string) {
+    if (isActionLocked()) return;
+    if (!bottomIsActingPlayer || aiIsActing) return;
+    if (state.phase !== 'Main' && state.phase !== 'Combat') return;
+    if (state.tutorialMode) return; // reconfigure-by-drag is disabled during guided tutorial steps
+    const source: DragSource = { kind: 'board-equip', playerId: viewerBottomId, instanceId: equipInstanceId };
+    beginPotentialDrag(e, source, legalZonesFor(state, source));
+  }
+
+  /** Commit 52 - start dragging a board Engine (Ability Support) back into
+   *  hand. Free; the only legal drop is the hand. */
+  function onBoardEngineDragStart(e: React.PointerEvent, supportInstanceId: string) {
+    if (isActionLocked()) return;
+    if (!bottomIsActingPlayer || aiIsActing) return;
+    if (state.phase !== 'Main' && state.phase !== 'Combat') return;
+    if (state.tutorialMode) return;
+    const source: DragSource = { kind: 'board-engine', playerId: viewerBottomId, instanceId: supportInstanceId };
     beginPotentialDrag(e, source, legalZonesFor(state, source));
   }
 
@@ -777,17 +801,11 @@ export default function GameBoard() {
   }
 
   // Commit 48 - BUG FIX: this gate still demanded phase === 'Main', but
-  // Commit 30.4 merged Main into Combat (advancePhase('Main') chains straight
-  // to phase = 'Combat'), so the game is never observably in 'Main' and
-  // Engine Reconfig has been permanently disabled ever since. The store's own
-  // reconfigure() action already accepts Main OR Combat - the UI now matches.
-  const reconfigureDisabled =
-    activePlayer.turnFlags.reconfigureUsedThisTurn || (state.phase !== 'Main' && state.phase !== 'Combat');
-  const supportBudgetSpent = activePlayer.turnFlags.supportsPlayedThisTurn >= 1;
-  const eligibleReconfigurePlays =
-    mode.kind === 'reconfigurePlay' && !supportBudgetSpent
-      ? activePlayer.hand.filter((c) => c.type === 'AbilitySupport' || c.type === 'BatterySupport')
-      : [];
+  // Commit 52 - the Engine Reconfig button is gone; reconfiguring is now done
+  // by dragging an Equip or Engine back to hand (see onBoardEquipDragStart /
+  // onBoardEngineDragStart and the returnEquipToHand / returnEngineToHand store
+  // actions). The old reconfigure() store action remains for the AI and any
+  // internal callers, but no player-facing button drives it anymore.
 
   // A single shared condition driving both the hand's hide/disable and
   // Player 1's board shifting down to make room for the center hub. True for
@@ -839,76 +857,9 @@ export default function GameBoard() {
         </button>
       </div>
 
-      {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && (
-        <div className="panel-3d rounded-lg border border-teal-500/30 bg-[#05050a] p-1.5 text-[11px]">
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <button type="button"
-              disabled={reconfigureDisabled || mode.kind === 'reconfigureReturn' || aiIsActing}
-              onClick={scrollSafeClick(() => setMode({ kind: 'reconfigureReturn' }))}
-              className="px-2.5 py-1 rounded border border-teal-400/50 bg-black/70 hover:bg-teal-400/15 disabled:opacity-30 font-bold text-teal-200 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors"
-            >
-              Engine Reconfig {reconfigureDisabled ? '(used)' : '(once/turn)'}
-            </button>
-            {mode.kind === 'reconfigureReturn' && (
-              <span className="text-teal-300 animate-pulse">Select a Support above to return to hand...</span>
-            )}
-            {mode.kind === 'reconfigurePlay' && (
-              <button type="button" onClick={() => { state.reconfigure(mode.returnId); resetMode(); }} className="px-2.5 py-1 rounded border border-white/20 bg-black/70 hover:bg-white/15 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors">
-                Skip — finish Engine Reconfig
-              </button>
-            )}
-            {/* Commit 50.3 - the reported "can't click cancel" bug: this was a
-                bare text link with ZERO padding, its clickable hit area was
-                exactly the glyph bounds of the word "cancel" - easy to visibly
-                see but genuinely hard to click precisely, especially sitting
-                in a flex-wrap row next to siblings that all have real
-                px-2.5 py-1 button padding. Cancel now gets the same button
-                treatment as Skip/Reconfig for a real, generous hit target
-                (also closes the Commit 50 section-13 "consistent interaction
-                states" gap this one element had been missed by). onClick is
-                unchanged - resetMode() was always correct. */}
-            {(mode.kind === 'reconfigureReturn' || mode.kind === 'reconfigurePlay' || mode.kind === 'reconfigureChain') && (
-              <button
-                type="button"
-                onClick={resetMode}
-                className="px-2.5 py-1 rounded border border-white/20 bg-black/70 hover:bg-white/15 hover:border-white/35 text-white/60 hover:text-white/90 shadow-[0_2px_5px_rgba(0,0,0,0.6)] transition-colors"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-          {mode.kind === 'reconfigurePlay' && supportBudgetSpent && (
-            <div className="mt-1 text-white/40 italic">
-              Already played a Support this turn - this Engine Reconfig can only return a card, not play one in.
-            </div>
-          )}
-          {mode.kind === 'reconfigurePlay' && !supportBudgetSpent && eligibleReconfigurePlays.length > 0 && (
-            <div className="mt-1 flex gap-2 flex-wrap">
-              {eligibleReconfigurePlays.map((c) => {
-                const def = getCardDef(c.defId);
-                return (
-                  <button type="button"
-                    key={c.instanceId}
-                    onClick={() => {
-                      if (mode.kind !== 'reconfigurePlay') return;
-                      if (c.type === 'AbilitySupport') {
-                        setMode({ kind: 'reconfigureChain', returnId: mode.returnId, playId: c.instanceId });
-                      } else {
-                        state.reconfigure(mode.returnId, c.instanceId);
-                        resetMode();
-                      }
-                    }}
-                    className="btn-3d px-2 py-1 rounded border border-teal-400/40 hover:bg-teal-400/10"
-                  >
-                    play {def.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {mode.kind === 'reconfigureChain' && (
-            <div className="mt-1 text-teal-300 animate-pulse">Now click one of your Apexes above to chain it.</div>
-          )}
+      {(state.phase === 'Main' || state.phase === 'Combat') && !aiIsActing && bottomIsActingPlayer && (
+        <div className="text-center text-white/30 text-[10px] tracking-wide italic pointer-events-none">
+          Drag an Equip or Engine back to your hand to reconfigure.
         </div>
       )}
     </div>
@@ -1093,6 +1044,8 @@ export default function GameBoard() {
           containerRef={boardRef}
           drag={drag}
           onApexAttackDragStart={undefined}
+          onBoardEquipDragStart={bottomIsActingPlayer && !aiIsActing ? onBoardEquipDragStart : undefined}
+          onBoardEngineDragStart={bottomIsActingPlayer && !aiIsActing ? onBoardEngineDragStart : undefined}
           footer={endTurnFooter}
         />
       </div>
@@ -1165,7 +1118,19 @@ export default function GameBoard() {
         )}
         </div>
 
-        <div style={{ opacity: decisionPending ? 0 : 1, pointerEvents: decisionPending ? 'none' : 'auto', transition: 'opacity 150ms ease-out' }}>
+        <div
+          style={{ opacity: decisionPending ? 0 : 1, pointerEvents: decisionPending ? 'none' : 'auto', transition: 'opacity 150ms ease-out' }}
+          data-dropzone={
+            drag.active && (drag.source?.kind === 'board-equip' || drag.source?.kind === 'board-engine') && drag.source?.playerId === viewerBottomId
+              ? JSON.stringify({ kind: 'hand', playerId: viewerBottomId })
+              : undefined
+          }
+          className={
+            drag.active && (drag.source?.kind === 'board-equip' || drag.source?.kind === 'board-engine') && drag.source?.playerId === viewerBottomId
+              ? 'rounded-lg ring-2 ring-emerald-400/70 shadow-[0_0_18px_rgba(52,211,153,0.5)] transition-shadow'
+              : ''
+          }
+        >
         <Hand
           cards={state.players[viewerBottomId].hand}
           selectedId={selectedCard?.instanceId ?? null}

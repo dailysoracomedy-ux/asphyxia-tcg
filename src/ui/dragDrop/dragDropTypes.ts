@@ -9,7 +9,7 @@ import type { CardType, PlayerId } from '@/types/game';
  * it never decides game rules itself.
  */
 
-export type DragSourceKind = 'hand-card' | 'apex-attack';
+export type DragSourceKind = 'hand-card' | 'apex-attack' | 'board-equip' | 'board-engine';
 
 export interface DragSource {
   kind: DragSourceKind;
@@ -31,7 +31,8 @@ export type DropZoneKind =
   | 'own-apex'
   | 'enemy-apex'
   | 'enemy-o2'
-  | 'action-zone';
+  | 'action-zone'
+  | 'hand';
 
 export interface DropZoneId {
   kind: DropZoneKind;

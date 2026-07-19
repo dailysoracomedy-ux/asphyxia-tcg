@@ -34,6 +34,16 @@ export function legalZonesFor(state: GameState, source: DragSource): Set<string>
     return zones;
   }
 
+  if (source.kind === 'board-equip' || source.kind === 'board-engine') {
+    // Commit 52 - a board Equip (attached to an Apex) or Engine (Ability
+    // Support in a slot) can be dragged back into hand. The only legal
+    // destination is the player's own hand zone. Legality of WHICH card can
+    // move is validated in resolveDrop / the store action (e.g. Control
+    // Conflict locks), but the hand is always the drop target.
+    zones.add(zoneKey({ kind: 'hand', playerId: source.playerId }));
+    return zones;
+  }
+
   // hand-card
   const card = player.hand.find((c) => c.instanceId === source.instanceId);
   if (!card || !canPlayCardFromHand(state, source.playerId, card)) return zones;
@@ -104,11 +114,26 @@ export function resolveDrop(
     playEquipCard: (id: string, apexId: string) => void;
     equipSwap: (apexId: string, newCardId: string) => void;
     playSpecialCard: (id: string, targetId?: string) => void;
+    returnEquipToHand?: (equipId: string) => void;
+    returnEngineToHand?: (supportId: string) => void;
   }
 ): DropResolution {
   const legal = legalZonesFor(state, source);
   if (!legal.has(zoneKey(target))) return { ok: false, reason: 'Not a legal destination for this card right now.' };
   if (source.kind === 'apex-attack') return { ok: false, reason: 'Attack drops are resolved separately.' };
+
+  // Commit 52 - dragging a board Equip/Engine back to hand. These sources have
+  // no hand card; they act on a board card and only target the hand zone.
+  if (source.kind === 'board-equip') {
+    if (target.kind !== 'hand') return { ok: false, reason: 'Drop it into your hand to pull it back.' };
+    actions.returnEquipToHand?.(source.instanceId);
+    return { ok: true };
+  }
+  if (source.kind === 'board-engine') {
+    if (target.kind !== 'hand') return { ok: false, reason: 'Drop it into your hand to pull it back.' };
+    actions.returnEngineToHand?.(source.instanceId);
+    return { ok: true };
+  }
 
   const player = state.players[source.playerId];
   const card = player.hand.find((c) => c.instanceId === source.instanceId) as CardInstance | undefined;

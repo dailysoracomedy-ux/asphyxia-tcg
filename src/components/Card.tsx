@@ -313,6 +313,16 @@ export default function Card({
             style={{ background: 'rgba(0,0,0,0.55)', zIndex: 2 }}
           />
         )}
+        {highlight === 'attacked' && (
+          <div
+            className="absolute inset-0 rounded-md pointer-events-none flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.45)', zIndex: 3 }}
+          >
+            <span className="px-2 py-0.5 rounded-full bg-black/70 border border-white/20 text-white/70 text-[8px] font-black tracking-widest uppercase">
+              Used
+            </span>
+          </div>
+        )}
         {onInspect && (
           <button
             type="button"
@@ -351,7 +361,7 @@ export default function Card({
       }}
       className={`relative flex flex-col text-left rounded-md border-2 p-1.5 overflow-hidden shrink-0 transition-transform ${textScale} ${ringClass} ${
         disabled ? 'cursor-not-allowed' : onClick ? 'hover:-translate-y-1 cursor-pointer' : 'cursor-default'
-      } ${highlight === 'attacked' ? 'opacity-50' : ''}`}
+      } ${highlight === 'attacked' ? 'opacity-60 grayscale saturate-50' : ''}`}
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-bold leading-tight truncate" style={{ color: theme.primary }}>

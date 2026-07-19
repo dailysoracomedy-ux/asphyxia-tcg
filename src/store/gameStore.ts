@@ -252,6 +252,10 @@ function runEndPhase(draft: GameState) {
 
   for (const apex of player.apexSlots) {
     if (!apex) continue;
+    // Commit 52: clear the "has attacked / used this turn" flag at END of turn
+    // so the grayed-out "Used" visual on an attacked Apex clears here rather
+    // than lingering until the start of its next turn.
+    apex.hasAttacked = false;
     if (apex.pendingEndPhaseDefBuff) {
       applyTempDefBuffFn(draft, apex.instanceId, apex.pendingEndPhaseDefBuff, draft.turnNumber + 1);
       logMsg(draft, `${getCardDef(apex.defId).name} gains +${apex.pendingEndPhaseDefBuff} DEF until the end of the opponent's next turn.`, 'support');
@@ -1230,6 +1234,14 @@ interface GameStore extends GameState {
    *  destroy-triggered Equip perks fire. Cannot target an Equip that was itself
    *  attached this same turn. */
   equipSwap: (apexInstanceId: string, newCardInstanceId: string) => void;
+  /** Commit 52 - drag-back reconfigure: pull an Equip (by its own instance id)
+   *  off its Apex back into hand. FREE and consumes no per-turn budget (the
+   *  "swap" is only spent when a replacement is attached). */
+  returnEquipToHand: (equipInstanceId: string) => void;
+  /** Commit 52 - drag-back reconfigure: pull an Engine (Ability Support) off
+   *  the board back into hand. FREE; the engine-swap budget is spent when a
+   *  replacement Engine is played, not here. */
+  returnEngineToHand: (supportInstanceId: string) => void;
   playSpecialCard: (cardInstanceId: string, targetApexInstanceId?: string) => void;
   reconfigure: (returnInstanceId: string, playInstanceId?: string, chainedApexId?: string) => void;
   chainSupport: (supportInstanceId: string, apexInstanceId: string) => void;
@@ -1706,6 +1718,53 @@ export const useGameStore = create<GameStore>((set) => ({
       apex.equip.equippedTurn = draft.turnNumber;
       emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name} (Equip Swap).`, 'play');
+    }),
+
+  // Commit 52 - drag an Equip off an Apex, back into hand. FREE: no budget is
+  // spent here. The "one equip swap per Apex per turn" limit is enforced when a
+  // REPLACEMENT is attached (see playEquipCard), not on removal - so a player
+  // who pulls an Equip off can always put one back without feeling cheated.
+  returnEquipToHand: (equipInstanceId) =>
+    mutate(set, (draft) => {
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
+      const playerId = draft.activePlayerId;
+      const player = draft.players[playerId];
+      const apex = player.apexSlots.find((a) => a?.equip?.instanceId === equipInstanceId);
+      if (!apex || !apex.equip) return;
+      const equip = apex.equip;
+      const def = getCardDef(equip.defId);
+      equip.equippedTurn = null;
+      apex.equip = undefined;
+      player.hand.push(equip);
+      logMsg(draft, `${playerId} pulls ${def.name} back into hand.`, 'play');
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: equip.defId }, 600);
+    }),
+
+  // Commit 52 - drag an Engine (Ability Support) off the board, back into hand.
+  // FREE; the once-per-turn engine-swap budget is spent when a replacement
+  // Engine is PLAYED (playSupportCard sets supportsPlayedThisTurn), not here.
+  // Reuses the same cleanup Engine Reconfig used (onReconfigureReturn + the
+  // chained-apex unlink that returning a Support performs).
+  returnEngineToHand: (supportInstanceId) =>
+    mutate(set, (draft) => {
+      if (draft.status !== 'playing' || (draft.phase !== 'Main' && draft.phase !== 'Combat') || draft.pendingResponseQueue.length > 0) return;
+      const playerId = draft.activePlayerId;
+      const player = draft.players[playerId];
+      const slotIdx = player.supportSlots.findIndex((s) => s?.instanceId === supportInstanceId);
+      if (slotIdx === -1) return;
+      const returned = player.supportSlots[slotIdx]!;
+      if (returned.lockedByControlConflict) {
+        logMsg(draft, `${getCardDef(returned.defId).name} is locked by Control Conflict and cannot be moved.`, 'info');
+        return;
+      }
+      player.supportSlots[slotIdx] = null;
+      returned.chainedApexId = null;
+      player.hand.push(returned);
+      const def = getCardDef(returned.defId);
+      logMsg(draft, `${playerId} pulls ${def.name} back into hand.`, 'support');
+      if (def.type === 'BatterySupport' && def.onReconfigureReturn) {
+        def.onReconfigureReturn({ helpers: createHelpers(draft), ownerId: playerId, cardInstanceId: returned.instanceId });
+      }
     }),
 
   playSpecialCard: (cardInstanceId, targetApexInstanceId) =>

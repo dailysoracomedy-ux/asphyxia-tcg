@@ -54,6 +54,10 @@ interface PlayerBoardProps {
    *  GameBoard.tsx's mode === 'attackAwaitingTarget'). Only relevant for the
    *  active player's own board. */
   onApexAttackDragStart?: (e: React.PointerEvent, instanceId: string) => void;
+  /** Commit 52 - drag a board Equip (by its instance id) or Engine (support
+   *  instance id) back to hand. Only wired for the acting player's own board. */
+  onBoardEquipDragStart?: (e: React.PointerEvent, equipInstanceId: string) => void;
+  onBoardEngineDragStart?: (e: React.PointerEvent, supportInstanceId: string) => void;
   /** Commit 38 - optional content rendered directly under the Support/Engine
    *  slots column, in the board's own grid (not centered under the whole
    *  board from outside) - used for End Turn/Engine Reconfig, so they
@@ -100,6 +104,8 @@ export default function PlayerBoard({
   containerRef,
   drag,
   onApexAttackDragStart,
+  onBoardEquipDragStart,
+  onBoardEngineDragStart,
   footer,
 }: PlayerBoardProps) {
   const player = state.players[playerId];
@@ -202,6 +208,7 @@ export default function PlayerBoard({
               onInspect={onInspectCard}
               drag={drag}
               onAttackDragStart={onApexAttackDragStart}
+              onBoardEquipDragStart={onBoardEquipDragStart}
               flipped={flipped}
             />
           ))}
@@ -230,6 +237,7 @@ export default function PlayerBoard({
                     selected={support ? selectedSupportId === support.instanceId : false}
                     onInspect={onInspectCard}
                     drag={drag}
+                    onBoardEngineDragStart={onBoardEngineDragStart}
                   />
                 ))}
               </div>
@@ -267,6 +275,7 @@ function ApexSlotOrGhost({
   onInspect,
   drag,
   onAttackDragStart,
+  onBoardEquipDragStart,
   flipped,
 }: {
   slotIndex: number;
@@ -280,6 +289,7 @@ function ApexSlotOrGhost({
   onInspect?: (instance: CardInstance) => void;
   drag?: DragState | null;
   onAttackDragStart?: (e: React.PointerEvent, instanceId: string) => void;
+  onBoardEquipDragStart?: (e: React.PointerEvent, equipInstanceId: string) => void;
   /** Commit 43 - which way this board faces on screen: battle animations
    *  (lunge, knockback) are direction-aware, and screen direction is a view
    *  concern, so it's threaded from PlayerBoard rather than derived from
@@ -312,6 +322,7 @@ function ApexSlotOrGhost({
       disabled={disabled}
       selected={selected}
       onInspect={onInspect}
+      onBoardEquipDragStart={onBoardEquipDragStart}
       flipped={flipped}
     />
   );
@@ -340,6 +351,7 @@ function ApexSlot({
   disabled,
   selected,
   onInspect,
+  onBoardEquipDragStart,
   flipped,
 }: {
   apex: CardInstance | null;
@@ -350,6 +362,7 @@ function ApexSlot({
   disabled?: boolean;
   selected?: boolean;
   onInspect?: (instance: CardInstance) => void;
+  onBoardEquipDragStart?: (e: React.PointerEvent, equipInstanceId: string) => void;
   flipped?: boolean;
 }) {
   if (!apex) {
@@ -434,7 +447,7 @@ function ApexSlot({
         <ApexVfxOverlay apexInstanceId={apex.instanceId} faction={apexCardDef.faction} spotlight={highlight === 'valid-target'} flipped={flipped}>
           {cardEl}
         </ApexVfxOverlay>
-        <EquipFlap key={apex.equip.instanceId} equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} />
+        <EquipFlap key={apex.equip.instanceId} equipInstance={apex.equip} width={apexArtWidth} onInspect={onInspect ? () => onInspect(apex.equip!) : undefined} onDragStart={onBoardEquipDragStart} />
       </div>
     );
   }
@@ -570,6 +583,7 @@ function SupportSlotOrGhost({
   selected,
   onInspect,
   drag,
+  onBoardEngineDragStart,
 }: {
   slotIndex: number;
   support: CardInstance | null;
@@ -580,6 +594,7 @@ function SupportSlotOrGhost({
   selected?: boolean;
   onInspect?: (instance: CardInstance) => void;
   drag?: DragState | null;
+  onBoardEngineDragStart?: (e: React.PointerEvent, supportInstanceId: string) => void;
 }) {
   const ghost = useSlotGhost(playerId, slotIndex, 'support');
   if (!support && ghost?.destroyedGhost) {
@@ -600,7 +615,20 @@ function SupportSlotOrGhost({
 
   // Commit 30 - only empty slots are drop zones (Engines don't have an
   // in-place swap/re-target mechanic the way Equips do).
-  if (support) return body;
+  // Commit 52 - an OCCUPIED Engine can now be dragged back to hand.
+  if (support) {
+    if (onBoardEngineDragStart) {
+      return (
+        <div
+          style={{ cursor: 'grab' }}
+          onPointerDown={(e) => onBoardEngineDragStart(e, support.instanceId)}
+        >
+          {body}
+        </div>
+      );
+    }
+    return body;
+  }
   const dropZone = { kind: 'support-slot' as const, playerId, slotIndex };
   const key = zoneKey(dropZone);
   const isLegalDropTarget = !!drag?.active && drag.legalZoneKeys.has(key);

@@ -62,7 +62,12 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
     } catch {
       return;
     }
-    const w = size;
+    // Canvas fills the container's WIDTH (the wide hero panel) so a tilted mat
+    // has the full panel width to swing into and never clips at the canvas edge
+    // (Commit 52). Height is fixed per object type. Fall back to `size` if the
+    // container hasn't been laid out yet.
+    const containerW = host.clientWidth || size;
+    const w = Math.max(containerW, size);
     const h = kind === 'playmat' ? Math.round(size * 0.62) : size;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h);
@@ -74,23 +79,29 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
     camera.position.set(0, 0, kind === 'playmat' ? 4.2 : 4.8);
     camera.lookAt(0, 0, 0);
 
-    // Unified top-left key light (matches the app-wide light convention).
-    scene.add(new THREE.AmbientLight(0xb0b0b8, 1.15));
-    const key = new THREE.DirectionalLight(0xffffff, 2.0);
+    // Emissive-driven previews (Commit 52): the mat/sleeve art is put on the
+    // EMISSIVE channel (below), so the surface shows at full, even brightness
+    // everywhere - no lit hotspots, no dark corners - and bloom keys off the
+    // texture's own bright areas (bright neon art glows more). So we only need
+    // a little ambient + a soft key to give the beveled rounded EDGES some
+    // dimensional shading; the face itself is self-lit. The coin keeps its
+    // existing lit+emissive treatment.
+    const isCoin = kind === 'coin';
+    scene.add(new THREE.AmbientLight(0xffffff, isCoin ? 1.15 : 0.55));
+    const key = new THREE.DirectionalLight(0xffffff, isCoin ? 2.0 : 0.7);
     key.position.set(-4, 5, 6);
     scene.add(key);
     const accentColor = new THREE.Color(accent || '#ff2fd0');
-    // A GENTLE, mostly-white accent bounce so the art keeps its own colors and
-    // isn't washed in the accent hue - just a hint of colored rim from below.
-    const fillHue = accentColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
-    const fill = new THREE.PointLight(fillHue.getHex(), 0.55, 24);
-    fill.position.set(3.5, -2, 4);
-    scene.add(fill);
-    // A tight raking spec light (pure white) that sweeps a real highlight
-    // across the surface as the object tilts - the "this is physical" cue.
-    const rake = new THREE.PointLight(0xffffff, 1.4, 18);
-    rake.position.set(-1.5, 3.5, 3.5);
-    scene.add(rake);
+    if (isCoin) {
+      // Coin only: gentle accent bounce + raking spec (unchanged behavior).
+      const fillHue = accentColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
+      const fill = new THREE.PointLight(fillHue.getHex(), 0.55, 24);
+      fill.position.set(3.5, -2, 4);
+      scene.add(fill);
+      const rake = new THREE.PointLight(0xffffff, 1.4, 18);
+      rake.position.set(-1.5, 3.5, 3.5);
+      scene.add(rake);
+    }
 
     const disposables: { dispose(): void }[] = [];
     let obj: THREE.Object3D;
@@ -128,9 +139,11 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
       const isMat = kind === 'playmat';
 
       const faceMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        metalness: isMat ? 0.12 : 0.35,
-        roughness: isMat ? 0.7 : 0.16, // cloth = matte; plastic sleeve = glossy
+        color: 0x000000,           // base is black; all visible light is emissive
+        emissive: 0xffffff,
+        emissiveIntensity: 0.82,   // self-lit and glowing, but not blown out
+        metalness: 0.0,
+        roughness: 1.0,
       });
       const sideMat = new THREE.MeshStandardMaterial({ color: 0x08080d, metalness: 0.4, roughness: 0.5 });
       const group = new THREE.Group();
@@ -177,23 +190,29 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
         loader.load(src, (tex) => {
           if (disposed) return;
           tex.colorSpace = THREE.SRGBColorSpace;
-          faceMat.map = tex;
+          // Emissive-driven: the art self-illuminates evenly (no lit hotspots),
+          // and bloom keys off its own bright pixels.
+          faceMat.emissiveMap = tex;
           faceMat.needsUpdate = true;
           // Lock the plate to the ART's real aspect ratio - never stretch it.
           const img = tex.image as { width: number; height: number };
           if (img?.width && img?.height) {
             const ar = img.width / img.height;
-            const maxW = isMat ? 4.7 : 2.7;
-            const maxH = isMat ? 3.0 : 3.5;
+            // Mat can be wider now (canvas fills the panel width, so a tilted
+            // mat has room to swing). Sleeve height trimmed so it's not so tall.
+            const maxW = isMat ? 5.4 : 2.5;
+            const maxH = isMat ? 3.1 : 3.0;
             let pw = maxW, ph = maxW / ar;
             if (ph > maxH) { ph = maxH; pw = maxH * ar; }
             buildPlate(pw, ph);
           }
         });
       } else {
-        // 'faction' default playmat with no art: a dark accent gradient look.
-        faceMat.color.set(0x120610);
-        faceMat.emissive = new THREE.Color(accentColor).multiplyScalar(0.18);
+        // 'faction' default playmat with no art: a subtle self-lit accent
+        // glow (emissive-driven like everything else, kept dim so it reads as
+        // "the stock mat" rather than a bright panel).
+        faceMat.emissive = new THREE.Color(accentColor).multiplyScalar(1.0);
+        faceMat.emissiveIntensity = 0.32;
       }
       disposables.push(faceMat, sideMat, { dispose: () => plateGeo?.dispose() });
       scene.add(group);
@@ -203,9 +222,16 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
     const rp = new RenderPass(scene, camera);
     rp.clearAlpha = 0;
     composer.addPass(rp);
-    // Coins get strong bloom (emissive engraving); mats/sleeves get a gentle
-    // bloom just to lift the specular highlights.
-    const bloom = new UnrealBloomPass(new THREE.Vector2(w, h), kind === 'coin' ? 0.7 : 0.5, 0.35, kind === 'coin' ? 0.72 : 0.78);
+    // Coin: strong bloom on the emissive engraving. Mat/sleeve: moderate bloom
+    // with a threshold set so only the BRIGHTER areas of the emissive art bloom
+    // (bright neon glows; dark areas stay put) - the "bloom is brighter on
+    // brighter colors" behavior. strength / radius / threshold.
+    const bloom = new UnrealBloomPass(
+      new THREE.Vector2(w, h),
+      kind === 'coin' ? 0.7 : 0.55,
+      kind === 'coin' ? 0.35 : 0.5,
+      kind === 'coin' ? 0.72 : 0.6,
+    );
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
     composer.setSize(w, h);
@@ -296,5 +322,5 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
   }, [kind, image, accent, size]);
 
   const h = kind === 'playmat' ? Math.round(size * 0.62) : size;
-  return <div ref={hostRef} style={{ width: size, height: h, cursor: 'grab' }} className="mx-auto select-none" aria-hidden />;
+  return <div ref={hostRef} style={{ width: '100%', height: h, cursor: 'grab', display: 'flex', justifyContent: 'center' }} className="select-none" aria-hidden />;
 }

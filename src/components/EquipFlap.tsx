@@ -28,12 +28,15 @@ export default function EquipFlap({
   equipInstance,
   width,
   onInspect,
+  onDragStart,
 }: {
   equipInstance: CardInstance;
   /** A CSS length/calc() expression matching the Apex card's own rendered
    *  width exactly, so the flap lines up seamlessly beneath it. */
   width: string;
   onInspect?: () => void;
+  /** Commit 52 - drag this attached Equip back to hand (by its instance id). */
+  onDragStart?: (e: React.PointerEvent, equipInstanceId: string) => void;
 }) {
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,9 +75,10 @@ export default function EquipFlap({
   return (
     <div
       className="relative shrink-0 overflow-hidden border-2 border-t-0 rounded-b-md vfx-equip-slide-in"
-      style={{ width, height: flapHeight, borderColor: '#ffffff33' }}
+      style={{ width, height: flapHeight, borderColor: '#ffffff33', cursor: onDragStart ? 'grab' : undefined }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onPointerDown={onDragStart ? (e) => onDragStart(e, equipInstance.instanceId) : undefined}
     >
       {hoverPos && <CardHoverPreview x={hoverPos.x} y={hoverPos.y} instance={equipInstance} />}
       <button
