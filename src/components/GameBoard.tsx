@@ -955,7 +955,7 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col gap-4 justify-center">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-4 justify-center">
 
       {/* Row 3: opponent board */}
       <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>

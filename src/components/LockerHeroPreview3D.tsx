@@ -71,23 +71,25 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 30);
-    camera.position.set(0, 0, 5.4);
+    camera.position.set(0, 0, kind === 'playmat' ? 4.2 : 4.8);
     camera.lookAt(0, 0, 0);
 
     // Unified top-left key light (matches the app-wide light convention).
-    scene.add(new THREE.AmbientLight(0x8f8f9c, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    scene.add(new THREE.AmbientLight(0xb0b0b8, 1.15));
+    const key = new THREE.DirectionalLight(0xffffff, 2.0);
     key.position.set(-4, 5, 6);
     scene.add(key);
     const accentColor = new THREE.Color(accent || '#ff2fd0');
-    // Accent fill from the lower-right - colored bounce that reads as neon glow.
-    const fill = new THREE.PointLight(accentColor.getHex(), 1.3, 22);
-    fill.position.set(3.5, -2, 3.5);
+    // A GENTLE, mostly-white accent bounce so the art keeps its own colors and
+    // isn't washed in the accent hue - just a hint of colored rim from below.
+    const fillHue = accentColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
+    const fill = new THREE.PointLight(fillHue.getHex(), 0.55, 24);
+    fill.position.set(3.5, -2, 4);
     scene.add(fill);
-    // A tight raking spec light that sweeps a real highlight across the
-    // surface as the object tilts - the single biggest "this is physical" cue.
-    const rake = new THREE.PointLight(0xffffff, 1.6, 16);
-    rake.position.set(-1.5, 3.5, 3);
+    // A tight raking spec light (pure white) that sweeps a real highlight
+    // across the surface as the object tilts - the "this is physical" cue.
+    const rake = new THREE.PointLight(0xffffff, 1.4, 18);
+    rake.position.set(-1.5, 3.5, 3.5);
     scene.add(rake);
 
     const disposables: { dispose(): void }[] = [];
@@ -129,7 +131,6 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
         color: 0xffffff,
         metalness: isMat ? 0.12 : 0.35,
         roughness: isMat ? 0.7 : 0.16, // cloth = matte; plastic sleeve = glossy
-        emissive: new THREE.Color(accentColor).multiplyScalar(0.06),
       });
       const sideMat = new THREE.MeshStandardMaterial({ color: 0x08080d, metalness: 0.4, roughness: 0.5 });
       const group = new THREE.Group();
@@ -182,8 +183,8 @@ export default function LockerHeroPreview3D({ kind, image, accent, size = 300 }:
           const img = tex.image as { width: number; height: number };
           if (img?.width && img?.height) {
             const ar = img.width / img.height;
-            const maxW = isMat ? 3.8 : 2.3;
-            const maxH = isMat ? 2.5 : 3.0;
+            const maxW = isMat ? 4.7 : 2.7;
+            const maxH = isMat ? 3.0 : 3.5;
             let pw = maxW, ph = maxW / ar;
             if (ph > maxH) { ph = maxH; pw = maxH * ar; }
             buildPlate(pw, ph);

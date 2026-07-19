@@ -104,29 +104,44 @@ export default function LockerMenu() {
 
   // Horizontal drag-scroll for the carousel (mouse-drag to scrub).
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ down: boolean; startX: number; startScroll: number; moved: boolean }>({ down: false, startX: 0, startScroll: 0, moved: false });
+  const dragState = useRef<{ down: boolean; startX: number; startScroll: number; moved: boolean; captured: boolean; pointerId: number }>({ down: false, startX: 0, startScroll: 0, moved: false, captured: false, pointerId: -1 });
   const [grabbing, setGrabbing] = useState(false);
 
   function onDragDown(e: React.PointerEvent) {
     const el = trackRef.current;
     if (!el) return;
-    dragState.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
-    setGrabbing(true);
-    el.setPointerCapture?.(e.pointerId);
+    // Do NOT capture the pointer here - capturing on pointerdown makes the
+    // release fire the click on the track instead of the tile button, which
+    // was swallowing every selection. We only capture once a real drag begins.
+    dragState.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false, captured: false, pointerId: e.pointerId };
   }
   function onDragMove(e: React.PointerEvent) {
     const el = trackRef.current;
     const ds = dragState.current;
     if (!el || !ds.down) return;
     const dx = e.clientX - ds.startX;
-    if (Math.abs(dx) > 4) ds.moved = true;
-    el.scrollLeft = ds.startScroll - dx;
+    if (Math.abs(dx) > 5) {
+      if (!ds.moved) {
+        ds.moved = true;
+        setGrabbing(true);
+        // Now that it's genuinely a drag, capture so scrubbing stays smooth
+        // even if the cursor leaves the track.
+        el.setPointerCapture?.(e.pointerId);
+        ds.captured = true;
+      }
+      el.scrollLeft = ds.startScroll - dx;
+    }
   }
   function onDragUp(e: React.PointerEvent) {
     const el = trackRef.current;
-    dragState.current.down = false;
+    const ds = dragState.current;
+    if (ds.captured) el?.releasePointerCapture?.(e.pointerId);
+    ds.down = false;
+    ds.captured = false;
     setGrabbing(false);
-    el?.releasePointerCapture?.(e.pointerId);
+    // Clear the moved flag on the next tick so the click handler (which fires
+    // right after pointerup) still sees whether this was a drag, then resets.
+    setTimeout(() => { dragState.current.moved = false; }, 0);
   }
 
   return (
