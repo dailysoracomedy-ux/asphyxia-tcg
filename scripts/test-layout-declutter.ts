@@ -63,7 +63,7 @@ async function main() {
   check('the Recent-plays ticker is genuinely gone', !container.textContent?.includes('Recent:'));
   check('the Equip Swap button is genuinely gone', !container.textContent?.includes('Equip Swap'));
   check('End Turn is still genuinely present somewhere on the board', container.textContent?.includes('End Turn') ?? false);
-  check('Engine Reconfig is still genuinely present somewhere on the board', s.activePlayerId !== 'player1' || (container.textContent?.includes('Engine Reconfig') ?? false));
+  check('the reconfigure drag hint is present near the board (Commit 52 - replaced the Engine Reconfig button)', s.activePlayerId !== 'player1' || (container.textContent?.includes('Drag an Equip or Engine') ?? false));
   check('the Options control is still genuinely present', container.textContent?.includes('Options') ?? false);
   check('the Rift panel is still genuinely present', /rift:/i.test(container.textContent ?? ''));
 

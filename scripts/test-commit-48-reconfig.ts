@@ -67,44 +67,20 @@ async function main() {
   await wait(1200);
   const st = useGameStore.getState();
   check('setup: the game genuinely reached the merged turn (phase is Combat, the only observable in-turn phase)', st.phase === 'Combat');
-  check('setup: reconfigure genuinely unused this turn', !st.players[st.activePlayerId].turnFlags.reconfigureUsedThisTurn);
 
+  // Commit 52 - the Engine Reconfig BUTTON was removed; reconfiguring is now
+  // done by dragging an Equip/Engine back to hand. Verify the button is gone
+  // and the drag hint is shown instead.
   const btn = findReconfigButton();
-  check('the Engine Reconfig button genuinely renders', !!btn);
-  if (!btn) throw new Error('no button');
+  check('the Engine Reconfig button is genuinely GONE (Commit 52 - replaced by drag-back)', !btn);
 
-  // 1. The actual reported bug: it must NOT be disabled during the turn.
-  check('the button is genuinely ENABLED during the merged Main/Combat turn (the reported bug: it was permanently disabled)', !btn.disabled);
-  check('its label genuinely reads (once/turn), not (used)', btn.textContent?.includes('(once/turn)') === true);
-
-  // 2. Clicking genuinely enters return-selection mode.
-  btn.click();
-  await wait(120);
   const html = dom.window.document.body.innerHTML;
-  check('clicking genuinely enters return-selection ("Select a Support above to return to hand")', html.includes('Select a Support above to return'));
+  check('the drag-back hint is shown instead', /Drag an Equip or Engine back to your hand/i.test(html));
 
-  // 3. After a real reconfigure resolves, the button disables for the turn.
-  //    Drive the store directly (placing + returning a Support through the UI
-  //    is drag-drop; store-level is the contract the button reflects).
+  // The store's return actions exist and are callable (the drag drop targets).
   const s2 = useGameStore.getState();
-  const active = s2.players[s2.activePlayerId];
-  const supportInHand = active.hand.find((c) => c.type !== 'Apex');
-  if (supportInHand) {
-    // put a support on the board through the store, then reconfigure-return it
-    s2.playSupportCard(supportInHand.instanceId);
-    await wait(80);
-    const placed = useGameStore.getState().players[s2.activePlayerId].supportSlots[0];
-    if (placed) {
-      useGameStore.getState().reconfigure(placed.instanceId);
-      await wait(120);
-      const btn2 = findReconfigButton();
-      check('after a reconfigure genuinely resolves, the button disables and reads (used)', !!btn2 && btn2.disabled && btn2.textContent!.includes('(used)'));
-    } else {
-      check('(skipped step 3 - support could not be placed this draw)', true);
-    }
-  } else {
-    check('(skipped step 3 - no support drawn in the opening hand this run)', true);
-  }
+  check('returnEquipToHand store action exists', typeof s2.returnEquipToHand === 'function');
+  check('returnEngineToHand store action exists', typeof s2.returnEngineToHand === 'function');
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);
