@@ -15,6 +15,656 @@ Then open http://localhost:3000. Two players share one browser tab/window (hotse
 
 ## What's implemented
 
+**Commit 52.1 — center the Locker playmat preview.** The playmat hero sat ~21px
+right of center (a big empty gap on its left), caused by the resting 3/4 yaw +
+perspective pushing the visual mass rightward. Nudged the mat/sleeve left in the
+scene so it now reads centered (measured offset: -4px, was +21px), verified it
+still never clips at hard tilt in either direction.
+
+**Commit 52 — drag-back reconfigure, emissive Locker previews, and a visible
+"used" state on attacked Apexes.** Three changes, one gameplay, two visual.
+
+1. **Reconfigure by dragging, not a button.** The Engine Reconfig button is
+   gone. You now reconfigure by dragging an Equip off an Apex, or an Engine out
+   of its slot, back into your hand - total freedom to re-place things. The
+   economy is intentionally forgiving: PULLING a card back is FREE and consumes
+   no budget; the cost is only paid when you ATTACH a replacement (an Equip
+   attaches per-Apex; playing a replacement Engine spends the one-support-per-
+   turn budget, which is what caps engine swaps at one per turn). So a player
+   who takes an Equip off can always put one back without feeling cheated -
+   which is exactly how removing-then-replacing already behaved, just made
+   direct and intuitive. New store actions returnEquipToHand / returnEngineToHand;
+   new drag sources (board-equip, board-engine) that only drop into the hand
+   zone. Store logic and drag routing are covered by two new tests
+   (test-commit-52-drag-back, test-commit-52-drag-routing). NOTE: the physical
+   drag gesture itself can only be confirmed in live play - the automated tests
+   verify the rules and routing, not the mouse feel.
+2. **Attacked Apexes show a "used" state.** An Apex that has attacked already
+   can't attack again (existing rule) - now that rule is VISIBLE: the Apex
+   grays out (grayscale + dim) with a small "USED" badge, and clears at END of
+   turn.
+3. **Locker previews are emissive.** The playmat/sleeve art now self-illuminates
+   on the emissive channel instead of being lit by scene lights - so brightness
+   is even across the whole surface (no more blown-out corner), and bloom keys
+   off the art's own bright areas (bright neon glows more). Emissive intensity
+   tuned to be noticeable but not blown out. The preview canvas now fills its
+   panel's full width, so a tilted playmat has room to swing and never clips at
+   the edge. Sleeve height trimmed so it's not so tall.
+
+**Commit 51.2 — Locker bugfixes + tutorial hand fix.** Three fixes after the
+51.1 preview landed:
+
+- **You couldn't select any Locker asset.** Root cause: the carousel called
+  `setPointerCapture` on pointerdown, so the release fired the click on the
+  scroll track instead of the tile button - swallowing every selection. Fixed:
+  the carousel no longer captures on press; it only captures once a real drag
+  begins (movement past a threshold), so a plain click reaches the tile
+  normally. The drag-vs-click guard that prevents a scrub from selecting is
+  kept. Verified: clicking a tile now changes the equipped item and swaps the
+  hero preview.
+- **The playmat hero rendered tiny and washed red.** Two causes: the accent
+  fill light + a face emissive tint were dumping magenta over everything, and
+  the plate/camera framing was too conservative. Fixed: the accent light is now
+  a gentle mostly-white bounce (art keeps its own colors - verified the bright
+  pixels are now neutral, not red), the face emissive tint is gone, the camera
+  sits closer, and the plate size caps are larger so the mat fills the frame.
+- **The tutorial match pushed the hand way down off-screen.** The board column
+  lacked `min-h-0`, so with the enlarged Commit 51 boards plus the tutorial's
+  extra prompt content it could overflow its row and shove the fixed hand below
+  the viewport (clipped by the surface's overflow-hidden). Added `min-h-0` so
+  the column yields space to the hand. Verified the hand stays visible in both
+  normal and tutorial matches at 940/800/720px.
+
+(The e2e harness hook now also exposes the tutorial store so tutorial layouts
+can be regression-tested headlessly.)
+
+**Commit 51.1 — Locker preview: make it actually feel alive.** Follow-up
+tuning after the 51 hero previews read as dull/flat:
+
+- **Carousel scrollbar hidden** - the drag interaction and the visible partial
+  next-card already signal scrollability, so the bar was redundant clutter.
+  Still fully drag-scrollable.
+- **Mat & sleeve now feel physical**: they rest at a natural 3/4 tilt (always
+  reading as a dimensional object, not a flat image), float with a subtle idle
+  bob, and a sharper raking key light now sweeps a real highlight across the
+  surface as you tilt - the single biggest "this is real" cue, which was far
+  too soft before. Materials punched up: glossier plastic on the sleeve,
+  matte cloth on the mat, plus a faint accent glow and a touch more bloom.
+- **Playmats get rounded corners** - built as rounded-corner extruded plates
+  (Shape + ExtrudeGeometry) instead of hard-edged boxes.
+- **Art is never stretched** - each plate is rebuilt to the loaded texture's
+  TRUE aspect ratio the moment it loads, so playmat/sleeve images keep their
+  real proportions.
+- **Coin auto-spin removed** - it felt weird; the coin now rests facing the
+  viewer and is steered by the mouse, with only a whisper of idle sway.
+- The idle bob/sway fades out while you're actively steering, so it never
+  fights your input.
+
+Verified in the harness: scrollbar genuinely hidden while still scrollable,
+WebGL mounts with zero console errors, the previews render bright dimensional
+objects with a highlight that shifts as they tilt (confirmed via brightness
+maps), full test suite at the known baseline, lint clean.
+
+**Commit 51 — board layout polish + a fully reworked, ALIVE Locker.** Seven
+things in one pass, each verified in the headless harness.
+
+Board fixes:
+1. **Panel padding** raised from 6px to 12px inside each play-area panel, so
+   nothing sits flush against the edge. Verified: zero elements spill past the
+   panel borders now (previously Deck/Void and Reconfig bled past).
+2. **The ~245px dead gap between the two boards is gone.** It was caused by
+   `margin-top: auto` shoving the player board to the bottom of the column and
+   dumping all leftover space into the middle. Replaced with balanced
+   `justify-center` spacing - the gap is now ~37px.
+3. **Both play areas enlarged** (~8%: apex board card 262→283, support 185→200)
+   using the reclaimed vertical space, so the boards feel more substantial.
+4. **End Turn button** made slightly smaller (28→26px tall). Honest caveat: the
+   button art is a fixed 764:96 (7.96:1) asset, so it can be sized but not
+   un-stretched without new art.
+5. **Removed the gray striped "paper edge" strip under the deck** - an
+   intentional card-stack-thickness effect that read as a stray artifact. The
+   drop-shadow and stacked backs already convey the deck's depth.
+6. **Removed the `translateX(-16px)` magic-number board shift** - with proper
+   panel padding the board centers naturally; sidebar tidied.
+
+7. **The Locker, reworked around a big ALIVE 3D hero preview.** Where the logo
+   used to sit, there is now one large WebGL preview of the selected gear that
+   the user STEERS WITH THE MOUSE - cursor position maps to rotateX/rotateY,
+   the exact interaction feel of the in-game card tilt, easing back toward
+   neutral with a whisper of idle drift when you let go. Each object type moves
+   the way its real-world counterpart would, so all three feel congruent yet
+   physical: the coin is a real thick cylinder (reusing the coin-toss emissive/
+   bloom look) that steers on top of a slow idle spin; the playmat is a matte
+   cloth plane that banks to your cursor; the sleeve is a glossy card that
+   sweeps a plastic highlight as you tilt it. Below the hero, the old grid is
+   replaced with a **horizontal mouse-drag carousel** you scrub through to pick
+   items (with a drag-vs-click guard so scrubbing never mis-equips). New
+   component: `LockerHeroPreview3D`. Verified in the harness: WebGL mounts with
+   zero console errors across all three tabs, the hero renders a real lit
+   object (not a blank canvas), the tilt responds to pointer movement, and the
+   carousel scrolls horizontally.
+
+Two stale layout tests updated to the new values (board no longer shifted
+left; baseline board margin 12→4px). Full suite at the known baseline; lint
+clean; no page/hand scrollbar at 940/768px.
+
+**Commit 50.13 — kill the right-side page scrollbar.** The `.game-surface`
+root (the whole game board wrapper) had `overflow-x: hidden` but no vertical
+overflow constraint, so its `overflow-y` defaulted to `visible`. The hand
+cards sit at the bottom and are 194px tall, so their full height spills ~100px
+below the viewport (scrollHeight ~1039 vs clientHeight ~940) - and an element
+with `overflow-y: visible` whose content exceeds its box renders a vertical
+scrollbar in some browsers (even though html/body are `overflow:hidden`).
+Fixed by making the root `overflow: hidden` (both axes). The hand's hover
+LIFT goes upward and stays within the viewport, and the tucked cards' below-
+viewport portion is meant to be hidden anyway, so clipping here is safe - the
+big hover PREVIEW is unaffected (it portals to document.body, outside this
+container).
+
+Honest note: this exact scrollbar does not reproduce in the headless-Chromium
+harness (headless respects the ancestor clip and renders no scrollbar), so it
+manifests browser-to-browser - but removing the `overflow-y: visible` on a
+container whose content spills below it is the correct fix regardless, and the
+harness now has a check for that pattern.
+
+**Commit 50.12 — hand cards spread out (no longer cramped).** The fan/overlap
+look from 50.8-50.11 read as too cramped; cards now sit spread apart with a
+small even gap between them (~10px at full desktop size, scaling down
+proportionally on short screens). Mechanically: the negative-overlap margin
+and the per-card exposed-width hitbox slicing are gone - each card is now a
+full-width slot with a flat flex `gap`, so hitboxes are simply one full card
+wide each and still never overlap. All hover/lift/drag/inspect behavior is
+unchanged.
+
+Verified with the visual harness (scripts/visual-check-managed.py) at 900px,
+800px, 768px, 700px and 650px viewport heights: cards spaced cleanly, the
+lift pops fully, and NO hand scrollbar and NO whole-page scrollbar at any
+height (the harness now checks for a page-level vertical scrollbar too, not
+just the hand's). Full hand/drag/tutorial test suite green; lint clean.
+
+**Commit 50.11 — hand scrollbar fix + a real visual-verification harness.**
+Two things: fixing the bug you saw, and building the tool that should have
+caught it before it ever reached you.
+
+- **The bug**: a vertical scrollbar appeared on the hand and the lifted card
+  was clipped inside it. Root cause (proven, not guessed): Commit 50.10 set
+  `overflow-x:auto` + `overflow-y:visible` on the same element - and the
+  browser SILENTLY PROMOTES the visible axis to `auto` when the other axis
+  is auto/scroll. So the 194px lifted card overflowed the ~91px track and
+  triggered a scrollbar instead of rising above it. This is the same CSS
+  interop rule I'd flagged in my own Commit 50.1 comments and then
+  reintroduced. Fix: the hand track and inner row are now BOTH
+  `overflow: visible` - the only combination that guarantees no scrollbar -
+  since nothing above the hand clips vertically, so a lifted card escapes
+  upward freely. (A very wide hand now centers rather than horizontally
+  scrolling; that trade keeps the lift correct and the scrollbar gone.)
+- **The harness** (`scripts/visual-check-managed.py`): a headless-Chromium
+  tool that boots the real production build, jumps straight into a live
+  match via a new `?e2e=1` store hook, and screenshots the hand at rest and
+  on hover - then checks the actual computed overflow/scroll geometry and
+  fails if a real scrollbar exists. This is how the fix above was verified:
+  I reproduced your exact scrollbar in the harness, fixed it, and confirmed
+  it gone at 900px AND 720px viewport heights with real screenshots before
+  packaging. The `?e2e=1` hook in `app/page.tsx` is inert in normal play
+  (exposes the store to `window` only when that flag is explicitly present).
+- Existing hand/drag/tutorial tests updated where they anchored on old
+  structure; all pass. Full suite at the known baseline; lint clean.
+
+This harness is now part of my pre-ship process for anything touching the
+hand or layout - so a change that renders broken gets caught here first
+instead of in your players' hands.
+
+**Commit 50.10 — Stable Hand Hover Hitboxes & Preview Ownership.** A full
+architectural rewrite of hand-card hover, replacing the previous approach
+that still jittered. I inspected the code and agreed with the diagnosis: the
+real root cause was TWO competing hover owners plus z-index-sensitive,
+overlapping hit regions.
+
+- **Single hover owner.** Hand now passes `disableHoverPreview` to every
+  `size="hand"` Card and renders the ONE and only hand `CardHoverPreview`
+  itself. Previously each hand Card also ran its own independent 350ms
+  preview timer, so multiple previews could mount and flicker between cards.
+  Board/equip/gallery cards keep their own Card-owned hover, untouched.
+- **Static, non-overlapping hit regions.** The visual cards still overlap
+  (the fan look), but pointer HIT REGIONS no longer do. Each card gets one
+  static interaction slice (its exposed width; the last card takes the full
+  remaining width), contiguous with no dead gaps. The moving/lifting visual
+  layer is `pointer-events:none`, so changing a card's transform or z-index
+  can never change which slice is under the cursor - the self-invalidating
+  hover loop that caused the jitter is now structurally impossible.
+- **Direct A→B transfer.** Per-slice `pointerenter` activates a card; hover
+  is cleared only when the pointer leaves the ENTIRE hand track. Moving from
+  one card to the next goes A→B directly, never A→null→B.
+- **Centralized, debounced preview.** One shared ~320ms hover-intent timer,
+  anchored to the stable slice's rect (not the cursor). Rapid scrubbing
+  mounts no preview; exactly one appears after settling; only one can ever
+  exist. Pointer-down (drag start) cancels it.
+- **Preserved lift, drag, inspect, tutorial.** The source-card lift is now a
+  `pointer-events:none` transform (155ms, honoring `prefers-reduced-motion`)
+  on the visual layer only - the hit region never moves. Drag still calls the
+  existing `onCardPointerDown` with the six-pixel threshold; a dedicated
+  stable inspect button per card opens the existing modal; tutorial-dimmed
+  cards are genuinely non-interactive; playability tooltips and selected
+  state are intact.
+- **Aligned responsive geometry.** Hand no longer hard-codes 194/97/46px
+  while Card renders `fluidBoardDimension(194)`. A shared `handCssVars()` in
+  `responsiveCard.ts` derives every hand dimension (card height/width, peek,
+  lift, overlap, exposed width) from the same fluid height curve as the
+  rendered card - as flat `clamp()` expressions - so hit and layout geometry
+  can't drift apart at 720/768/900/1080px viewport heights.
+- **Hover sound on change only** (no more machine-gun while scrubbing), and
+  **stable horizontal overflow** (scroll lives on the track; overflow modes
+  never toggle on hover, so the row never shifts mid-interaction).
+- **New regression test** `scripts/test-hand-hover-stability.ts` (14 checks)
+  verifies the architecture and interaction STATE, not comments: single
+  ownership, non-overlapping hitboxes, `pointer-events:none` visuals,
+  raise-only-one, direct A→B, leave-clears, rapid-scrub-settles-once,
+  pointer-down-cancels, drag wiring, tutorial inertness, inspect presence,
+  and unmount cleanup. Existing drag/chain/tutorial/visibility tests updated
+  to the new stable hitbox surface and all pass.
+- **Secondary cleanup.** Removed the 4 genuinely-dead GameBoard symbols
+  (`PHASE_LABEL`, `phasePrompt`/`derivePhasePrompt`, `selectHandCard`,
+  `PhaseButton`) plus a now-orphaned import - **lint is now 0 warnings, 0
+  errors.** Stale "click-through pad" comments removed.
+
+Verified: TypeScript clean, build clean, lint clean (0 warnings), full suite
+at the known baseline, and every hand/drag/tutorial test green.
+
+**Commit 50.9 — no more selection-highlight while dragging.** Clicking and
+dragging a card triggered the browser's native text/image selection - card
+text highlighted blue and a ghost drag-image of the art appeared. The whole
+board is a drag interface, not a document, so a new `.game-surface` class on
+the GameBoard root disables `user-select` and `user-drag` across it (inputs
+excluded for safety, though none exist in-game). Verified drag-and-drop and
+chain-preview still pass. Purely a CSS/selection fix - no logic touched.
+
+**Commit 50.8 — hand cards overlap (fan), and the jitter is gone via an
+inset hover trigger.** Two requests, one coherent fix.
+
+- **Overlap**: hand cards now tuck under each other (negative left margin,
+  `HAND_CARD_OVERLAP`) so the hand reads as a held fan instead of spaced-out
+  tiles. Later cards stack over earlier ones; the hovered card jumps to the
+  top and lifts.
+- **The jitter, finally killed at the source** (user's own suggestion, and
+  it was the right call): hover is now driven by an INSET trigger pad that
+  covers only the middle of each card, never its edges. With overlapping
+  cards, a full-card hover region means the cursor sits over two cards'
+  regions at once near every seam, and the tiniest motion flips which one
+  wins - that rapid enter/leave thrash was the jitter. Insetting the trigger
+  (`HAND_TRIGGER_INSET`) leaves a neutral gutter around every card where
+  nothing is hovered, so adjacent triggers never touch and the hover state
+  physically cannot oscillate.
+- **Interaction integrity**: click/drag/inspect still work everywhere. The
+  inset pad forwards click + drag-start (so the middle of the card, where
+  you naturally grab, drags as expected), and the Card underneath keeps its
+  own handlers too (so its uncovered edges, and the top-right info button
+  which sits outside the pad, stay fully interactive). Drag-and-drop,
+  chain-preview, and the guided tutorial all verified still passing.
+- The regression test (`test-commit-50-7-hand-visibility.ts`) now also
+  asserts the inset trigger pad exists and is genuinely inset - so the
+  anti-jitter gutter is protected mechanically, alongside the existing
+  geometry + transform-direction checks.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite at the known baseline (4 known failures)
+with drag/chain/tutorial/hand tests all green.
+
+**Commit 50.7 — hand card lift, finally correct (geometry + direction).**
+Two iterations of my own mistakes here, both now fixed and both covered by a
+new test. The Commit 50.6 split-hitbox approach (stable outer box for hover,
+moving inner box for the lift - which correctly killed the edge jitter) had
+its VERTICAL GEOMETRY wrong: first the transform values were swapped
+(resting state pushed cards DOWN past the clip window → whole hand
+invisible), then after correcting the sign the OUTER hitbox was full card
+height (194px) instead of peek height (97px), so it no longer occupied the
+same row space the known-good single card did and the row misaligned into a
+thin sliver. Correct final geometry, mapped explicitly:
+  - the clip-window track stays PEEK height (97px);
+  - the OUTER hover hitbox is also PEEK height, occupying exactly the row
+    space the original single card did (alignment identical to the
+    known-good pre-50.6 layout) while staying positionally stable (no edge
+    jitter);
+  - the INNER lift box is FULL card height (194px), anchored to the outer
+    box's top so its top peek shows at rest and it lifts UP by the tuck
+    offset (`translateY(-97px)`) on hover;
+  - the flex row is explicitly `items-start` so nothing depends on default
+    stretch behavior interacting with the peek-height boxes.
+
+`scripts/test-commit-50-7-hand-visibility.ts` now asserts BOTH the transform
+direction (zero at rest, negative on hover) AND the vertical geometry (outer
+box = 97px, inner = 194px) - the two things that actually determine whether
+the hand is visible and correctly placed. Every prior Hand test only checked
+DOM presence, which is why none of them caught either mistake.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite at the same known baseline (4 known
+failures + 1 pre-existing flaky test) plus the new regression test passing
+4/4.
+
+**Commit 50.6 — the hand hover jitter, properly root-caused this time.**
+Commit 50.5's tilt fix helped but didn't fully resolve it - reported still
+happening specifically at card edges, confirmed on a second browser.
+
+- **The real root cause**: `onMouseEnter`/`onMouseLeave` were bound to the
+  SAME element whose own `top` position animated *in response to* that hover
+  state - a self-referential setup. Near any boundary (the clip edge before
+  a card had ever been hovered, or the seam against a neighboring card while
+  mid-lift), the browser's hit-testing and the element's own animating
+  position could disagree frame to frame, and each disagreement toggled the
+  hover state again, moving the element again - a feedback loop that reads
+  as jitter, worst right at the edges where boundary disagreements are most
+  likely.
+- **The fix**: split the two roles in `Hand.tsx`. The outer box (which owns
+  the hover listeners) is now completely stable - fixed height, never moves
+  - so its hoverable boundary can never move in response to its own hover
+  state; no feedback loop is possible regardless of cursor position. The
+  actual visual lift moved to an inner child, driven by `transform:
+  translateY()` instead of `top`, which cannot affect the stable outer
+  box's hit-region at all.
+- **Modernized a stale test** (`test-hand-and-footer-fixes.ts`) that had
+  been silently failing for several commits, checking for a Tailwind
+  `hover:top-[-165px]` class syntax that hasn't existed in Hand.tsx since a
+  much earlier refactor - verified this predates today's change (checked
+  directly against the untouched Commit 50.5 zip). Its real underlying
+  concern (a `transform` on an ancestor traps `position:fixed` descendants
+  in a new containing block) is legitimate CSS behavior, so the check now
+  verifies what actually matters: `Card.tsx`'s only `position:fixed` element
+  (`CardHoverPreview`) is genuinely portaled to `document.body`, which
+  breaks DOM ancestry entirely - a portaled fixed element's containing block
+  is unaffected by transforms on its React (not DOM) parent, so the trap
+  this check exists to prevent cannot occur here regardless of which CSS
+  property drives the lift.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite down to exactly the 4 known baseline
+failures (was 5, since the stale check above is now fixed rather than
+permanently red), tutorial flake re-confirmed 3/3 clean in isolation.
+
+**Commit 50.5 — slot opacity/text-contrast fix, and the hand hover jitter.**
+
+- **Slot opacity dialed back**: Commit 50.4's fully-opaque black card zones
+  hid the playmat entirely inside every empty slot - `.slot-etched` and
+  `ActionZone`'s base layer are now 55% opacity, letting the mat show
+  through softly without washing out the "cut card well" look. Their label
+  text ("empty Apex slot", "empty Support slot", "Action") is now full
+  bright white with a small dark text-shadow for guaranteed legibility
+  against whatever art shows through underneath.
+- **BUG FIX: hand cards jittering before the hover-preview pops up**
+  (reported and confirmed on a second person's browser). Root cause: the
+  Commit 42 pointer-tracked card tilt re-measures
+  `getBoundingClientRect()` on every single mousemove with no guard against
+  the element being mid-animation - and Hand.tsx animates a hovered card's
+  own position for 150ms (the lift that reveals its full height) the
+  instant you hover it. Any mousemove landing in that 150ms window - nearly
+  guaranteed, since entering the card at all requires cursor motion -
+  computed tilt against a rect that was actively sliding upward, producing
+  real visible wobble right before the 350ms-delayed enlarged preview
+  appears. Board cards never had this problem (they don't reposition
+  themselves on hover, so their tilt has a stable rect to measure against);
+  hand is the one place a position transition and tilt tracking ran on the
+  same element at the same time. Fixed by disabling tilt specifically on
+  hand-sized cards (`size !== 'hand'` added to the existing exclusion list
+  in `Card.tsx`) - board and modal/gallery card tilt is completely
+  untouched.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite unchanged (same 4 known baseline
+failures + 1 test flaky since before this commit).
+
+**Commit 50.4 — real Playmats, Sleeves, and Coins (28 assets), black
+playable-card zones, the stitched playmat edge, and 3D Locker previews.**
+
+- **Cosmetics registry rewritten for real art** (`src/lib/cosmetics.ts`):
+  Playmats and Sleeves now hold an `image` field (or `null` for their
+  explicit default - 'faction' for playmats keeps the original dynamic
+  per-faction gradient since it has no single "look"; 'None' for sleeves
+  reverts to the original printed card back) instead of CSS gradient/filter
+  recipes. Coins hold `frontImage` only - tails always stays the shared
+  default back for every skin, since only front faces were provided. 9
+  playmats, 10 sleeves, 9 coins added, all processed to webp
+  (`static2/cosmetics/{playmats,sleeves,coins}/`, synced into
+  `public/cosmetics/` by the existing Commit 47.2 build hook - no new script
+  needed, it already copies the whole `static2/` tree).
+- **Sleeves are a real image REPLACEMENT, not an overlay**: `DeckVoidStack`'s
+  `SleevedBack` now renders `sleeve.image ?? SLEEVE_BASE_SRC` directly - the
+  old filter+overlay compositing system is gone entirely, replaced by
+  genuinely distinct art per sleeve.
+- **Black playable-card zones**: `.slot-etched` (every empty Apex/Support
+  slot) and `ActionZone` now sit on a fully OPAQUE black base (were
+  semi-transparent, tuned for the old flat CSS mats) - real playmat art is
+  far busier than a gradient, and this keeps every card-sized cutout clean
+  regardless of which mat is equipped, while the surrounding mat area still
+  shows full art quality. `ActionZone` uses a dedicated black layer rather
+  than a competing `bg-*` utility class, so its existing drop-target
+  highlight states are untouched.
+- **Stitched playmat edge**: a thin (5px) pure-black inset stroke just
+  inside the board's outer border, simulating a real playmat's sewn edge -
+  layered onto the existing mat-surface-treatment overlay, independent of
+  (and not replacing) the outer border color/glow.
+- **The Locker, bigger and genuinely 3D**: playmat preview tiles ~65%
+  taller with real cover-fit art; sleeve tiles bigger and tilted in real CSS
+  3D space (`perspective` + `rotateY`) with a matching drop shadow, like a
+  card propped on a shelf; coin tiles are now **live WebGL** via the new
+  `CoinPreview3D` component - the exact same emissive-mask + bloom technique
+  as the Coin Flip screen, tuned down hard (512px textures, capped pixel
+  ratio, 48-segment geometry, low-res bloom) so ~10 can render concurrently
+  without issue. Coin flip's own texture/emissive-mask logic was extracted
+  into a new shared `src/lib/coinTextures.ts` so both components build
+  pixel-identical coin materials from one source instead of two copies.
+- **CoinFlip3D**: `skinFilter` (CSS tint) replaced by `frontSrc` (real image
+  swap) throughout, matching the new front-face-only coin skin model.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite unchanged (same 4 known baseline
+failures), and the coin/mount/reconfig regression tests specifically
+re-verified given how much CoinFlip3D changed underneath.
+
+**Commit 50.3 — three sizing/distortion bugs, plus a Reconfig-Cancel
+hit-target fix.**
+
+- **START button "stretched"**: root cause confirmed by measuring the actual
+  art (224x54, ratio 4.148:1) against the box it was forced into (280x42,
+  ratio 6.667:1) - 60% more elongated than the art's real shape, which is
+  exactly what visual stretching looks like. Now anchored on width (200px)
+  with `aspectRatio: '224 / 54'` deriving height, so it can never mismatch
+  the art again regardless of future resizing.
+- **End Turn "stretched"**: measured its art too (764x96, 7.958:1) against
+  its box (156x20, 7.8:1) - almost no actual distortion (~2% off). The real
+  problem was three compounding -15% shrinks across Commits 47-49
+  (240x30 -> 184x23 -> 156x20) leaving it read as a thin sliver regardless of
+  ratio accuracy. Reset to a more solid height (28px, real presence as the
+  primary action) with `aspectRatio: '764 / 96'` deriving width.
+- **Simulated Match deck buttons "too compacted"**: these reuse the same
+  `FactionPicker` component as New Game's explicitly-spec'd 340x58 chunky
+  buttons, but Simulated Match wraps each in a 180px-max column - the width
+  compressed via `max-width: 100%` while height stayed hardcoded at 58px
+  independent of it, squishing the art. Height is now `aspectRatio: '340/58'`
+  instead of a fixed number, so it scales the SAME intended chunky ratio down
+  cleanly instead of distorting further; the column cap also widened to
+  220px. New Game's buttons are visually identical to before (aspect-ratio
+  resolves to exactly 58px at the full 340px width they've always had).
+- **Engine Reconfig "not acting correctly" / Cancel unclickable**: audited
+  the full flow end-to-end (the enable/disable gate, all three mode
+  transitions, the store's `reconfigure()` action and every guard clause,
+  the eligible-plays/support-budget derivations) and found the underlying
+  logic sound - the Commit 48 enablement fix still holds. One concrete,
+  visible defect WAS found: the Cancel button was a bare text link with
+  **zero padding** - its clickable hit area was exactly the glyph bounds of
+  the word "cancel", next to sibling buttons (Reconfig, Skip) that all have
+  real `px-2.5 py-1` button padding. Cancel now matches them: same padding,
+  border, background, and hover state - same `onClick={resetMode}`, which
+  was already correct. Live-verified in the actual deployed Commit 50.2 that
+  the main Reconfig button correctly shows "(once/turn)" and is clickable
+  (not stuck "used"); wasn't able to complete a full return-a-Support repro
+  in this remote browser session (drag-and-drop automation reliability, not
+  evidence of an app defect either way) - flagged honestly rather than
+  claimed as fully verified.
+
+Verified: TypeScript clean, build clean, lint clean (0 errors, same 4
+pre-existing warnings), full suite unchanged (same 4 known baseline failures
++ 1 test flaky since before this commit, re-confirmed 2/3 clean in isolation).
+
+**Commit 50.2 — two real bugs from Commit 50's viewport-height sizing pass,
+both fixed at the root.**
+
+- **Hand cards popping up UNDER the play area instead of over it (clipped).**
+  Root cause: Commit 50 changed Hand.tsx's overflow handling to
+  `overflowX: 'auto', overflowY: hoveredId ? 'visible' : 'hidden'` to add a
+  horizontal-scroll fallback. This runs into a genuine CSS interop rule most
+  people never hit: when one axis is anything other than `visible`, a
+  `visible` value on the OTHER axis is silently upgraded to `auto` - so on
+  hover, `overflow-y: visible` was actually computing to `auto`, clipping the
+  hover-lifted card to the row's tiny peek-height box instead of letting it
+  escape freely. Fixed in `src/components/Hand.tsx`: horizontal scroll now
+  only applies in the non-hovered baseline state (where overflow-y is already
+  non-visible and the interop rule doesn't apply); on hover, both axes are
+  genuinely `visible` again, exactly matching pre-Commit-50 behavior.
+- **The EQUIP flap rendering far larger than the Apex card it's attached to.**
+  Root cause: Commit 50 made real Apex/Support/Hand cards (`Card.tsx`) shrink
+  fluidly on short viewports via a CSS `clamp()`, but `PlayerBoard.tsx` still
+  computed the Equip flap's width from the OLD static `APEX_BOARD_HEIGHT`
+  constant - the two silently diverged on any window under ~1000px tall,
+  which in practice is most real windows, so the flap was oversized far more
+  often than not. Fixed by extracting the fluid formula into a single shared
+  helper, `fluidBoardDimension()` in the new `src/lib/responsiveCard.ts`, and
+  having BOTH `Card.tsx` and `PlayerBoard.tsx`'s Equip-flap/empty-slot sizing
+  call the exact same function - they're now structurally guaranteed to stay
+  pixel-identical rather than "usually close." `EquipFlap.tsx` was reworked
+  to do its internal crop/offset math with CSS `calc()` (since its `width`
+  prop is now a fluid CSS expression, not a plain number) instead of JS
+  arithmetic, so it scales in perfect lockstep with whatever the real card
+  resolves to at render time. The empty-Apex-slot placeholder got the same
+  fluid treatment for the same reason: empty and filled slots would otherwise
+  visually mismatch in size on short screens.
+
+Both are sizing-formula fixes only - zero gameplay, drag-and-drop, equip,
+combat, or coin-flip logic changed. Verified: TypeScript clean, build clean,
+lint clean (0 errors, same 4 pre-existing warnings), full test suite
+unchanged (same 4 known baseline failures, nothing new).
+
+**Commit 50 — Interface Cohesion, Responsive Battlefield & Locker Polish.**
+A full visual-polish/responsiveness/consistency pass across every non-gameplay
+screen and the board's responsiveness, per an explicit 15-section spec.
+No game rules, deck data, AI/combat logic, tutorial progression, coin-flip
+outcomes, or save/state behavior were touched - verified via the full test
+suite (only the same 5 pre-existing baseline issues remain: 4 known failures
++ 1 flaky-since-before-this-commit test, re-run clean 4/4 in isolation).
+
+- **Menu/setup container width**: main menu, New Game, Simulated Match and
+  The Locker now share `width: min(600px, calc(100vw - 32px))` instead of a
+  flat `max-w-md` (448px) - noticeably less "tiny webpage" on a wide desktop,
+  still collapses correctly on narrow screens. Gameplay board width is
+  untouched (still its own `max-w-[1350px]`).
+- **New `.panel-textured` surface** (globals.css): a 3-8%-strength faint
+  vertical gradient + whisper-thin scanlines + restrained inner border + a
+  barely-there cyan/purple edge haze, applied to the menu/setup card. Reads
+  as flat black at a glance; text contrast untouched.
+- **Main menu hierarchy**: logo down to 256px (~9% smaller), the version
+  badge and audio sliders merged into one compact utility row (was two
+  stacked blocks), and the four menu-button plates sized up 270->305px
+  (~13%, aspect-locked, never stretched).
+- **Typography pass**: Rift panel, empty-slot labels, hand count, deck/void
+  counters, tutorial body copy, Locker text, and every setup-screen helper
+  string bumped 1-2px with improved contrast tiers (title/interactive/
+  secondary/decorative), consistent with a documented hierarchy in each file.
+- **New Game screen**: clearer spacing blocks between each setup stage
+  (mt-4->mt-6), the native checkbox now drives a custom `.grunge-checkbox`
+  industrial toggle (same real `<input>`, fully keyboard/SR-accessible), and
+  the Back link gets a real cyan hover state.
+- **Coin-flip screen** tightened ~18% (canvas 560->460px) - the camera's
+  vertical FOV is fixed regardless of canvas height, so this scales the whole
+  scene down uniformly with zero new clipping risk; title/button overlaps
+  scaled proportionally to match.
+- **Game board responsiveness**: `apexBoard`/`supportBoard`/`hand` card sizes
+  now use a pure-CSS `clamp()` fluid height (linear-interpolated between
+  640px and 1000px window height, floor 78% of full size) instead of a fixed
+  px constant - shrinks smoothly on short desktop displays, uses real layout
+  sizing (not a transform scale) so drag-and-drop hit-testing is unaffected.
+  Every other card size (modals, hover preview, galleries) is untouched. The
+  hand row also gained an intentional horizontal-scroll fallback instead of
+  silently overflowing.
+- **Sidebar spacing**: gap-2->gap-3.5 between the logo/Rift/stat-plates/
+  Options stack so they read as distinct elements instead of merging.
+- **Tutorial panel repositioned**: was `top-1/2 left-3` - dead-center on the
+  left edge, directly overlapping the Rift panel and stat plates it's
+  supposed to leave visible (the literal reported bug). Now docks to the
+  right edge instead, with a max-height + scroll safety net. Restart/Exit
+  restyled with the shared `.btn-3d` treatment; Continue already used its
+  Commit 47 custom art and is unchanged. Zero tutorial-state/step-logic
+  changes.
+- **Simulated Match**: the old pink-to-cyan gradient button is fully removed,
+  replaced by the new hand-made `start-simulated-match.webp` plate at the
+  exact 383x48 spec (aspect-ratio-locked, `object-fit: contain`, `aria-label`,
+  full hover/active/disabled state set, zero layout shift on glow). Deck A
+  now always glows magenta and Deck B always cyan (new `glowColorOverride`
+  prop on `FactionPicker`, opt-in - New Game's single picker is unaffected),
+  with a small VS divider between equal-width columns.
+- **Simulated Match control bar**: Pause's non-warning yellow swapped for
+  cyan (yellow now reserved for actual alerts elsewhere); the speed slider
+  got a themed dark-groove track/thumb (`.grunge-range`) instead of the bare
+  browser default.
+- **The Locker rebuilt as an industrial terminal**: the seat switcher is now
+  one segmented mechanical toggle instead of two floating pills; category
+  tabs are shallow grunge plates with an illuminated cyan top-edge on the
+  active tab; cosmetic tiles got a real "✓ EQUIPPED" badge, ~25-28% bigger
+  previews, and textured (`panel-3d`) surfaces. All cosmetic-selection logic,
+  localStorage persistence, and per-seat independence are byte-for-byte
+  unchanged - this is a pure restyle of `LockerMenu.tsx`.
+- **Interaction states / lint**: added a shared `:focus-visible` cyberpunk
+  outline for anything not already covered by `.btn-3d`/`.btn-art`. Also
+  fixed two PRE-EXISTING lint errors surfaced while verifying this commit's
+  "lint must pass cleanly" requirement (both in `CoinFlip3D.tsx`, unrelated
+  to this pass's own edits): a ref written during render moved into a
+  `useEffect`, and a synchronous `setState` inside an effect deferred by one
+  microtask. Both are structural-only; coin-flip timing/animation/logic is
+  bit-for-bit unchanged (verified against the coin test suite).
+
+**Commit 49.2 — explicit pixel sizing on the New Game screen (faction picker
++ START only).** Per an exact spec: the three faction buttons are now a fixed
+340x58 (was aspect-ratio-locked, stretched-looking, ~220px wide) - the art
+intentionally distorts to fill that box rather than preserving its native
+1528:176 ratio, for a chunkier feel; capped at max-width:100% so it never
+overflows a narrow viewport. START is fixed 280x42 (was ~190 wide, aspect-
+locked), centered under the O2 row, deliberately smaller than the faction
+buttons. O2 buttons, all text, game logic, faction-selection behavior, and
+every other screen are untouched.
+
+**Commit 49.1 — pure black chrome.** The universal button-frame and panel art
+are removed from ALL generic chrome (`.btn-3d` / `.panel-3d` / `.panel-3d-deep`
+are pure black CSS again: dark shade, bevel, elevation, press physics) - the
+9-slice art muddied small buttons into illegibility, with the Locker hit
+worst, and panels (including the game-over screen) are now solid black. The
+bespoke .btn-art buttons and per-faction stat plates are untouched. The two
+unused art files stay in `public/ui/` in case they're wanted for something
+larger later.
+
+**Commit 49 — congruence pass.** Main-menu plates at 270px (about half their
+footprint), faction buttons at 264px (-20%), START at 230px, O2 buttons fixed
+at 72px in a centered row (no more flex-stretch); stat-plate content nudged
+8px down so it clears the faction name painted into the art; END TURN at
+156x20 (-15%); Engine Reconfig + its Skip button dropped the universal frame
+art (it muddies wide short text buttons into illegibility) for a clean dark
+plate with a readable label - the Commit 48 enablement fix and its regression
+test are unaffected.
+
+**Commit 48 — the Engine Reconfig bug fix + art-fit polish pass.**
+
+- **BUG FIX (real one)**: Engine Reconfig had been *permanently disabled since
+  Commit 30.4* - that commit merged Main into Combat (the game is never
+  observably in phase 'Main'), but the UI gate still demanded 'Main'. The gate
+  now accepts the merged turn; the store action always did. New regression
+  test `scripts/test-commit-48-reconfig.ts` asserts the button is genuinely
+  ENABLED in-turn, enters return-selection on click, and disables after use -
+  the assertion whose absence let this survive seventeen commits.
+- **Art-fit polish**: deck-select buttons narrowed (max 330px, centered) and
+  START shrunk to 280px; END TURN down to 184x23; the coin-flip screen's dead
+  air is gone (title and controls overlap into the transparent canvas's toss
+  headroom, so idle layout is tight while the arc keeps its runway); the
+  opening-hand chooser is flat black like the menus; and the sidebar stat
+  plates no longer render their own faction-name line (the plate art carries
+  the name - the two were colliding). Stats are one clean centered row with
+  the pips below; active turn reads as a faction glow ring + flickering arrow.
+
 **Commit 47.2 — asset split for the 100-file upload rule.** `public/` had
 crossed 100 files recursively (114), which breaks GitHub's web folder upload.
 Art and images now live in the new top-level `static2/` folder and are copied
