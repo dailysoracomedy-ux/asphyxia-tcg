@@ -217,13 +217,24 @@ async function main() {
   await wait(300);
   s = useGameStore.getState();
   check('the Rift choice genuinely resolved - momentum increased', s.players.player1.momentum >= 1);
-  check('tutorial genuinely advanced to play-engine-2 (a fresh turn - legal now)', stepIndex() === 8);
+  check('tutorial genuinely advanced to void-intro (Commit 53 explanation beat)', stepIndex() === 8);
 
-  // --- Step 7: play-engine-2 (second Engine, now legal - fresh turn) ---
+  // --- Step 8: void-intro (Commit 53 - Continue button, explanation only:
+  // teaches the Void / Void Recycle right after Glitch Step visibly went
+  // there). Placed after the Rift choice deliberately - see the step's own
+  // comment in tutorialSteps.ts for the softlock this placement avoids. ---
+  await wait(200);
+  const voidContinueBtn = Array.from(dom.window.document.querySelectorAll('button')).find((b) => b.textContent === 'Continue');
+  check('a real Continue button is genuinely present for the void-intro explanation step', !!voidContinueBtn);
+  if (voidContinueBtn) click(voidContinueBtn);
+  await wait(300);
+  check('tutorial genuinely advanced to play-engine-2 (a fresh turn - legal now)', stepIndex() === 9);
+
+  // --- Step 9: play-engine-2 (second Engine, now legal - fresh turn) ---
   await dragHandCardToZone('nu-juice-box', 'support-slot');
   s = useGameStore.getState();
-  check('second Engine genuinely on board (2 Engines total, Sync bumps to 2 next turn)', s.players.player1.supportSlots.filter(Boolean).length === 2);
-  check('tutorial genuinely advanced to declare-attack', stepIndex() === 9);
+  check('second Engine genuinely on board (2 Engines total - 2 Sync available at Combat this same turn)', s.players.player1.supportSlots.filter(Boolean).length === 2);
+  check('tutorial genuinely advanced to declare-attack', stepIndex() === 10);
 
   // --- Step 8: declare-attack - real click on own Apex ---
   await wait(150);
@@ -240,16 +251,19 @@ async function main() {
     }
   }
   check('clicking the spotlighted Apex genuinely opened the real attack selector popup', openedPopup);
-  check('tutorial genuinely advanced to choose-attack', stepIndex() === 10);
+  check('tutorial genuinely advanced to choose-attack', stepIndex() === 11);
 
-  // --- Step 9: choose-attack - real click on the 1-Sync row ---
+  // --- Step 10: choose-attack - real click on the 2-Sync row (Commit 53:
+  // Backstreet Maul, per direct request - the second Engine's payoff is now
+  // SHOWN. Both Engines are on board, so computeAvailableSync yields 2 Sync
+  // at Combat entry this very turn; the old "next turn" comment was stale). ---
   await wait(200);
   const attackRowButtons = Array.from(dom.window.document.querySelectorAll('button[aria-label*="sync"]'));
-  const bigAttackBtn = attackRowButtons.find((b) => b.getAttribute('aria-label')?.includes('1 sync'));
-  check('the 1-Sync attack row is genuinely rendered and enabled', !!bigAttackBtn && !bigAttackBtn.hasAttribute('disabled'));
+  const bigAttackBtn = attackRowButtons.find((b) => b.getAttribute('aria-label')?.includes('2 sync'));
+  check('the 2-Sync attack row (Backstreet Maul) is genuinely rendered and enabled', !!bigAttackBtn && !bigAttackBtn.hasAttribute('disabled'));
   if (bigAttackBtn) click(bigAttackBtn);
   await wait(200);
-  check('tutorial genuinely advanced to select-target', stepIndex() === 11);
+  check('tutorial genuinely advanced to select-target', stepIndex() === 12);
 
   // --- Step 10: select-target - real click on enemy Apex ---
   await wait(150);
@@ -266,7 +280,7 @@ async function main() {
   s = useGameStore.getState();
   check('the match genuinely ended in victory', s.status === 'gameover');
   check('player1 (the human) genuinely won - opponent O2 at 0', s.players.player2.o2 <= 0);
-  check('tutorial genuinely advanced to the final win step', stepIndex() === 12);
+  check('tutorial genuinely advanced to the final win step', stepIndex() === 13);
 
   root.unmount();
   console.log(`\n=== RESULTS: ${passed} passed, ${failed} failed ===`);

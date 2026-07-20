@@ -52,7 +52,23 @@ async function main() {
   check('the slideshow genuinely renders before the match board', container.innerHTML.includes('Learn the Essentials'));
   check('the match board is genuinely NOT visible while the slideshow is up', !container.innerHTML.includes('Learn To Play'));
 
-  const expectedTitles = ['Apex', 'Engine', 'Battery Engine', 'Ability Engine', 'Equip', 'Special', 'React', 'O2, Momentum'];
+  // Commit 53 - the single "O2, Momentum & Rift Space" slide became four
+  // dedicated concept slides (O2, Momentum, Rift Space, The Void) - the
+  // game's core concepts each get taught properly now, including the Void /
+  // Void Recycle, which the slideshow previously never mentioned at all.
+  const expectedTitles = [
+    'Apex',
+    'Engine',
+    'Battery Engine',
+    'Ability Engine',
+    'Equip',
+    'Special',
+    'React',
+    'O2 \u2014 Your Life',
+    'Momentum \u2014 Your Clutch Fuel',
+    'Rift Space',
+    'The Void',
+  ];
   for (const title of expectedTitles) {
     check(`slide genuinely shows "${title}"`, container.innerHTML.includes(title));
     const btn = Array.from(dom.window.document.querySelectorAll('button')).find((b) => b.textContent === 'Continue');
