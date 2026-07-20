@@ -101,7 +101,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'play-react',
     title: 'Play Your React',
-    text: 'Play your React card now to Negate the attack.',
+    text: 'Play your React card now to Negate the attack. Reacts cost Momentum to play \u2014 Glitch Step spends 1 \u2014 so Momentum is what buys you these clutch defensive moments.',
     guided: { kind: 'playReact', defId: 'nu-glitch-step' },
     // Fires the instant this step becomes active (i.e. the moment Continue
     // was clicked on the previous step) - guarantees the player has Glitch
@@ -125,8 +125,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'rift-choice',
     title: 'Rift Space: Civil War',
-    text: 'You\u2019re behind on O2, which triggers this Rift Space perk. Choose between gaining 1 Momentum or giving your next attack +100 damage.',
+    text: 'You\u2019re behind on O2, which triggers this Rift Space perk. Take the Momentum \u2014 it refills what Glitch Step spent, and it\u2019s the fuel for Reacts and Overdrive attacks. Momentum caps at 3, so bank it when the battle offers it.',
     guided: { kind: 'riftChoice', pick: 'momentum' },
+  },
+  {
+    id: 'void-intro',
+    title: 'The Void',
+    // Placed AFTER the Rift choice deliberately: the Civil War prompt fires
+    // the instant player1's turn starts, and CivilWarPrompt only gates its
+    // buttons while the ACTIVE step is riftChoice - an explanation beat
+    // sitting between play-react and rift-choice would leave that prompt
+    // ungated (free clicks, no step advance = softlock). Here the response
+    // queue is guaranteed clear, so a pure Continue beat is safe.
+    text: 'Notice your VOID counter \u2014 Glitch Step went there after it resolved. The Void is where destroyed and spent cards go, but nothing is lost forever: when your Deck runs out, your whole Void shuffles back in. That\u2019s a Void Recycle. In ASPHYXIA you never lose by running out of cards \u2014 only by running out of air.',
   },
   {
     id: 'play-engine-2',
@@ -154,13 +165,16 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'choose-attack',
     title: 'Choose Your Attack',
-    text: 'Choose a stronger attack. Higher Sync attacks deal more damage.',
-    // 1 Sync (Neon Pounce), not 2 - Sync is computed once at the start of
-    // Combat Phase and doesn't retroactively increase when a new Engine is
-    // played mid-turn (a real, existing mechanic - the second Engine's Sync
-    // becomes available next turn, not immediately). "Don't change Sync
-    // math" means respecting that over chasing a specific number.
-    guided: { kind: 'selectAttack', syncCost: 1 },
+    text: 'With two Engines on your board you have 2 Sync \u2014 enough for Backstreet Maul. Pick it and see what that second Engine just bought you.',
+    // 2 Sync (Backstreet Maul) - per direct request, the second Engine's
+    // payoff should be SHOWN, not just described. The old comment here
+    // claimed same-turn Engines don't grant Sync until next turn; that was
+    // stale - computeAvailableSync counts filled Support slots when Combat
+    // begins (and playSupportCard even bumps availableSync immediately), so
+    // both Engines genuinely yield 2 Sync on this very turn. The gate and
+    // the AttackSelectorModal highlight both derive from this syncCost, so
+    // this one value flips both to Backstreet Maul.
+    guided: { kind: 'selectAttack', syncCost: 2 },
   },
   {
     id: 'select-target',

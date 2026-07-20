@@ -57,11 +57,10 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
           <O2Stat playerId={playerId} value={player.o2} color={theme.primary} drag={drag} />
         </span>
         <span className="text-white/25">|</span>
+        {/* Commit 53 - Hand and Sync readouts removed per direct request
+            ("It's redundant") - the chip now carries only the two vitals
+            that actually decide games: O2 and Momentum. */}
         <MomentumStat playerId={playerId} value={player.momentum} color={theme.primary} />
-        <span className="text-white/25">|</span>
-        <span className="text-white/50">Hand {player.hand.length}</span>
-        <span className="text-white/25">|</span>
-        <span className="text-fuchsia-300">Sync {player.availableSync}</span>
         {isActive && (
           <span className="neon-flicker font-black" style={{ color: theme.primary }}>
             ◂

@@ -19,7 +19,14 @@ import { TUTORIAL_STEPS } from '@/tutorial/tutorialSteps';
  */
 let lastOnEnterStep = -1;
 
-export default function TutorialPanel() {
+/** Commit 53 - `inline` renders the panel IN-FLOW inside the left sidebar
+ *  column (between the two player stat chips) instead of as a fixed floating
+ *  box. The floating version physically covered the faction O2/MOM chips at
+ *  certain viewports (real, reported bug: "the Tutorial Menu is covering both
+ *  Faction Stats") - as a normal flex child it structurally CANNOT overlap
+ *  them at any resolution. The floating variant remains for the
+ *  opening-Apex and game-over screens, which have no sidebar to live in. */
+export default function TutorialPanel({ inline = false }: { inline?: boolean }) {
   const state = useGameStore();
   const step = useTutorialStore((s) => s.step);
   const setStep = useTutorialStore((s) => s.setStep);
@@ -58,7 +65,13 @@ export default function TutorialPanel() {
   const isGuided = !!current.guided;
 
   return (
-    <div className="panel-3d-deep fixed top-1/2 right-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[80vh] overflow-y-auto rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)]">
+    <div
+      className={`panel-3d-deep rounded-lg border-2 border-emerald-400/60 bg-[#05050af5] p-4 shadow-[0_0_30px_rgba(52,211,153,0.3)] ${
+        inline
+          ? 'relative w-full min-h-0 max-h-[46vh] overflow-y-auto'
+          : 'fixed top-1/2 right-3 -translate-y-1/2 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[80vh] overflow-y-auto'
+      }`}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] uppercase tracking-widest text-emerald-300/80 font-bold">
           Learn To Play &middot; Step {step + 1} / {TUTORIAL_STEPS.length}

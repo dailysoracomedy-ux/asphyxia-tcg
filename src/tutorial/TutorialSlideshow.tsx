@@ -69,10 +69,30 @@ const SLIDES: Slide[] = [
     cardDefId: 'nu-glitch-step',
     cardType: 'Reaction',
   },
+  // Commit 53 - the old single "O2, Momentum & Rift Space" slide crammed the
+  // game's three most important concepts into one sentence each and never
+  // mentioned the Void at all (real, reported gap: "we never went over what
+  // O2 and Momentum even are... we don't describe the Void either"). Split
+  // into four dedicated slides so each core concept gets taught properly.
   {
-    title: 'O2, Momentum & Rift Space',
-    text: 'Both players start with 12 O2. Reduce your opponent\u2019s O2 to 0 to win. Momentum fuels powerful cards like Reacts. Rift Space changes the battle depending on the matchup.',
-    statsNote: 'O2 12 \u00b7 MOM 0 \u00b7 RIFT SPACE',
+    title: 'O2 \u2014 Your Life',
+    text: 'O2 is your oxygen \u2014 your life total. Both players start with 12. When an attack destroys an Apex, the extra damage overflows into its owner\u2019s O2, and some attacks can hit O2 directly. Reduce your opponent\u2019s O2 to 0 and they suffocate \u2014 you win.',
+    statsNote: 'O2 12 \u2192 0 = DEFEAT',
+  },
+  {
+    title: 'Momentum \u2014 Your Clutch Fuel',
+    text: 'Momentum is earned through card effects, Rift perks, and sharp plays \u2014 and it caps at 3. Spend it to play Reacts and to Overdrive your attacks. You earn it by playing well, and you spend it to turn the tide.',
+    statsNote: 'MOM 0 / 3',
+  },
+  {
+    title: 'Rift Space',
+    text: 'Rift Space is the battlefield condition set by the faction matchup. Each Rift bends the rules of that fight \u2014 rewarding specific situations with perks like bonus Momentum or extra damage.',
+    statsNote: 'RIFT SPACE',
+  },
+  {
+    title: 'The Void',
+    text: 'Destroyed and spent cards go to your Void. Nothing stays there forever: when your Deck runs out, your entire Void shuffles back into it \u2014 a Void Recycle. You never lose by running out of cards. You lose by running out of air.',
+    statsNote: 'DECK 0 \u2192 VOID RECYCLE',
   },
   {
     title: 'Ready?',

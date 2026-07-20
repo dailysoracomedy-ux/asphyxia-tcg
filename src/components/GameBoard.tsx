@@ -874,7 +874,9 @@ export default function GameBoard() {
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       <TutorialOverlay />
-      {state.tutorialMode && <TutorialPanel />}
+      {/* Commit 53 - TutorialPanel no longer floats here during play; it
+          renders in-flow inside the left sidebar column below (between the
+          two stat chips), where it can never cover the O2/MOM readouts. */}
       {actionToast && (
         <div className="fixed top-[8%] left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg border-2 border-yellow-400/60 bg-[#05050ae8] text-yellow-200 text-sm font-bold shadow-[0_0_20px_rgba(250,204,21,0.3)] pointer-events-none">
           {actionToast}
@@ -890,11 +892,18 @@ export default function GameBoard() {
             both stat plates visually run into each other; gap-3.5 (14px)
             gives each element its own breathing room without materially
             growing the column's footprint. */}
-        <div className="w-[255px] shrink-0 flex flex-col gap-3.5 justify-center">
+        {/* Commit 53 - during tutorial mode the column widens to 300px and
+            hosts the TutorialPanel in-flow between the two stat chips: as a
+            normal flex sibling it structurally cannot cover the O2/MOM
+            readouts at any viewport (the floating version could and did).
+            items-center keeps the fixed-width chips centered in the wider
+            tutorial column; non-tutorial layout is byte-for-byte unchanged. */}
+        <div className={`${state.tutorialMode ? 'w-[300px] items-center' : 'w-[255px]'} shrink-0 flex flex-col gap-3.5 justify-center min-h-0`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" style={{ maxHeight: 90, objectFit: 'contain' }} draggable={false} />
           <RiftPanel rift={state.riftSpace} />
           <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
+          {state.tutorialMode && <TutorialPanel inline />}
           <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />
           <OptionsInline
             state={state}
@@ -906,7 +915,17 @@ export default function GameBoard() {
           />
         </div>
 
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-4 justify-center">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-4">
+      {/* Commit 53 - top-gap fix (real, reported: "a ton of padding on
+          top"). justify-center split all surplus height evenly above and
+          below the boards, so tall viewports opened a large dead band above
+          the opponent's board. Replaced with explicit spacers: the top one
+          grows but is CAPPED at 20px, the bottom one absorbs everything
+          else - boards now hug the top with a small fixed breath, and the
+          slack lands down by the hand where it's useful. Both spacers can
+          collapse to 0 (min-h-0) so tight viewports behave exactly as
+          before. */}
+      <div className="flex-1 min-h-0 max-h-5 shrink" aria-hidden />
 
       {/* Row 3: opponent board */}
       <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'bottom center' }}>
@@ -1049,6 +1068,11 @@ export default function GameBoard() {
           footer={endTurnFooter}
         />
       </div>
+
+      {/* Commit 53 - bottom spacer, pair of the capped top spacer above:
+          takes all remaining surplus height so it sits below the player's
+          board instead of above the opponent's. */}
+      <div className="flex-[3] min-h-0 shrink" aria-hidden />
 
         </div>
       </div>
