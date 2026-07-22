@@ -1433,6 +1433,11 @@ export const useGameStore = create<GameStore>((set) => ({
       const [apex] = player.hand.splice(idx, 1);
       player.apexSlots[0] = apex;
       const def = getCardDef(apex.defId) as ApexDef;
+      // Commit 54.1 - opening placements now emit CARD_PLACED like every other
+      // Apex play: the opener is the most ceremonial play of the match, and it
+      // was the ONE placement that never splashed. Both players opening
+      // back-to-back puts both characters facing off across the screen.
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, playerId, faction: def.faction, cardDefId: apex.defId }, 1000);
       if (def.onEnterPlay) {
         def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: apex.instanceId });
       }

@@ -1058,17 +1058,21 @@ html, body {
 .vfx-splash-left { left: 0; justify-content: flex-start; }
 .vfx-splash-right { right: 0; justify-content: flex-end; }
 
+/* Commit 54.1 timeline (3500ms total): 0-8.6% GLITCH IN (sliced clip-path
+   jitter + RGB chromatic split - a materialization, not a slide), 8.6%-65.7%
+   HOLD at full presence (2s - the character announces themselves), then a
+   SLOW FADE to 100%. Percentages = 300ms / 2000ms / 1200ms of 3500ms. */
 .vfx-splash-glow {
   position: absolute;
   inset: 0;
   opacity: 0;
   background: radial-gradient(ellipse at center, color-mix(in srgb, var(--splash-glow) 42%, transparent) 0%, transparent 68%);
-  animation: splash-glow 1150ms ease-out forwards;
+  animation: splash-glow 3500ms ease-out forwards;
 }
 @keyframes splash-glow {
   0% { opacity: 0; }
-  18% { opacity: 1; }
-  78% { opacity: 1; }
+  8.6% { opacity: 1; }
+  65.7% { opacity: 1; }
   100% { opacity: 0; }
 }
 
@@ -1078,35 +1082,71 @@ html, body {
   width: auto;
   max-width: none;
   filter: drop-shadow(0 0 24px color-mix(in srgb, var(--splash-glow) 65%, transparent)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.8));
+  animation: splash-glitch-in 3500ms forwards;
 }
-.vfx-splash-left .vfx-splash-art { animation: splash-in-left 1150ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.vfx-splash-right .vfx-splash-art { animation: splash-in-right 1150ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-@keyframes splash-in-left {
-  0% { opacity: 0; transform: translateX(-70%) skewX(4deg); }
-  16% { opacity: 1; transform: translateX(0) skewX(0); }
-  78% { opacity: 1; transform: translateX(2%); }
-  100% { opacity: 0; transform: translateX(-24%); }
+/* steps() carries the glitch: each frame is a hard state change - horizontal
+   slice bites (clip-path insets), position stutter, and an RGB split via
+   offset colored drop-shadows - resolving to a clean, whole image at 8.6%. */
+@keyframes splash-glitch-in {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+    transform: translateX(-3%);
+  }
+  1.5% {
+    opacity: 1;
+    clip-path: inset(12% 0 55% 0);
+    transform: translateX(2.5%) skewX(-3deg);
+    filter: drop-shadow(4px 0 0 rgba(255, 0, 128, 0.85)) drop-shadow(-4px 0 0 rgba(0, 229, 255, 0.85));
+  }
+  3% {
+    opacity: 0.55;
+    clip-path: inset(48% 0 8% 0);
+    transform: translateX(-2%) skewX(2deg);
+    filter: drop-shadow(-5px 0 0 rgba(255, 0, 128, 0.85)) drop-shadow(5px 0 0 rgba(0, 229, 255, 0.85));
+  }
+  4.5% {
+    opacity: 1;
+    clip-path: inset(4% 0 30% 0);
+    transform: translateX(1.4%);
+    filter: drop-shadow(3px 0 0 rgba(255, 0, 128, 0.7)) drop-shadow(-3px 0 0 rgba(0, 229, 255, 0.7));
+  }
+  6% {
+    opacity: 0.8;
+    clip-path: inset(26% 0 0 0);
+    transform: translateX(-0.8%) skewX(-1deg);
+    filter: drop-shadow(-2px 0 0 rgba(255, 0, 128, 0.6)) drop-shadow(2px 0 0 rgba(0, 229, 255, 0.6));
+  }
+  8.6%, 65.7% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    transform: translateX(0) skewX(0);
+    filter: drop-shadow(0 0 24px color-mix(in srgb, var(--splash-glow) 65%, transparent)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.8));
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(0 0 0 0);
+    transform: translateX(0);
+    filter: drop-shadow(0 0 24px color-mix(in srgb, var(--splash-glow) 65%, transparent)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.8));
+  }
 }
-@keyframes splash-in-right {
-  0% { opacity: 0; transform: translateX(70%) skewX(-4deg); }
-  16% { opacity: 1; transform: translateX(0) skewX(0); }
-  78% { opacity: 1; transform: translateX(-2%); }
-  100% { opacity: 0; transform: translateX(24%); }
-}
-
-/* Fast scanline wipe sweeping across the lane while the art holds. */
+/* Scanlines: flicker hard during the glitch, settle to a faint hum through
+   the hold, gone by the fade. */
 .vfx-splash-scanwipe {
   position: absolute;
   inset: 0;
   background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 2px, transparent 2px 5px);
   mix-blend-mode: overlay;
   opacity: 0;
-  animation: splash-scan 1150ms linear forwards;
+  animation: splash-scan 3500ms linear forwards;
 }
 @keyframes splash-scan {
   0% { opacity: 0; transform: translateY(-8%); }
-  16% { opacity: 1; }
-  78% { opacity: 1; transform: translateY(8%); }
+  2% { opacity: 1; }
+  4% { opacity: 0.2; }
+  6% { opacity: 0.9; }
+  8.6% { opacity: 0.5; transform: translateY(0); }
+  65.7% { opacity: 0.35; transform: translateY(6%); }
   100% { opacity: 0; }
 }
 
@@ -1115,7 +1155,9 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .vfx-splash-left .vfx-splash-art,
   .vfx-splash-right .vfx-splash-art {
-    animation: splash-glow 1150ms ease-out forwards;
+    /* plain fade in-hold-out, no slicing/stutter */
+    animation: splash-glow 3500ms ease-out forwards;
+    clip-path: none;
   }
   .vfx-splash-scanwipe { animation: none; opacity: 0; }
   .vfx-o2-popup-big,

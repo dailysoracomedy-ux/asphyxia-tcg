@@ -29,9 +29,13 @@ export interface HubPromptOption {
  */
 export default function HubPrompt({ text, options }: { text: string; options: HubPromptOption[] }) {
   return (
-    <div className="rounded-lg bg-[#050505f5] border border-white/15 px-4 py-2.5 flex items-center gap-4 text-sm w-full">
+    // Commit 54.1 - content-fit and centered (was w-full + ml-auto, which
+    // stretched every prompt across the entire surface and exiled the buttons
+    // to the far right edge - "way too wide"). The message and its buttons
+    // now sit together in one compact centered pill.
+    <div className="rounded-lg bg-[#050505f5] border border-white/15 px-4 py-2.5 flex items-center gap-4 text-sm w-fit max-w-full mx-auto">
       <span className="text-white/90">{text}</span>
-      <div className="flex items-center gap-2 ml-auto flex-wrap shrink-0">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
         {options.map((opt) => (
           <HubPromptButton key={opt.key} option={opt} />
         ))}

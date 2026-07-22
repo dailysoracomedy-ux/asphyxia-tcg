@@ -144,6 +144,48 @@ export default function GameBoard() {
   // (not a guessed constant) so it can never silently drift out of sync if the
   // board's own width changes for some other reason later.
   const boardRef = useRef<HTMLDivElement>(null);
+  // Commit 54.1 - "max out our space": the boards + prompt row live in a
+  // wrapper that scales UP until the player board's bottom edge meets the top
+  // of the hand row. Measured off transform-independent layout sizes
+  // (scrollWidth/Height are unaffected by the transform they drive, so this
+  // never feeds back into itself), re-measured on resize and on content
+  // changes via ResizeObserver. Clamped to [1, 1.3]: short viewports behave
+  // exactly as before (the pre-existing responsive sizing handles scale-DOWN),
+  // and ultrawide monitors can't blow the cards up to comical size.
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
+  const handRowRef = useRef<HTMLDivElement>(null);
+  const [boardScale, setBoardScale] = useState(1);
+  useEffect(() => {
+    const wrap = scaleWrapRef.current;
+    const hand = handRowRef.current;
+    if (!wrap || !hand) return;
+    let raf = 0;
+    const measure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const naturalH = wrap.scrollHeight;
+        // Width limit: the wrapper's own scrollWidth just equals its width
+        // (block children), so measure the real content - the widest board's
+        // layout box (offsetWidth is transform-independent).
+        const boardW = boardRef.current?.offsetWidth ?? 0;
+        if (naturalH < 10 || boardW < 10) return;
+        const availH = hand.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+        const availW = wrap.clientWidth;
+        const s = Math.max(1, Math.min(1.3, availH / naturalH, availW / boardW));
+        setBoardScale((prev) => (Math.abs(prev - s) > 0.005 ? s : prev));
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    ro.observe(hand);
+    return () => {
+      window.removeEventListener('resize', measure);
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
   const [boardWidth, setBoardWidth] = useState<number | undefined>(undefined);
   useEffect(() => {
     if (!boardRef.current) return;
@@ -943,6 +985,12 @@ export default function GameBoard() {
           it directly (reported: "close that margin gap"). The bottom spacer
           below the player board still absorbs all surplus height. */}
 
+      {/* Commit 54.1 - scale wrapper: boards + prompt row grow together until
+          the player board's bottom edge meets the hand (see the boardScale
+          hook above). transformOrigin top-center keeps the rift banner
+          junction fixed while growth eats downward into the spacer's space. */}
+      <div ref={scaleWrapRef} data-board-scale={boardScale.toFixed(3)} style={{ transform: boardScale !== 1 ? `scale(${boardScale})` : undefined, transformOrigin: 'top center' }}>
+
       {/* Row 3: opponent board. Commit 54.1 - scale origin flipped to TOP
           center: the 0.965 shrink used to leave its ~15px of slack ABOVE the
           board (the reported margin under the Rift banner); anchoring the
@@ -1089,16 +1137,18 @@ export default function GameBoard() {
         />
       </div>
 
-      {/* Commit 53 - bottom spacer, pair of the capped top spacer above:
-          takes all remaining surplus height so it sits below the player's
-          board instead of above the opponent's. */}
+      </div>
+
+      {/* Commit 53 - bottom spacer: takes all remaining surplus height so it
+          sits below the player's board. Commit 54.1 - the scale wrapper above
+          visually grows INTO this space; the spacer still owns it in layout. */}
       <div className="flex-[3] min-h-0 shrink" aria-hidden />
 
         </div>
       </div>
 
       {/* Row 8: hand + phase controls - always visible, fixed bottom area */}
-      <div className="shrink-0 flex flex-col gap-1.5 relative z-30 pointer-events-none">
+      <div ref={handRowRef} data-hand-row className="shrink-0 flex flex-col gap-1.5 relative z-30 pointer-events-none">
 
         {/* All mode-dependent confirmation UI below (ConfirmBar variants, the
             Overdrive prompt) needs to stay clickable above the tutorial dim
