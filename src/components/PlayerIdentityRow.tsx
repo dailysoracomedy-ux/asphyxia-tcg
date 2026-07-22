@@ -7,6 +7,7 @@ import { O2Stat, MomentumStat } from './SharedStatsBar';
 import AudioSettingsControl from '@/audio/AudioSettingsControl';
 import type { DragState } from '@/ui/dragDrop/dragDropTypes';
 import { useGameStore } from '@/store/gameStore';
+import { useVfxSettingsStore, type VfxQuality } from '@/store/vfxSettingsStore';
 
 /**
  * Commit 37 - a compact identity chip for the centered top row (replacing
@@ -82,6 +83,8 @@ export function SidebarPlayerChip({ state, playerId, drag }: { state: GameState;
 
 export function OptionsInline({ state, onOpenLog, logHasUnread }: { state: GameState; onOpenLog: () => void; logHasUnread: boolean }) {
   const [open, setOpen] = useState(false);
+  // Subscribed (not getState) so the select re-renders when quality changes.
+  const vfxQuality = useVfxSettingsStore((s) => s.quality);
 
   return (
     <div className="panel-3d rounded-lg border border-white/15 bg-[#05050a] overflow-hidden w-fit">
@@ -109,6 +112,21 @@ export function OptionsInline({ state, onOpenLog, logHasUnread }: { state: GameS
           <label className="flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
             <input type="checkbox" checked={state.debugMode} onChange={() => useGameStore.getState().toggleDebugMode()} className="accent-fuchsia-400" />
             debug
+          </label>
+          {/* Commit 54 - VfxCanvas particle quality. CSS-keyframe vfx are
+              unaffected (cheap + carry gameplay readability); this only
+              governs the canvas particle layer. */}
+          <label className="flex items-center gap-1 text-white/30 hover:text-white/60 cursor-pointer select-none">
+            fx
+            <select
+              value={vfxQuality}
+              onChange={(e) => useVfxSettingsStore.getState().setQuality(e.target.value as VfxQuality)}
+              className="bg-black/60 border border-white/15 rounded px-1 py-0.5 text-white/70 text-[10px]"
+            >
+              <option value="high">High</option>
+              <option value="low">Low</option>
+              <option value="off">Off</option>
+            </select>
           </label>
           <AudioSettingsControl compact />
         </div>

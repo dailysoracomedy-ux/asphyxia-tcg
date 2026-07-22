@@ -69,6 +69,9 @@ export default function DeckVoidStack({
   return (
     <Wrapper
       type={Wrapper === 'button' ? 'button' : undefined}
+      // Commit 54 - VfxCanvas anchor: the DECK stack is where Void-suck
+      // destruction debris curves home to (Void Recycle made visible).
+      data-vfx-deck={label === 'DECK' ? playerId : undefined}
       onClick={onClick && !isEmpty ? onClick : undefined}
       className={`relative flex flex-col items-center gap-1 shrink-0 ${onClick && !isEmpty ? 'cursor-pointer hover:-translate-y-0.5 transition-transform' : ''} ${pulsing ? 'vfx-place-glow' : ''}`}
       style={pulsing ? { ['--place-glow-color' as string]: `${accentColor}cc` } : undefined}

@@ -7,7 +7,7 @@ import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChain
 import Card from './Card';
 import EquipFlap from './EquipFlap';
 import DeckVoidStack from './DeckVoidStack';
-import ActionZone from './ActionZone';
+import StatsPanel from './StatsPanel';
 import { factionTheme } from '@/lib/theme';
 import { getPlaymat } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
@@ -117,10 +117,24 @@ export default function PlayerBoard({
   const reactEvents = usePlayerVisualEvents(playerId).filter((e) => e.type === 'REACT_PLAYED' || e.type === 'CARD_NEGATED');
   const reactVfxClass = reactEvents.length > 0 ? (reactEvents.some((e) => e.type === 'CARD_NEGATED') ? 'vfx-negate-glitch' : 'vfx-react-highlight') : '';
 
+  // Commit 54 - the dedicated ActionZone box is gone; the ENTIRE playmat is
+  // the Action drop target now. Dropping a Special anywhere on your own mat
+  // plays it - a whole-mat target instead of aiming at a 104px box.
+  // Zone-key contract ('action-zone') is unchanged, so dragDropLogic and every
+  // existing test keep working; only the DOM host grew. Slot targets still win
+  // when hovered because hit-testing uses closest('[data-dropzone]') and the
+  // slots are DEEPER in the tree than the mat root.
+  const actionZoneKeyStr = zoneKey({ kind: 'action-zone', playerId });
+  const matIsActionTarget = !!drag?.active && drag.legalZoneKeys.has(actionZoneKeyStr);
+  const matIsActionHovered = drag?.hoveredZoneKey === actionZoneKeyStr;
+
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-lg border p-3 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass}`}
+      data-dropzone={matIsActionTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined}
+      className={`relative rounded-lg border p-3 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass} ${
+        matIsActionTarget ? (matIsActionHovered ? 'vfx-mat-action-hover' : 'vfx-mat-action-legal') : ''
+      }`}
       style={{
         borderColor: playmat.edge ? `${playmat.edge}66` : `${theme.border}55`,
         // Commit 50.4 - real playmat art (cover, centered) replaces the old
@@ -184,12 +198,15 @@ export default function PlayerBoard({
               ))}
             </div>
           ) : (
-            <div className="flex flex-col gap-1 items-center">
+            <div className="flex flex-col gap-1.5 items-center">
+              {/* Commit 54 - vitals live ON the mat now: StatsPanel takes the
+                  top of the piles column and pushes Deck/Void down into the
+                  space the removed ActionZone box used to occupy. */}
+              <StatsPanel state={state} playerId={playerId} drag={drag} />
               <div className="flex gap-1">
                 <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
               </div>
-              <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
             </div>
           )}
         </div>
@@ -216,12 +233,16 @@ export default function PlayerBoard({
         <div className={`flex flex-col gap-1.5 row-start-1 col-start-3 items-start relative ${flipped ? 'lift-piles' : 'lift-support'}`}>
           <div className="flex gap-2 items-start justify-start">
             {flipped ? (
-              <div className="flex flex-col gap-1 items-center">
+              <div className="flex flex-col gap-1.5 items-center">
+                {/* Commit 54 - flipped board mirrors the same column order:
+                    StatsPanel first, Deck/Void below. With the flipped board's
+                    bottom edge facing screen-center, this anchors the
+                    opponent's vitals toward THEIR side of the table. */}
+                <StatsPanel state={state} playerId={playerId} drag={drag} />
                 <div className="flex gap-1">
                   <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                   <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
                 </div>
-                <ActionZone playerId={playerId} drag={drag} tutorialMode={state.tutorialMode} />
               </div>
             ) : (
               <div className="flex gap-1.5">
@@ -298,7 +319,13 @@ function ApexSlotOrGhost({
 }) {
   const ghost = useSlotGhost(playerId, slotIndex, 'apex');
   if (!apex && ghost?.destroyedGhost) {
-    return <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} flipped={flipped} />;
+    // Commit 54 - the ghost path carries the VfxCanvas anchor too, so
+    // destruction particles can target the vacated slot's on-screen rect.
+    return (
+      <div data-vfx-anchor={ghost.destroyedGhost.instance.instanceId}>
+        <ApexSlot apex={ghost.destroyedGhost.instance} state={state} playerId={playerId} highlight={null} flipped={flipped} />
+      </div>
+    );
   }
 
   // Commit 30 - which drop zone (if any) this slot represents right now.
@@ -327,8 +354,14 @@ function ApexSlotOrGhost({
     />
   );
 
+  // Commit 54 - VfxCanvas anchor: tagged with the LIVE instance id, or the
+  // ghost's during the destroy window, so destruction particles land on a
+  // slot whose game state is already empty (same snapshot principle as the
+  // destroy-ghost itself).
+  const anchorId = apex?.instanceId ?? ghost?.destroyedGhost?.instance.instanceId;
   return (
     <div
+      data-vfx-anchor={anchorId}
       data-dropzone={isLegalDropTarget ? JSON.stringify(dropZone) : undefined}
       onPointerDown={apex && onAttackDragStart ? (e) => onAttackDragStart(e, apex.instanceId) : undefined}
       className={
@@ -598,7 +631,11 @@ function SupportSlotOrGhost({
 }) {
   const ghost = useSlotGhost(playerId, slotIndex, 'support');
   if (!support && ghost?.destroyedGhost) {
-    return <SupportSlot support={ghost.destroyedGhost.instance} state={state} playerId={playerId} />;
+    return (
+      <div data-vfx-anchor={ghost.destroyedGhost.instance.instanceId}>
+        <SupportSlot support={ghost.destroyedGhost.instance} state={state} playerId={playerId} />
+      </div>
+    );
   }
 
   const body = (
@@ -620,6 +657,7 @@ function SupportSlotOrGhost({
     if (onBoardEngineDragStart) {
       return (
         <div
+          data-vfx-anchor={support.instanceId}
           style={{ cursor: 'grab' }}
           onPointerDown={(e) => onBoardEngineDragStart(e, support.instanceId)}
         >
@@ -627,7 +665,7 @@ function SupportSlotOrGhost({
         </div>
       );
     }
-    return body;
+    return <div data-vfx-anchor={support.instanceId}>{body}</div>;
   }
   const dropZone = { kind: 'support-slot' as const, playerId, slotIndex };
   const key = zoneKey(dropZone);

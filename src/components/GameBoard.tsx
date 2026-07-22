@@ -6,6 +6,8 @@ import { getCardDef } from '@/data/cards';
 import type { ApexDef, SpecialDef, PlayerId, GameState, CardInstance } from '@/types/game';
 import PlayerBoard from './PlayerBoard';
 import { useScreenShakeClass, O2Vignette } from './vfx/BattleFeedback';
+import ApexSplash from './vfx/ApexSplash';
+import VfxCanvas from './vfx/VfxCanvas';
 import Hand from './Hand';
 import RiftPanel from './RiftPanel';
 import GameLog from './GameLog';
@@ -19,7 +21,8 @@ import ActionBanner from './ActionBanner';
 import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
 import TutorialSlideshow from '@/tutorial/TutorialSlideshow';
-import { SidebarPlayerChip, OptionsInline } from './PlayerIdentityRow';
+import { OptionsInline } from './PlayerIdentityRow';
+import { DISCORD_INVITE } from '@/lib/links';
 import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@/tutorial/tutorialSteps';
 import { useTutorialStore } from '@/store/tutorialStore';
 import AudioController from '@/audio/AudioController';
@@ -866,11 +869,17 @@ export default function GameBoard() {
   );
 
   return (
-    <div className={`game-surface h-full max-h-full overflow-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1350px] mx-auto w-full relative ${screenShakeClass}`}>
+    <div className={`game-surface h-full max-h-full overflow-hidden flex flex-col gap-1.5 pt-2 px-2 max-w-[1600px] mx-auto w-full relative ${screenShakeClass}`}>
       {/* Commit 46 - living film grain over the whole scene (one grade =
           one physical world). Fixed + pointer-transparent. */}
       <div className="world-grain" aria-hidden />
       <O2Vignette />
+      {/* Commit 54 - particle layer + Apex summon splash. Both read the same
+          animationStore stream as every CSS vfx; VfxCanvas self-disables on
+          quality 'off' / prefers-reduced-motion, ApexSplash self-cancels per
+          card until its /splash art exists. */}
+      <VfxCanvas />
+      <ApexSplash />
       {state.pendingResponseQueue.length > 0 && <HotseatResponseGate state={state} />}
       <ActionBanner state={state} />
       <TutorialOverlay />
@@ -886,36 +895,49 @@ export default function GameBoard() {
 
       {state.aiVsAiMode && <ShowcaseControls />}
 
-      <div className="flex-1 min-h-0 flex gap-3">
-        {/* Left column: logo, Rift, both players' identity/O2/Momentum, Options - all stacked, next to the board */}
-        {/* Commit 50 (section 8) - gap-2 (8px) let the logo, Rift panel and
-            both stat plates visually run into each other; gap-3.5 (14px)
-            gives each element its own breathing room without materially
-            growing the column's footprint. */}
-        {/* Commit 53 - during tutorial mode the column widens to 300px and
-            hosts the TutorialPanel in-flow between the two stat chips: as a
-            normal flex sibling it structurally cannot cover the O2/MOM
-            readouts at any viewport (the floating version could and did).
-            items-center keeps the fixed-width chips centered in the wider
-            tutorial column; non-tutorial layout is byte-for-byte unchanged. */}
-        <div className={`${state.tutorialMode ? 'w-[300px] items-center' : 'w-[255px]'} shrink-0 flex flex-col gap-3.5 justify-center min-h-0`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/asphyxia-logo.png" alt="ASPHYXIA" className="w-full select-none pointer-events-none opacity-90" style={{ maxHeight: 90, objectFit: 'contain' }} draggable={false} />
-          <RiftPanel rift={state.riftSpace} />
-          <SidebarPlayerChip state={state} playerId={viewerTopId} drag={drag} />
-          {state.tutorialMode && <TutorialPanel inline />}
-          <SidebarPlayerChip state={state} playerId={viewerBottomId} drag={drag} />
-          <OptionsInline
-            state={state}
-            onOpenLog={() => {
-              setLogOpen(true);
-              setLastSeenLogCount(state.log.length);
-            }}
-            logHasUnread={state.log.length > lastSeenLogCount}
-          />
-        </div>
+      {/* Commit 54 - the left sidebar is DISSOLVED. Every element migrated to
+          the thing it describes: O2/Momentum live on each player's mat
+          (StatsPanel in PlayerBoard), the Rift is a top-center banner above
+          the opponent's board, the logo is a corner watermark, and Options is
+          a floating gear (bottom-left). The board column now owns the full
+          surface width, genuinely centered. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/asphyxia-logo.png"
+        alt="ASPHYXIA"
+        className="fixed top-2 left-3 w-[120px] select-none pointer-events-none opacity-50 z-20"
+        style={{ objectFit: 'contain' }}
+        draggable={false}
+      />
+      <div className="fixed bottom-2 left-3 z-40">
+        <OptionsInline
+          state={state}
+          onOpenLog={() => {
+            setLogOpen(true);
+            setLastSeenLogCount(state.log.length);
+          }}
+          logHasUnread={state.log.length > lastSeenLogCount}
+        />
+      </div>
+
+      <div className="flex-1 min-h-0 flex gap-3 justify-center">
+        {/* Commit 54 - only the TUTORIAL keeps a left column (tutorial mode
+            only): the TutorialPanel stays an in-flow flex sibling, preserving
+            Commit 53's structural guarantee that it can never cover the
+            vitals - which now live on the mats themselves. Outside tutorial
+            mode this column doesn't exist at all. */}
+        {state.tutorialMode && (
+          <div className="w-[300px] shrink-0 flex flex-col gap-3.5 justify-center items-center min-h-0">
+            <TutorialPanel inline />
+          </div>
+        )}
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-4">
+      {/* Commit 54 - Rift banner: battlefield-wide condition, battlefield-center
+          placement, directly above the opponent's board. */}
+      <div className="shrink-0 flex justify-center relative z-30">
+        <RiftPanel rift={state.riftSpace} />
+      </div>
       {/* Commit 53 - top-gap fix (real, reported: "a ton of padding on
           top"). justify-center split all surplus height evenly above and
           below the boards, so tall viewports opened a large dead band above
@@ -1416,6 +1438,12 @@ function GameOverScreen() {
   // - Vs AI: from the human's own perspective ("You Win!"/"You Lose!")
   // - AI vs AI or Hotseat: the winning faction's name, since neither side is
   //   "you" here - a real result a spectator or either human player can read
+  // Commit 54 (re-applied) - Discord join button on win screens: shown when a
+  // HUMAN won (vs-AI human win, any hotseat result, tutorial victory), hidden
+  // when the AI won a vs-AI game and in AI-vs-AI spectate - "join the
+  // community" is a victory-lap ask, not a consolation prize or a demo popup.
+  const showDiscord = !state.aiVsAiMode && !!state.winnerId && !(state.vsAI && state.winnerId === 'player2');
+
   const winnerText = !state.winnerId
     ? 'Draw!'
     : state.vsAI
@@ -1475,6 +1503,17 @@ function GameOverScreen() {
               <div>Momentum: {state.players.player2.momentum}</div>
             </div>
           </div>
+
+          {showDiscord && (
+            <a
+              href={DISCORD_INVITE}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mb-4 px-5 py-2 rounded-md font-bold text-sm text-white bg-[#5865F2] hover:bg-[#4752c4] shadow-[0_0_18px_rgba(88,101,242,0.45)] transition-colors"
+            >
+              Join the ASPHYXIA Discord
+            </a>
+          )}
 
           <div className="flex flex-wrap justify-center gap-2 mb-4">
             {state.tutorialMode && (

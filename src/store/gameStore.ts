@@ -1538,7 +1538,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.cardsPlayedThisTurn += 1;
       if (draft.tutorialMode && playerId === 'player1') draft.tutorialAwaitingFirstApex = false;
       const def = getCardDef(card.defId) as ApexDef;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, playerId, faction: def.faction, cardDefId: card.defId }, 1000);
       if (def.onEnterPlay) {
         def.onEnterPlay({ helpers: createHelpers(draft), ownerId: playerId, apexInstanceId: card.instanceId });
       }
@@ -1595,7 +1595,7 @@ export const useGameStore = create<GameStore>((set) => ({
       player.turnFlags.supportsPlayedThisTurn += 1;
       player.availableSync = Math.min(MAX_SYNC, player.availableSync + 1);
       const def = getCardDef(card.defId);
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: card.instanceId, playerId, faction: def.faction, cardDefId: card.defId }, 1000);
       const chainSuffix = card.type === 'AbilitySupport' ? (card.chainedApexId ? ' (chained)' : ' (unchained)') : '';
       logMsg(draft, `${playerId} plays ${def.name} into Support Slot ${targetSlot + 1}${chainSuffix}.`, 'play');
       maybeTriggerRecursiveFailureSecondCard(draft, playerId);
@@ -1648,7 +1648,7 @@ export const useGameStore = create<GameStore>((set) => ({
 
       apex.equip = card;
       apex.equip.equippedTurn = draft.turnNumber;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, playerId, faction: def.faction, cardDefId: card.defId }, 1000);
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name}.`, 'play');
     }),
 
@@ -1716,7 +1716,7 @@ export const useGameStore = create<GameStore>((set) => ({
       logMsg(draft, `${getCardDef(oldEquip.defId).name} returns to hand (Equip Swap).`, 'play');
       apex.equip = card;
       apex.equip.equippedTurn = draft.turnNumber;
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: card.defId }, 1000);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, playerId, faction: def.faction, cardDefId: card.defId }, 1000);
       logMsg(draft, `${playerId} equips ${def.name} onto ${getCardDef(apex.defId).name} (Equip Swap).`, 'play');
     }),
 
@@ -1737,7 +1737,7 @@ export const useGameStore = create<GameStore>((set) => ({
       apex.equip = undefined;
       player.hand.push(equip);
       logMsg(draft, `${playerId} pulls ${def.name} back into hand.`, 'play');
-      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, faction: def.faction, cardDefId: equip.defId }, 600);
+      emitVfx({ type: 'CARD_PLACED', apexInstanceId: apex.instanceId, playerId, faction: def.faction, cardDefId: equip.defId }, 600);
     }),
 
   // Commit 52 - drag an Engine (Ability Support) off the board, back into hand.
@@ -2258,7 +2258,7 @@ export const useGameStore = create<GameStore>((set) => ({
           if (hit) {
             hit.apex.equip = item.pendingCardInstance;
             hit.apex.equip.equippedTurn = draft.turnNumber;
-            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
+            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, playerId: item.continuation.ownerId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name}.`, 'play');
           }
         } else if (item.continuation.kind === 'resolveEquipSwap' && item.pendingCardInstance) {
@@ -2273,7 +2273,7 @@ export const useGameStore = create<GameStore>((set) => ({
             }
             hit.apex.equip = item.pendingCardInstance;
             hit.apex.equip.equippedTurn = draft.turnNumber;
-            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
+            emitVfx({ type: 'CARD_PLACED', apexInstanceId: hit.apex.instanceId, playerId: item.continuation.ownerId, faction: getCardDef(item.pendingCardInstance.defId).faction, cardDefId: item.pendingCardInstance.defId }, 1000);
             logMsg(draft, `${getCardDef(item.pendingCardInstance.defId).name} attaches to ${getCardDef(hit.apex.defId).name} (Equip Swap).`, 'play');
           }
         } else if (item.continuation.kind === 'resolveReactionThenFinishTrigger') {
