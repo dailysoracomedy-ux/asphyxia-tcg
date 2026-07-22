@@ -1,0 +1,1128 @@
+@import "tailwindcss";
+
+:root {
+  --background: #05050a;
+  --foreground: #e6f7ff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Courier New', ui-monospace, monospace;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 4px;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.015) 0px,
+    rgba(255, 255, 255, 0.015) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+}
+
+.glow-cyan {
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6), 0 0 2px rgba(34, 211, 238, 0.8);
+}
+.glow-magenta {
+  box-shadow: 0 0 8px rgba(232, 121, 249, 0.6), 0 0 2px rgba(232, 121, 249, 0.8);
+}
+/* ===== Commit 23: game-feel polish ===== */
+
+/* Active player's board panel - soft pulsing glow, faction-colored via CSS var
+   set inline per-instance (--active-glow-color). Subtle on purpose - should read
+   as "this side is live" without fighting for attention against card art. */
+@keyframes active-board-glow {
+  0%, 100% { box-shadow: 0 0 10px 0 var(--active-glow-color, transparent); }
+  50% { box-shadow: 0 0 20px 3px var(--active-glow-color, transparent); }
+}
+.active-board-glow {
+  animation: active-board-glow 2.6s ease-in-out infinite;
+}
+
+@keyframes hit-flash {
+  0% { filter: brightness(1) saturate(1); box-shadow: 0 0 0 0 transparent; }
+  25% { filter: brightness(2.2) saturate(1.6); box-shadow: 0 0 22px 5px var(--faction-secondary, rgba(255,255,255,0.6)); }
+  100% { filter: brightness(1) saturate(1); box-shadow: 0 0 0 0 transparent; }
+}
+.vfx-hit-flash {
+  animation: hit-flash 550ms ease-out;
+}
+
+@keyframes engine-pulse {
+  0% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+  40% { box-shadow: 0 0 16px 4px var(--engine-pulse-color, rgba(255,255,255,0.6)); filter: brightness(1.25); }
+  100% { box-shadow: 0 0 0 0 transparent; filter: brightness(1); }
+}
+.vfx-engine-pulse {
+  animation: engine-pulse 700ms ease-out;
+}
+
+@keyframes rift-pulse {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  35% { box-shadow: 0 0 26px 6px var(--rift-pulse-color, rgba(200,160,255,0.6)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vfx-rift-pulse {
+  animation: rift-pulse 800ms ease-out;
+}
+
+@keyframes react-highlight {
+  0%, 100% { box-shadow: 0 0 0 0 var(--react-glow-color, rgba(232,121,249,0.7)); }
+  50% { box-shadow: 0 0 14px 4px var(--react-glow-color, rgba(232,121,249,0.7)); }
+}
+.vfx-react-highlight {
+  animation: react-highlight 550ms ease-in-out;
+}
+
+@keyframes negate-glitch {
+  0% { opacity: 1; filter: none; transform: translate(0,0); }
+  15% { opacity: 0.3; filter: hue-rotate(90deg) contrast(2); transform: translate(-2px,1px); }
+  30% { opacity: 0.9; filter: none; transform: translate(2px,-1px); }
+  45% { opacity: 0.25; filter: hue-rotate(-90deg) contrast(2); transform: translate(-1px,-1px); }
+  60% { opacity: 1; filter: none; transform: translate(0,0); }
+}
+.vfx-negate-glitch {
+  animation: negate-glitch 500ms steps(2, jump-end);
+}
+
+@keyframes damage-popup {
+  0% { opacity: 0; transform: translateY(4px) scale(0.85); }
+  20% { opacity: 1; transform: translateY(-6px) scale(1.05); }
+  75% { opacity: 1; transform: translateY(-14px) scale(1); }
+  100% { opacity: 0; transform: translateY(-22px) scale(0.95); }
+}
+.vfx-damage-popup {
+  animation: damage-popup 800ms ease-out forwards;
+}
+
+@keyframes momentum-pulse {
+  0%, 100% { filter: brightness(1); }
+  40% { filter: brightness(1.8); }
+}
+.vfx-momentum-pulse {
+  animation: momentum-pulse 500ms ease-out;
+}
+
+/* Commit 29.4: raises whatever the current tutorial step highlights above the
+   dim overlay (z-30) so it's the one thing that stays genuinely clickable, with
+   a glow to make it unmistakable which element to interact with. */
+/* Commit 29.4.1: minimal z-index elevation, no glow/ring - for whole UI regions
+   (like the ConfirmBar/prompt area) that need to stay clickable above the
+   tutorial dim overlay without the visual spotlight treatment being appropriate
+   for an entire row rather than one specific card/button. */
+/* Commit 29.6: keeps a card visible/bright above the dim overlay without the
+   spotlight glow - applied to every card already in play (both players' Apex
+   and Engine slots) during tutorial mode, since darkening board state a player
+   needs to actually see and understand was real, reported friction ("ALL of the
+   cards IN PLAY should be bright... for both Factions"). Deliberately no ring/
+   glow here - that's reserved for .tutorial-spotlight, the one specific target
+   the player should click right now. */
+.tutorial-stay-bright {
+  position: relative;
+  z-index: 34;
+}
+
+.tutorial-above-overlay {
+  position: relative;
+  z-index: 35;
+}
+
+.tutorial-spotlight {
+  position: relative;
+  z-index: 35;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.9), 0 0 24px 6px rgba(52, 211, 153, 0.5);
+}
+
+@keyframes momentum-spend {
+  0% { filter: brightness(1); opacity: 1; }
+  30% { filter: brightness(0.5) saturate(0.6); opacity: 0.6; }
+  55% { filter: brightness(1.1); opacity: 1; }
+  100% { filter: brightness(1); opacity: 1; }
+}
+.vfx-momentum-spend {
+  animation: momentum-spend 500ms ease-out;
+}
+
+@keyframes place-glow {
+  0% { box-shadow: 0 0 0 0 var(--place-glow-color, rgba(255,255,255,0.8)); }
+  30% { box-shadow: 0 0 16px 4px var(--place-glow-color, rgba(255,255,255,0.8)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.vfx-place-glow {
+  animation: place-glow 1000ms ease-out;
+}
+
+@keyframes equip-slide-in {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.vfx-equip-slide-in {
+  animation: equip-slide-in 450ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes banner-in {
+  0% { opacity: 0; transform: translate(-50%, -10px) scale(0.96); }
+  10% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  85% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -6px) scale(0.98); }
+}
+.vfx-banner-in {
+  animation: banner-in 2600ms ease-in-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .active-board-glow,
+  .vfx-equip-slide-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .vfx-banner-in {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .active-board-glow {
+    box-shadow: 0 0 0 2px var(--active-glow-color, transparent) !important;
+  }
+  .vfx-damage-popup {
+    animation-duration: 1ms !important;
+  }
+}
+
+/* ===== Commit 43: battle animation overhaul ===== */
+
+/* Attack lunge - the attacker physically commits: pull back (anticipation),
+   snap toward the enemy board (strike), recoil home. Direction comes from
+   --lunge set inline per board side: 1 = bottom board attacking upward,
+   -1 = flipped top board attacking downward. Keep total under the 600ms
+   ATTACK_DECLARED event window or the class vanishes mid-animation. */
+@keyframes attack-lunge {
+  0%   { transform: translateY(0) scale(1); filter: brightness(1); }
+  22%  { transform: translateY(calc(var(--lunge, 1) * 14px)) scale(0.965); filter: brightness(0.92); }
+  48%  { transform: translateY(calc(var(--lunge, 1) * -42px)) scale(1.08); filter: brightness(1.4) saturate(1.3); }
+  62%  { transform: translateY(calc(var(--lunge, 1) * -42px)) scale(1.08); filter: brightness(1.25); }
+  100% { transform: translateY(0) scale(1); filter: brightness(1); }
+}
+.vfx-attack-lunge {
+  animation: attack-lunge 560ms cubic-bezier(0.34, 1.2, 0.5, 1);
+  z-index: 15;
+}
+
+/* Impact - hard white flash, knockback away from the attacker (same --lunge
+   var: the defender is shoved deeper into their own side), decaying jitter. */
+@keyframes impact-hit {
+  0%   { transform: translate(0,0) rotate(0); filter: brightness(1) saturate(1); }
+  8%   { transform: translate(0, calc(var(--lunge, 1) * 12px)) rotate(1.4deg); filter: brightness(2.8) saturate(2) contrast(1.2); }
+  22%  { transform: translate(-5px, calc(var(--lunge, 1) * 8px)) rotate(-1.2deg); filter: brightness(1.7) saturate(1.5); }
+  38%  { transform: translate(4px,  calc(var(--lunge, 1) * 5px)) rotate(0.9deg); }
+  55%  { transform: translate(-3px, calc(var(--lunge, 1) * 2px)) rotate(-0.5deg); filter: brightness(1.2); }
+  75%  { transform: translate(2px, 0) rotate(0.2deg); }
+  100% { transform: translate(0,0) rotate(0); filter: brightness(1) saturate(1); }
+}
+.vfx-impact-hit {
+  animation: impact-hit 540ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Expanding shockwave ring at the point of impact - rendered as a dedicated
+   child element by ApexVfxOverlay, faction-colored via --impact-color. */
+@keyframes shockwave-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.3); opacity: 0.95; border-width: 4px; }
+  70%  { opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; border-width: 1px; }
+}
+.vfx-shockwave-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90px;
+  height: 90px;
+  border: 3px solid var(--impact-color, rgba(255,255,255,0.8));
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 19;
+  animation: shockwave-ring 520ms ease-out forwards;
+  box-shadow: 0 0 22px var(--impact-color, rgba(255,255,255,0.5));
+}
+
+/* Impact sparks - one tiny element whose box-shadows ARE the particles,
+   flung outward from center. Box-shadow offsets animate cleanly and cost one
+   composite layer total, not one per particle. */
+@keyframes impact-sparks {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px var(--impact-color), 0 0 0 2px var(--impact-color),
+      0 0 0 2px var(--impact-color), 0 0 0 2px var(--impact-color),
+      0 0 0 2px var(--impact-color), 0 0 0 2px var(--impact-color),
+      0 0 0 2px var(--impact-color), 0 0 0 2px var(--impact-color);
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      36px -36px 0 0 var(--impact-color),  52px 0px 0 0 var(--impact-color),
+      36px 36px 0 0 var(--impact-color),   0px 52px 0 0 var(--impact-color),
+      -36px 36px 0 0 var(--impact-color), -52px 0px 0 0 var(--impact-color),
+      -36px -36px 0 0 var(--impact-color), 0px -52px 0 0 var(--impact-color);
+  }
+}
+.vfx-impact-sparks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 19;
+  animation: impact-sparks 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Destruction - violent glitch-shatter then collapse: brightness spike,
+   clip-path slice tearing with chromatic hue snaps, then the card gives out
+   (sag, blur, gone). Fits inside the 1100ms CARD_DESTROYED window. */
+@keyframes destroy-shatter {
+  0%   { clip-path: inset(0 0 0 0); transform: none; opacity: 1; filter: brightness(1); }
+  7%   { filter: brightness(3) saturate(2.2); }
+  14%  { clip-path: inset(0 0 58% 0); transform: translate(-9px, 2px); filter: brightness(1.8) hue-rotate(50deg); }
+  22%  { clip-path: inset(42% 0 0 0); transform: translate(9px, -2px); filter: brightness(1.6) hue-rotate(-70deg) contrast(1.5); }
+  30%  { clip-path: inset(15% 0 30% 0); transform: translate(-6px, 1px); filter: brightness(2) saturate(1.8); }
+  38%  { clip-path: inset(0 0 0 0); transform: translate(4px, 0); filter: brightness(1.3) hue-rotate(25deg); }
+  52%  { clip-path: inset(0 0 0 0); transform: translate(0, 2px) scale(1, 0.98); opacity: 0.85; filter: brightness(1); }
+  100% { clip-path: inset(0 0 0 0); transform: translate(0, 20px) scale(0.94, 0.8); opacity: 0; filter: brightness(0.6) blur(3px); }
+}
+.vfx-destroy-shatter {
+  animation: destroy-shatter 950ms cubic-bezier(0.55, 0, 0.68, 0.5) forwards;
+}
+
+/* Screen shake - applied to the GameBoard root for destroys, heavy hits and
+   direct O2 damage. Small amplitude on purpose: the point is felt impact,
+   not motion sickness. */
+@keyframes screen-shake {
+  0%   { transform: translate(0, 0); }
+  15%  { transform: translate(-5px, 3px); }
+  30%  { transform: translate(5px, -3px); }
+  45%  { transform: translate(-4px, -2px); }
+  60%  { transform: translate(3px, 2px); }
+  75%  { transform: translate(-2px, 1px); }
+  100% { transform: translate(0, 0); }
+}
+.vfx-screen-shake {
+  animation: screen-shake 340ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+/* Direct O2 damage - a red emergency vignette breath over the whole screen.
+   Rendered by BattleFeedback as a fixed, pointer-transparent overlay. */
+@keyframes o2-vignette {
+  0%   { opacity: 0; }
+  18%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.vfx-o2-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 45;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(248, 60, 60, 0.22) 78%, rgba(248, 60, 60, 0.4) 100%);
+  animation: o2-vignette 700ms ease-out forwards;
+}
+
+/* Hand card draw-in - runs once on element insertion, so freshly drawn cards
+   slide up into the fan while cards already in hand (stable keys) don't move. */
+@keyframes draw-in {
+  0%   { opacity: 0; transform: translateY(30px) scale(0.92); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.vfx-draw-in {
+  animation: draw-in 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Card placement slam - the card drops onto the slot with a little overshoot
+   and a contact flash, replacing the glow-only place effect on Apex slots. */
+@keyframes place-slam {
+  0%   { transform: scale(1.16) translateY(-10px); filter: brightness(1.35) drop-shadow(0 14px 14px rgba(0,0,0,0.55)); }
+  55%  { transform: scale(0.985) translateY(1px); filter: brightness(1.08) drop-shadow(0 2px 3px rgba(0,0,0,0.6)); }
+  75%  { transform: scale(1.01) translateY(0); }
+  100% { transform: scale(1) translateY(0); filter: brightness(1) drop-shadow(0 0 0 rgba(0,0,0,0)); }
+}
+.vfx-place-slam {
+  animation: place-slam 480ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Damage number tiers - severity is parsed from the event's own label by
+   ApexVfxOverlay. Heavy numbers punch in much larger with a hostile glow. */
+@keyframes damage-pop-heavy {
+  0%   { opacity: 0; transform: translate(-50%, 6px) scale(1.7) rotate(var(--pop-tilt, 0deg)); }
+  14%  { opacity: 1; transform: translate(-50%, -4px) scale(1.15) rotate(var(--pop-tilt, 0deg)); }
+  30%  { transform: translate(-50%, -8px) scale(1.28) rotate(var(--pop-tilt, 0deg)); }
+  78%  { opacity: 1; transform: translate(-50%, -20px) scale(1.2) rotate(var(--pop-tilt, 0deg)); }
+  100% { opacity: 0; transform: translate(-50%, -32px) scale(1.1) rotate(var(--pop-tilt, 0deg)); }
+}
+.vfx-damage-pop-heavy {
+  animation: damage-pop-heavy 850ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vfx-attack-lunge,
+  .vfx-impact-hit,
+  .vfx-shockwave-ring,
+  .vfx-impact-sparks,
+  .vfx-screen-shake,
+  .vfx-place-slam {
+    animation: none !important;
+  }
+  .vfx-destroy-shatter {
+    animation: destroy-shake 800ms ease-in-out forwards !important;
+  }
+  .vfx-o2-vignette {
+    animation-duration: 1ms !important;
+  }
+  .vfx-draw-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .vfx-damage-pop-heavy {
+    animation-duration: 1ms !important;
+  }
+}
+
+
+/* ===== Commit 44: physicality pass ===== */
+
+/* UNIFIED LIGHT CONVENTION - one implied light source, top-left, everywhere:
+   shadows fall down-and-slightly-right, top edges of raised things catch a
+   thin highlight, bottom edges fall into shadow, and ENGRAVED things invert
+   that (dark inner top shadow, light outer bottom lip). The coin scene's key
+   light, card drop-shadows, mat sheen, bevels and etched slots below all
+   follow this - mismatched implied light sources are one of the strongest
+   subliminal "this is a UI, not a table" signals. */
+
+/* Empty slots: etched into the mat surface rather than dashed neon rectangles
+   floating above it.
+   Commit 50.4 - background is now fully OPAQUE black (was rgba(0,0,0,0.28),
+   intentionally semi-transparent to read against the old CSS-only mats).
+   Real playmat art is far busier than a flat gradient, and letting it show
+   through a "card slot" reads as visual noise, not a recessed cutout. Solid
+   black actually SELLS the etched-in look better regardless of mat type -
+   it's a real physical playmat convention (die-cut card wells). */
+.slot-etched {
+  /* Commit 50.5 - BUG FIX: full-opacity black (Commit 50.4) hid the playmat
+     entirely inside every empty slot, which read as "wrong" once real art
+     was in the mix - dialed back to 55% so the mat still shows through
+     softly without letting it wash out the "cut card well" look. */
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),   /* engraved: recessed top */
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.045);   /* light catches the bottom lip */
+}
+
+/* Board cards sit ON the mat: tight contact shadow + soft ambient falloff.
+   Applied by Card.tsx to board-size cards only (hand/preview cards manage
+   their own elevation). */
+.board-card-shadow {
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)) drop-shadow(0 10px 14px rgba(0, 0, 0, 0.38));
+}
+
+/* Depth lifts - the board root already carries perspective(1100px)
+   rotateX(11deg); with preserve-3d on it and its grid (PlayerBoard.tsx),
+   these small translateZ lifts produce true parallax against the mat. */
+.lift-apex { transform: translateZ(14px); }
+.lift-support { transform: translateZ(8px); }
+.lift-piles { transform: translateZ(10px); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* lifts are static, not motion - deliberately left on */
+}
+
+/* ===== Commit 45: 3D chrome / Commit 46: THE GRUNGE PASS =====
+   Commit 46 restyles the Commit 45 chrome classes IN PLACE - every call site
+   keeps its class, the whole UI changes at once. The system: procedurally
+   generated textures (public/textures/, scripts/generate-grunge-textures.py)
+   layered into every button and panel - grime stains (multiply), brushed
+   plate surfaces, wear scratches (screen) - plus a 9-slice CHIPPED FRAME
+   (frame.png) drawn by each element's ::after, which erodes every border
+   like flaked paint. The press/hover/elevation mechanics from 45 stay:
+   grunge is the finish, not the physics. */
+
+/* Commit 47 introduced hand-made art on generic chrome; Commit 49.1 removed
+   it again per direction (the 9-slice art muddied small buttons - see the
+   .btn-3d note below). Generic chrome is pure black CSS. Bespoke-art buttons
+   (START, HEADS/TAILS, deck picker, O2, End Turn, Continue, menu plates) use
+   .btn-art - full designed images with their own baked text - and stay. */
+.btn-3d {
+  position: relative;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -2px 3px rgba(0,0,0,0.42),
+    0 3px 6px rgba(0,0,0,0.5),
+    0 1px 2px rgba(0,0,0,0.65);
+  transition: transform 90ms ease, box-shadow 90ms ease, filter 90ms ease;
+}
+/* Commit 49.1 - the universal frame art is GONE from generic buttons (it
+   muddied small chrome into illegibility - the Locker being the worst hit).
+   Generic buttons are pure black CSS again: their call-site bg/border colors
+   over a subtle dark shade, with the press physics unchanged. Bespoke .btn-art
+   buttons (START, deck plates, END TURN, menu plates...) are untouched. */
+.btn-3d {
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.35) 100%);
+}
+.btn-3d:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    inset 0 -2px 3px rgba(0,0,0,0.42),
+    0 5px 10px rgba(0,0,0,0.55),
+    0 2px 3px rgba(0,0,0,0.6);
+}
+.btn-3d:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.82);
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.6),
+    inset 0 -1px 0 rgba(255,255,255,0.05),
+    0 1px 2px rgba(0,0,0,0.5);
+}
+.btn-3d:disabled {
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+  background-image: none;
+}
+
+/* Bespoke-art buttons: the image IS the button (text baked into the art;
+   real labels are sr-only for accessibility). Same physical press feel;
+   existing glow shadows and hover/press sounds are untouched at call sites. */
+.btn-art {
+  position: relative;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  transition: transform 90ms ease, box-shadow 90ms ease, filter 90ms ease;
+}
+.btn-art:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+}
+.btn-art:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.82);
+}
+.btn-art:disabled {
+  filter: grayscale(0.7) brightness(0.6);
+}
+
+/* Raised panel: a physical grimy metal plate. Layer order (top->bottom):
+   specular sheen, wear scratches (screen), grime (multiply), brushed plate. */
+.panel-3d {
+  position: relative;
+  background-image: linear-gradient(165deg, rgba(255,255,255,0.04) 0%, transparent 34%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    inset 0 -2px 6px rgba(0,0,0,0.35),
+    0 6px 16px rgba(0,0,0,0.45),
+    0 2px 4px rgba(0,0,0,0.55);
+}
+/* Commit 49.1 - panel art removed: pure black plates, bevel + elevation only. */
+.panel-3d {
+  background-color: #000;
+}
+
+/* Floating panel: modals and the main menu card - heavier plate, deeper drop. */
+.panel-3d-deep {
+  position: relative;
+  background-image: linear-gradient(165deg, rgba(255,255,255,0.06) 0%, transparent 42%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.09),
+    inset 0 -3px 9px rgba(0,0,0,0.4),
+    0 24px 60px rgba(0,0,0,0.6),
+    0 6px 16px rgba(0,0,0,0.55);
+}
+.panel-3d-deep {
+  background-color: #000;
+}
+
+/* ===== Commit 46: the world is ALIVE ===== */
+
+/* Living film grain over the entire scene - one grade unifies board, chrome
+   and modals into a single physical world. steps() jitter = real static. */
+@keyframes grain-shift {
+  0%   { transform: translate(0, 0); }
+  12.5%{ transform: translate(-26px, 14px); }
+  25%  { transform: translate(18px, -22px); }
+  37.5%{ transform: translate(-10px, -28px); }
+  50%  { transform: translate(24px, 10px); }
+  62.5%{ transform: translate(-30px, -6px); }
+  75%  { transform: translate(12px, 26px); }
+  87.5%{ transform: translate(-18px, 20px); }
+  100% { transform: translate(0, 0); }
+}
+.world-grain {
+  position: fixed;
+  inset: -60px;
+  pointer-events: none;
+  z-index: 90;
+  background-image: url('/textures/grain.png');
+  background-size: 256px;
+  opacity: 0.04;
+  mix-blend-mode: soft-light; /* 46.1: overlay was washing the dark UI lighter */
+  animation: grain-shift 0.9s steps(1) infinite;
+}
+
+/* Neon sign flicker - long quiet stretches, brief stutters. For the active
+   player's faction nameplate: the sign is ON, and it's a cheap sign. */
+/* Critical O2 - the number itself pulses like an alarm. */
+@keyframes o2-critical-pulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 7px rgba(248, 60, 60, 0.95)) brightness(1.3); }
+}
+.o2-critical { animation: o2-critical-pulse 1.05s ease-in-out infinite; }
+
+/* Spray-stencil tag behind the faction nameplate - grime-masked skewed
+   swatch, like the name was tagged onto the plate. --tag-color per faction. */
+/* Momentum pips - segmented charge lights under the sidebar vitals. Lit pips
+   hum (soft glow breathing); the newest pip flares in via place-glow. */
+.mom-pip {
+  width: 14px;
+  height: 5px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.07);
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.6);
+}
+@keyframes pip-hum {
+  0%, 100% { box-shadow: 0 0 4px var(--pip-color), inset 0 0 2px rgba(255,255,255,0.4); }
+  50% { box-shadow: 0 0 8px var(--pip-color), inset 0 0 2px rgba(255,255,255,0.6); }
+}
+.mom-pip.lit {
+  background: var(--pip-color, #ff2fd0);
+  animation: pip-hum 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-3d,
+  .btn-3d:hover:not(:disabled),
+  .btn-3d:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+  .world-grain { animation: none; }
+  .o2-critical { animation: none; filter: drop-shadow(0 0 5px rgba(248,60,60,0.8)); }
+  .mom-pip.lit { animation: none; box-shadow: 0 0 5px var(--pip-color); }
+}
+
+/* ===== Commit 47: particle systems ===== */
+
+/* Engine short-circuit sparks - erratic electric burst when an Engine is
+   played or triggers. Two shadow colors (arc-white and hazard-yellow), and
+   the motion is deliberately jittery (electricity, not confetti). */
+@keyframes engine-sparks {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 2px #eaffff, 0 0 0 2px #ffe14d, 0 0 0 2px #9ff3ff, 0 0 0 2px #ffe14d,
+      0 0 0 2px #eaffff, 0 0 0 2px #9ff3ff, 0 0 0 2px #ffe14d, 0 0 0 2px #eaffff;
+  }
+  18% {
+    box-shadow:
+      14px -20px 0 1px #eaffff, 26px 2px 0 0 #ffe14d, 18px 16px 0 1px #9ff3ff, -3px 24px 0 0 #ffe14d,
+      -17px 13px 0 1px #eaffff, -25px -4px 0 0 #9ff3ff, -14px -19px 0 1px #ffe14d, 3px -27px 0 0 #eaffff;
+  }
+  34% {
+    opacity: 0.7;
+    box-shadow:
+      22px -30px 0 0 #eaffff, 39px 6px 0 1px #ffe14d, 24px 27px 0 0 #9ff3ff, -7px 36px 0 1px #ffe14d,
+      -27px 19px 0 0 #eaffff, -38px -9px 0 1px #9ff3ff, -20px -31px 0 0 #ffe14d, 8px -40px 0 1px #eaffff;
+  }
+  52% {
+    opacity: 0.95;
+    box-shadow:
+      28px -37px 0 1px #eaffff, 48px 4px 0 0 #ffe14d, 31px 34px 0 1px #9ff3ff, -10px 45px 0 0 #ffe14d,
+      -35px 25px 0 1px #eaffff, -47px -12px 0 0 #9ff3ff, -26px -38px 0 1px #ffe14d, 11px -50px 0 0 #eaffff;
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      34px -44px 0 0 #eaffff, 56px 8px 0 0 #ffe14d, 37px 42px 0 0 #9ff3ff, -13px 54px 0 0 #ffe14d,
+      -42px 31px 0 0 #eaffff, -55px -15px 0 0 #9ff3ff, -31px -46px 0 0 #ffe14d, 14px -59px 0 0 #eaffff;
+  }
+}
+@keyframes engine-arc-flicker {
+  0%, 100% { filter: none; }
+  12% { filter: brightness(2.1) saturate(1.4); }
+  16% { filter: brightness(1.05); }
+  28% { filter: brightness(1.8); }
+  33% { filter: brightness(1); }
+  47% { filter: brightness(1.5); }
+  55% { filter: brightness(1); }
+}
+.vfx-engine-sparks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 19;
+  animation: engine-sparks 620ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+.vfx-engine-arc {
+  animation: engine-arc-flicker 620ms linear;
+}
+
+/* Destruction debris - dark chunks arc outward then fall (two-stage
+   keyframes approximate gravity), with a pair of faction-colored embers. */
+@keyframes destroy-debris {
+  0% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 3px #17171c, 0 0 0 2px #232329, 0 0 0 3px #101014, 0 0 0 2px #1c1c22,
+      0 0 0 2px #26262d, 0 0 0 3px #131317, 0 0 0 2px var(--impact-color, #ff2fd0), 0 0 0 2px var(--impact-color, #ff2fd0);
+  }
+  38% {
+    opacity: 1;
+    box-shadow:
+      26px -18px 0 3px #17171c, 44px -6px 0 2px #232329, 14px -26px 0 3px #101014, -22px -20px 0 2px #1c1c22,
+      -40px -4px 0 2px #26262d, -12px -24px 0 3px #131317, 30px -24px 0 2px var(--impact-color, #ff2fd0), -32px -16px 0 2px var(--impact-color, #ff2fd0);
+  }
+  100% {
+    opacity: 0;
+    box-shadow:
+      38px 34px 0 2px #17171c, 60px 46px 0 1px #232329, 20px 42px 0 2px #101014, -32px 38px 0 1px #1c1c22,
+      -56px 50px 0 1px #26262d, -18px 46px 0 2px #131317, 44px 30px 0 1px var(--impact-color, #ff2fd0), -46px 36px 0 1px var(--impact-color, #ff2fd0);
+  }
+}
+.vfx-debris {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 19;
+  animation: destroy-debris 900ms cubic-bezier(0.3, 0.6, 0.6, 1) forwards;
+}
+
+/* Placement dust - a soft neutral ring puffing out when a card lands. */
+@keyframes place-dust {
+  0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+}
+.vfx-place-dust {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 80px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  z-index: 18;
+  animation: place-dust 420ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vfx-engine-sparks,
+  .vfx-engine-arc,
+  .vfx-debris,
+  .vfx-place-dust {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
+/* ===== Commit 50: interface cohesion pass ===== */
+
+/* Section 2 - subtle black-panel surface treatment: faint vertical gradient,
+   whisper-thin scanlines, a restrained inner border, and a barely-there
+   cyan/purple ambient edge haze. All effects sit in the 3-8% strength range
+   the spec calls for - the panel must still read as flat black at a glance.
+   Applied to the main menu/setup card only (panel-3d/panel-3d-deep already
+   carry their own grunge-plate treatment from Commit 46/49 and are untouched). */
+.panel-textured {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0) 40%, rgba(0,0,0,0.12) 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px),
+    #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.05),
+    inset 0 0 60px rgba(34,211,238,0.035),
+    inset 0 0 100px rgba(232,121,249,0.025);
+}
+
+/* Section 5 - custom industrial checkbox, replacing the default HTML control.
+   A visually-hidden real checkbox drives a painted grunge square via the
+   sibling selector, so keyboard/screen-reader behavior is completely
+   unchanged (Tab, Space, and assistive tech all just work). */
+.grunge-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.grunge-checkbox + span {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.28);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.3));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+  flex-shrink: 0;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.grunge-checkbox:checked + span {
+  border-color: #ff2fd0;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 0 8px rgba(255,47,208,0.5);
+}
+.grunge-checkbox:checked + span::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid #ff9be9;
+  border-bottom: 2px solid #ff9be9;
+  transform: rotate(40deg);
+}
+.grunge-checkbox:focus-visible + span {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Section 13 - a shared cyberpunk focus-visible ring for anything not already
+   using .btn-3d/.btn-art's own focus treatment (links, checkboxes, native
+   controls picked up incidentally by this pass). */
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+}
+
+/* Section 10 - the new START SIMULATED MATCH image button. Exact 383x48
+   design size, aspect-ratio-locked so it can only ever scale down (never
+   crop/stretch/distort), object-fit:contain on the img as a second layer of
+   protection. Interaction states match the rest of the image-button family
+   (.btn-art) - lift+brighten on hover, press-down+dim on active, a glow that
+   never shifts layout since it's a box-shadow, not a border/scale change on
+   the wrapper. */
+.simulated-match-start-button {
+  width: 383px;
+  max-width: 100%;
+  aspect-ratio: 383 / 48;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transition: transform 90ms ease, filter 90ms ease, box-shadow 90ms ease;
+}
+.simulated-match-start-button img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.simulated-match-start-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.12);
+  box-shadow: 0 0 16px rgba(192, 132, 252, 0.4);
+}
+.simulated-match-start-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  filter: brightness(0.86);
+}
+.simulated-match-start-button:disabled {
+  opacity: 0.4;
+}
+.simulated-match-start-button:disabled:hover {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simulated-match-start-button,
+  .simulated-match-start-button:hover:not(:disabled),
+  .simulated-match-start-button:active:not(:disabled) {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Section 11 - a themed track for the showcase speed slider, replacing the
+   bare default browser range input. Thumb color still follows Tailwind's
+   accent-* utility (kept on the element); this just gives the track a dark
+   industrial groove instead of a flat system-gray bar. */
+.grunge-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.6), rgba(255,255,255,0.08));
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.7);
+}
+.grunge-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor, inset 0 1px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+}
+.grunge-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 3px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor, inset 0 1px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+}
+
+/* ===== Commit 50.9: kill drag-selection highlighting ===== */
+
+/* When you click-and-drag a card, the browser's native text/image selection
+   was kicking in - highlighting card text blue and ghosting a drag-image of
+   the card art. The whole game surface is a drag interface, not a document
+   to select, so selection is disabled across it. Inputs/textareas are
+   deliberately NOT covered (none exist in-game, but this keeps the rule safe
+   if one is ever added). draggable=false on imagery is also enforced so no
+   native image-drag ghost appears mid-drag. */
+.game-surface,
+.game-surface * {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.game-surface img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* ===== Commit 50.10: hand scroll row ===== */
+
+/* Commit 50.11 - hand overflow, CORRECTLY this time (verified with a headless
+   screenshot harness, scripts/visual-check-managed.py).
+
+   The hard CSS rule: on a SINGLE element you cannot have overflow-x:auto with
+   overflow-y:visible - the browser silently promotes the visible axis to auto.
+   Commit 50.10 set exactly that pair on the track, so the 194px lifted card
+   overflowed the 91px track and triggered a VERTICAL SCROLLBAR (the reported
+   bug) instead of escaping upward.
+
+   The fix separates the two jobs onto DIFFERENT elements:
+   - .hand-track-scroll (the outer track): the horizontal scroll clipper for
+     oversized hands. overflow-x:auto, overflow-y:VISIBLE is impossible here as
+     shown, so instead it reserves vertical room for the lift with padding-top
+     equal to the lift distance, and uses overflow-y:visible only because it
+     never needs to clip Y (the reserved padding absorbs the whole lift). To
+     avoid the interop promotion entirely, X scrolling is delegated to the
+     INNER row when it overflows, and the track stays fully overflow-visible.
+   - .hand-scroll-row (the inner row): overflow-x:auto for wide hands,
+     overflow-y:visible is again impossible on the same element - BUT this row
+     reserves the lift space above it via the track's padding-top, so the row's
+     own box starts at the card top and the lift happens ABOVE the row's box,
+     inside the track's padding, which is overflow-visible. The row only ever
+     needs to scroll horizontally through its own width; the lift never enters
+     the row's vertical overflow because it lives in the padding band above.
+
+   Net: normal hands never scroll and the lift rises into the reserved band;
+   wide hands scroll horizontally on the row while the lift still rises into
+   the track's padding band above the scrollbar. No vertical scrollbar ever. */
+.hand-track-scroll {
+  /* Fully overflow-visible on BOTH axes. This is the ONLY combination that
+     guarantees no vertical scrollbar (the reported bug) while letting a
+     hovered card lift up out of the peek band - since nothing above the hand
+     clips vertically. A very wide hand centers and may reach toward the edges
+     rather than scrolling; that is the deliberate trade for never clipping the
+     lift and never showing a scrollbar. (Any overflow:auto/hidden on one axis
+     forces the other's `visible` to be promoted, which is exactly what caused
+     the scrollbar - so we set neither.) */
+  overflow: visible;
+}
+.hand-scroll-row {
+  overflow: visible;
+}
+
+/* ===== Commit 51: Locker carousel - hide the scrollbar ===== */
+/* The horizontal drag-scroll carousel scrubs by mouse-drag; the visible
+   partial next-card already signals "more to scroll", so the scrollbar is
+   redundant clutter. Hidden on all engines while keeping it scrollable. */
+.locker-carousel {
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* old Edge */
+}
+.locker-carousel::-webkit-scrollbar {
+  display: none;                  /* WebKit/Chromium */
+  width: 0;
+  height: 0;
+}
+
+/* ============================================================
+   Commit 54 - VFX Overdrive: mat-wide Action target, in-mat
+   vitals panel feedback, GIANT O2 popups, and Apex summon splash
+   ============================================================ */
+
+/* Whole-playmat Action drop target (replaces the ActionZone box).
+   Legal = steady emerald breath around the entire mat; hovered = full burn. */
+.vfx-mat-action-legal {
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.55), 0 0 26px rgba(52, 211, 153, 0.35) !important;
+}
+.vfx-mat-action-hover {
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.95), 0 0 44px rgba(52, 211, 153, 0.65) !important;
+}
+
+/* StatsPanel frame flash on O2 loss - the panel itself takes the hit. */
+@keyframes statpanel-hitflash {
+  0% { box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.9), 0 0 30px rgba(248, 113, 113, 0.7), inset 0 0 18px rgba(248, 113, 113, 0.35); }
+  100% { box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.6); }
+}
+.vfx-statpanel-hitflash {
+  animation: statpanel-hitflash 700ms ease-out;
+}
+
+/* GIANT O2 popups - losing O2 is the only way to lose, so it renders like an
+   event. big = single-point losses; huge = 2+ points, overshoot-and-settle. */
+@keyframes o2-popup-big {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.6); }
+  12% { opacity: 1; transform: translate(-50%, -4px) scale(1.05); }
+  70% { opacity: 1; transform: translate(-50%, -18px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -34px) scale(0.96); }
+}
+.vfx-o2-popup-big {
+  font-size: 26px;
+  text-shadow: 0 0 12px rgba(251, 146, 60, 0.8), 0 2px 6px rgba(0, 0, 0, 0.95);
+  animation: o2-popup-big 1100ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes o2-popup-huge {
+  0% { opacity: 0; transform: translate(-50%, 14px) scale(0.4); }
+  10% { opacity: 1; transform: translate(-50%, -6px) scale(1.45); } /* overshoot */
+  22% { transform: translate(-50%, -4px) scale(1.12); }             /* settle */
+  32% { transform: translate(-50%, -6px) scale(1.2); }
+  75% { opacity: 1; transform: translate(-50%, -26px) scale(1.16); }
+  100% { opacity: 0; transform: translate(-50%, -48px) scale(1.05); }
+}
+.vfx-o2-popup-huge {
+  font-size: 38px;
+  color: #f87171 !important;
+  text-shadow: 0 0 18px rgba(248, 113, 113, 0.9), 0 0 40px rgba(248, 113, 113, 0.5), 0 2px 8px rgba(0, 0, 0, 0.95);
+  animation: o2-popup-huge 1300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Apex summon splash - full character art sweeping in on the summoner's
+   screen edge (P1 left, P2 right), faction glow behind, scanline wipe over.
+   The lane is a fixed column hugging one edge; pointer-transparent chrome. */
+.vfx-splash-lane {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: min(24vw, 340px);
+  z-index: 45;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.vfx-splash-left { left: 0; justify-content: flex-start; }
+.vfx-splash-right { right: 0; justify-content: flex-end; }
+
+.vfx-splash-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--splash-glow) 42%, transparent) 0%, transparent 68%);
+  animation: splash-glow 1150ms ease-out forwards;
+}
+@keyframes splash-glow {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.vfx-splash-art {
+  position: relative;
+  height: min(78vh, 640px);
+  width: auto;
+  max-width: none;
+  filter: drop-shadow(0 0 24px color-mix(in srgb, var(--splash-glow) 65%, transparent)) drop-shadow(0 10px 24px rgba(0, 0, 0, 0.8));
+}
+.vfx-splash-left .vfx-splash-art { animation: splash-in-left 1150ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.vfx-splash-right .vfx-splash-art { animation: splash-in-right 1150ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes splash-in-left {
+  0% { opacity: 0; transform: translateX(-70%) skewX(4deg); }
+  16% { opacity: 1; transform: translateX(0) skewX(0); }
+  78% { opacity: 1; transform: translateX(2%); }
+  100% { opacity: 0; transform: translateX(-24%); }
+}
+@keyframes splash-in-right {
+  0% { opacity: 0; transform: translateX(70%) skewX(-4deg); }
+  16% { opacity: 1; transform: translateX(0) skewX(0); }
+  78% { opacity: 1; transform: translateX(-2%); }
+  100% { opacity: 0; transform: translateX(24%); }
+}
+
+/* Fast scanline wipe sweeping across the lane while the art holds. */
+.vfx-splash-scanwipe {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 2px, transparent 2px 5px);
+  mix-blend-mode: overlay;
+  opacity: 0;
+  animation: splash-scan 1150ms linear forwards;
+}
+@keyframes splash-scan {
+  0% { opacity: 0; transform: translateY(-8%); }
+  16% { opacity: 1; }
+  78% { opacity: 1; transform: translateY(8%); }
+  100% { opacity: 0; }
+}
+
+/* Reduced motion: splash collapses to a plain fade, no sweep/skew; giant
+   popups become static large numbers; mat glow keeps (it's state, not motion). */
+@media (prefers-reduced-motion: reduce) {
+  .vfx-splash-left .vfx-splash-art,
+  .vfx-splash-right .vfx-splash-art {
+    animation: splash-glow 1150ms ease-out forwards;
+  }
+  .vfx-splash-scanwipe { animation: none; opacity: 0; }
+  .vfx-o2-popup-big,
+  .vfx-o2-popup-huge {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -20px);
+  }
+  .vfx-statpanel-hitflash { animation: none; }
+}
