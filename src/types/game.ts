@@ -456,6 +456,11 @@ export interface GameState {
    *  applies for AI vs AI and Tutorial, neither of which show the coin flip. */
   coinFlipFirstPlayerId?: PlayerId | null;
   turnNumber: number;
+  /** Commit 54.1 - the O2 value both players started the match with (12 by
+   *  default; 24/48/96 configurable). The O2 HUD tower uses it as the tank's
+   *  full-scale value for fill ratio and tick spacing. Optional so states
+   *  built by older test fixtures stay valid; consumers fall back to 12. */
+  startingO2?: number;
   phase: Phase;
   riftSpace: RiftSpace | null;
   log: LogEntry[];

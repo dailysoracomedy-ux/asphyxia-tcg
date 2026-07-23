@@ -1271,6 +1271,7 @@ export const useGameStore = create<GameStore>((set) => ({
       const p1Faction = tutorialMode ? 'Neon Underground' : p1FactionArg;
       const p2Faction = tutorialMode ? 'Dark White' : p2FactionArg;
       const startingO2 = tutorialMode ? STARTING_O2 : o2Amount ?? STARTING_O2;
+      draft.startingO2 = startingO2;
       draft.selectedFactions = { player1: p1Faction, player2: p2Faction };
       draft.vsAI = tutorialMode ? true : !!vsAI;
       draft.aiVsAiMode = !!aiVsAiMode;

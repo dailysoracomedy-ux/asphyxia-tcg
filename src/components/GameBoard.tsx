@@ -159,9 +159,13 @@ export default function GameBoard() {
       raf = requestAnimationFrame(() => {
         const naturalH = wrap.scrollHeight;
         // Width limit: the wrapper's own scrollWidth just equals its width
-        // (block children), so measure the real content - the widest board's
-        // layout box (offsetWidth is transform-independent).
-        const boardW = boardRef.current?.offsetWidth ?? 0;
+        // (block children), so measure the real content - the widest
+        // shrink-wrapped board ROW (tower + mat; offsetWidth is
+        // transform-independent).
+        let boardW = 0;
+        wrap.querySelectorAll<HTMLElement>('[data-board-row]').forEach((row) => {
+          boardW = Math.max(boardW, row.offsetWidth);
+        });
         if (naturalH < 10 || boardW < 10) return;
         const availH = hand.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
         const availW = wrap.clientWidth;
@@ -991,16 +995,23 @@ export default function GameBoard() {
           scale to the top pushes that slack down into the mid-field gap
           between the boards instead, where breathing room is useful. */}
       <div className="shrink-0" style={{ transform: 'scale(0.965)', transformOrigin: 'top center' }}>
-        <PlayerBoard
-          state={state}
-          playerId={viewerTopId}
+        {/* Commit 54.1 - O2 HUD tower row: the tower stands directly LEFT of
+            each mat (screen-left for both seats - the opponent's flipped
+            board makes that THEIR right), stretched to the mat's height so it
+            reads as an extension of the play surface. w-fit shrink-wraps the
+            row so the board-scale hook can measure true content width. */}
+        <div data-board-row className="w-fit mx-auto">
+          <PlayerBoard
+            state={state}
+            playerId={viewerTopId}
           flipped
           onApexClick={oppApexClick}
           apexHighlight={oppApexHighlight}
           onInspectCard={(instance) => setInspected({ instance, ownerId: viewerTopId, zone: 'Field' })}
           onOpenVoid={() => setVoidInspecting(viewerTopId)}
           drag={drag}
-        />
+          />
+        </div>
       </div>
 
       {/* Row 5: prompt / action-context area - the shared decision hub. Grows
@@ -1110,9 +1121,10 @@ export default function GameBoard() {
           spill into each other. Its own position (baseline gap vs shifted
           down toward the hand while a decision is pending) is handled below. */}
       <div className="shrink-0" style={{ marginTop: decisionPending ? 10 : 0, marginBottom: decisionPending ? 0 : 4, transition: 'margin-top 200ms ease-out, margin-bottom 200ms ease-out' }}>
-        <PlayerBoard
-          state={state}
-          playerId={viewerBottomId}
+        <div data-board-row className="w-fit mx-auto">
+          <PlayerBoard
+            state={state}
+            playerId={viewerBottomId}
           onApexClick={bottomIsActingPlayer ? ownApexClick : undefined}
           onSupportClick={bottomIsActingPlayer ? ownSupportClick : undefined}
           apexHighlight={bottomIsActingPlayer ? ownApexHighlight : undefined}
@@ -1130,7 +1142,8 @@ export default function GameBoard() {
           onBoardEquipDragStart={bottomIsActingPlayer && !aiIsActing ? onBoardEquipDragStart : undefined}
           onBoardEngineDragStart={bottomIsActingPlayer && !aiIsActing ? onBoardEngineDragStart : undefined}
           footer={endTurnFooter}
-        />
+          />
+        </div>
       </div>
 
       </div>
