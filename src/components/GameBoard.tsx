@@ -37,13 +37,7 @@ import DragDropLayer from '@/ui/dragDrop/DragDropLayer';
 import { legalZonesFor, resolveDrop } from '@/ui/dragDrop/dragDropLogic';
 import type { DragSource, DropZoneId } from '@/ui/dragDrop/dragDropTypes';
 import { zoneKey } from '@/ui/dragDrop/dragDropTypes';
-import {
-  getOverdriveEligibility,
-  findApexAnywhere,
-  getPreviewAttackDamage,
-  getEffectiveDef,
-  overflowToO2Loss,
-} from '@/game/rules';
+import { getOverdriveEligibility, findApexAnywhere } from '@/game/rules';
 
 const ACTION_LOCK_MS = 500;
 /** Module-level, not inside the component, specifically so the Date.now() call
@@ -1013,9 +1007,11 @@ export default function GameBoard() {
           naturally with its content; since it's a simple sibling (not sharing
           a flexible region with either board), it can never cause either
           board to shrink or spill into the other. */}
-      <div className={`shrink-0 flex flex-col gap-1 max-h-[104px] overflow-y-auto relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
-
-        {mode.kind === 'attackAwaitingTarget' && bottomIsActingPlayer && <AttackOutcomePreview state={state} mode={mode} />}
+      {/* Commit 54.1 - no height cap, no scroll: every occupant of this row
+          (CombatControls, HubPrompt, the React window) is now a one-to-two
+          line compact pill, so the old max-h-[104px] + overflow-y-auto scroll
+          box (the reported gripe) can't occur by construction. */}
+      <div className={`shrink-0 flex flex-col gap-1 relative z-25 ${state.tutorialMode ? 'tutorial-above-overlay' : ''}`}>
 
         {state.riftSpace?.id === 'ControlConflict' && state.phase === 'Start' && !state.startPhasePending && !aiIsActing && (
           <HubPrompt
@@ -1387,42 +1383,6 @@ function ShowcaseControls() {
  *  functions declareAttack itself uses to compute the real thing, so this can
  *  never show a number that turns out to be wrong once the attack actually
  *  resolves (Commit 29 Flow QoL). */
-function AttackOutcomePreview({ state, mode }: { state: GameState; mode: Extract<Mode, { kind: 'attackAwaitingTarget' }> }) {
-  const attackerHit = findApexAnywhere(state, mode.attackerId);
-  if (!attackerHit) return null;
-  const opponentId = attackerHit.ownerId === 'player1' ? 'player2' : 'player1';
-  const targets = state.players[opponentId].apexSlots.filter((a): a is CardInstance => !!a);
-  if (targets.length === 0) return null;
-
-  return (
-    <div className="panel-3d rounded-lg border border-white/10 bg-[#05050a] px-2 py-1.5 text-[10px] w-fit max-w-full mx-auto">
-      <div className="text-white/30 uppercase tracking-widest text-center mb-1">Attack Preview</div>
-      <div className="flex flex-col gap-1">
-        {targets.map((target) => {
-          const targetDef = getCardDef(target.defId);
-          const preview = getPreviewAttackDamage(state, mode.attackerId, mode.attackId, target.instanceId);
-          if (!preview) return null;
-          const effDef = getEffectiveDef(state, target.instanceId);
-          const dmg = preview.modifiedDamage;
-          const destroyed = dmg >= effDef;
-          const overflow = destroyed ? overflowToO2Loss(dmg - effDef) : 0;
-          return (
-            <div key={target.instanceId} className="flex items-center gap-2 whitespace-nowrap">
-              <span className="text-white/60">→ {targetDef.name}:</span>
-              <span className="font-mono font-bold text-white/80">{dmg} dmg</span>
-              {destroyed ? (
-                <span className="text-red-400 font-bold">Destroyed{overflow > 0 ? ` (${overflow} overflow O2)` : ''}</span>
-              ) : (
-                <span className="text-emerald-400">Survives at {effDef - dmg} DEF</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function OpeningApexScreen() {
   const state = useGameStore();
   const selectOpeningApex = useGameStore((s) => s.selectOpeningApex);

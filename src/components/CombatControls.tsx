@@ -16,6 +16,18 @@ interface CombatControlsProps {
   awaitingTarget: boolean;
 }
 
+/**
+ * Commit 54.1 - condensed to ONE row (wrapping to two at most on narrow
+ * viewports). The previous stacked layout - header line, instruction line,
+ * and its own preview list, PLUS GameBoard's separate AttackOutcomePreview
+ * box showing the same numbers again - overflowed the mid-field row's 104px
+ * cap and produced a scroll box ("my only gripe"). Now: attacker name,
+ * the attack buttons (or the targeting instruction + inline outcome chips),
+ * and cancel all live on a single flex-wrap line; the duplicate GameBoard
+ * preview box is gone, and the mid-field row no longer scrolls at all.
+ * Per-attack modifier breakdowns moved from a <details> disclosure into the
+ * button's title tooltip - same information, zero vertical cost.
+ */
 export default function CombatControls({
   apexDef,
   state,
@@ -29,95 +41,76 @@ export default function CombatControls({
 }: CombatControlsProps) {
   if (!apexDef) {
     // The "select an Apex to attack with" guidance is already covered by the
-    // more compact phasePrompt text above the board (Commit 29) - this used to
-    // duplicate that in its own bordered/padded box, which was real, reported
-    // visual clutter (two boxes saying almost the same thing, one of them
-    // pushing the Equip flap out of view below it).
+    // more compact phasePrompt text above the board (Commit 29).
     return null;
   }
 
   return (
-    <div className="panel-3d rounded-lg border border-orange-500/40 bg-[#05050a] p-3">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold text-orange-300">{apexDef.name} — choose an attack</div>
-        <button type="button" onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80">
-          cancel
-        </button>
-      </div>
+    <div className="panel-3d rounded-lg border border-orange-500/40 bg-[#05050a] px-3 py-1.5 flex items-center gap-x-3 gap-y-1 flex-wrap w-fit max-w-full mx-auto text-[11px]">
+      <span className="font-bold text-orange-300 shrink-0">{apexDef.name}</span>
       {hasAttacked ? (
-        <div className="text-xs text-white/40 italic">This Apex has already attacked this turn.</div>
+        <span className="text-white/40 italic">has already attacked this turn.</span>
       ) : awaitingTarget ? (
-        <div>
-          <div className="text-xs text-yellow-300 animate-pulse mb-2">
-            Now click an enemy Apex (or confirm direct O2 attack) to target.
-          </div>
+        <>
+          <span className="text-yellow-300 animate-pulse">click an enemy Apex (or their O2 panel) to target</span>
           {attackerInstanceId && selectedAttackId && (
-            <OutcomePreviewList state={state} attackerInstanceId={attackerInstanceId} attackId={selectedAttackId} />
+            <InlineOutcomePreviews state={state} attackerInstanceId={attackerInstanceId} attackId={selectedAttackId} />
           )}
-        </div>
+        </>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <>
           {apexDef.attacks.map((atk) => {
             const affordable = atk.syncCost <= availableSync;
             const preview = attackerInstanceId ? getPreviewAttackDamage(state, attackerInstanceId, atk.id) : null;
             const isModified = !!preview && preview.modifiedDamage !== preview.baseDamage;
-            const dmgColorClass = isModified ? (preview!.modifiedDamage > preview!.baseDamage ? 'text-emerald-300' : 'text-red-300') : '';
+            const dmgColorClass = isModified ? (preview!.modifiedDamage > preview!.baseDamage ? 'text-emerald-300' : 'text-red-300') : 'text-white/70';
+            const tooltip =
+              preview && preview.modifiers.length > 0
+                ? `${preview.baseDamage} base ${preview.modifiers
+                    .map((m) => `${m.amount >= 0 ? '+' : ''}${m.amount} ${m.label}`)
+                    .join(' ')} = ${preview.modifiedDamage}`
+                : undefined;
             return (
-              <div
+              <button
                 key={atk.id}
-                className={`btn-3d rounded border text-[11px] transition-colors ${
+                type="button"
+                disabled={!affordable}
+                title={tooltip}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  const scrollY = window.scrollY;
+                  onChooseAttack(atk.id);
+                  requestAnimationFrame(() => {
+                    if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
+                  });
+                }}
+                className={`btn-3d rounded border px-2 py-1 whitespace-nowrap transition-colors ${
                   selectedAttackId === atk.id
                     ? 'border-yellow-300 bg-yellow-300/10 text-yellow-200'
                     : affordable
-                    ? 'border-orange-400/50 text-orange-200'
-                    : 'border-white/10 text-white/25'
+                    ? 'border-orange-400/50 text-orange-200 hover:bg-orange-400/10 cursor-pointer'
+                    : 'border-white/10 text-white/25 cursor-not-allowed'
                 }`}
               >
-                <button
-                  type="button"
-                  disabled={!affordable}
-                  onClick={(e) => {
-                    e.currentTarget.blur();
-                    const scrollY = window.scrollY;
-                    onChooseAttack(atk.id);
-                    requestAnimationFrame(() => {
-                      if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'auto' });
-                    });
-                  }}
-                  className={`w-full text-left px-2 py-1.5 ${affordable ? 'hover:bg-orange-400/10 cursor-pointer' : 'cursor-not-allowed'}`}
-                >
-                  <div className="font-bold flex items-center justify-between gap-1">
-                    <span>
-                      [{atk.syncCost} Sync] {atk.name}
-                    </span>
-                    {preview && <span className={`font-mono shrink-0 ${dmgColorClass}`}>{preview.modifiedDamage}</span>}
-                  </div>
-                </button>
-                {preview && preview.modifiers.length > 0 && (
-                  <details className="px-2 pb-1 -mt-1 opacity-80">
-                    <summary className="cursor-pointer text-[9px] text-white/40 hover:text-white/70">details</summary>
-                    <div className="mt-0.5 space-y-0.5">
-                      <div className="text-white/50">{preview.baseDamage} base</div>
-                      {preview.modifiers.map((mod, i) => (
-                        <div key={i} className={mod.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}>
-                          {mod.amount >= 0 ? '+' : ''}
-                          {mod.amount} {mod.label}
-                        </div>
-                      ))}
-                      <div className="text-white/50">= {preview.modifiedDamage} final</div>
-                    </div>
-                  </details>
-                )}
-              </div>
+                <span className="font-bold">
+                  [{atk.syncCost}] {atk.name}
+                </span>{' '}
+                {preview && <span className={`font-mono ${dmgColorClass}`}>{preview.modifiedDamage}</span>}
+              </button>
             );
           })}
-        </div>
+        </>
       )}
+      <button type="button" onClick={onCancel} className="text-[10px] text-white/40 hover:text-white/80 shrink-0">
+        cancel
+      </button>
     </div>
   );
 }
 
-function OutcomePreviewList({
+/** Bare inline outcome chips - no panel of their own; they ride the single
+ *  CombatControls row (the row's flex-wrap handles narrow viewports). */
+function InlineOutcomePreviews({
   state,
   attackerInstanceId,
   attackId,
@@ -130,43 +123,42 @@ function OutcomePreviewList({
   if (!attackerHit) return null;
   const [attackerPlayerId] = attackerHit;
   const opponentId = attackerPlayerId === 'player1' ? 'player2' : 'player1';
-  const opponent = state.players[opponentId];
-  const enemyApexes = opponent.apexSlots.filter(Boolean);
+  const enemyApexes = state.players[opponentId].apexSlots.filter(Boolean);
 
   if (enemyApexes.length === 0) {
     const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId);
     if (!preview) return null;
     return (
-      <div className="panel-3d rounded border border-yellow-400/30 bg-[#05050a] p-2 text-[10px] space-y-0.5">
-        <div className="font-bold text-yellow-200">Direct O2 attack</div>
-        <div>Final damage: {preview.finalDamage}</div>
-        <div>Expected O2 loss: {preview.o2Loss}</div>
-      </div>
+      <span className="whitespace-nowrap">
+        <span className="text-yellow-200 font-bold">Direct O2:</span>{' '}
+        <span className="font-mono">{preview.finalDamage} dmg</span>{' '}
+        <span className="text-red-300 font-bold">-{preview.o2Loss} O2</span>
+      </span>
     );
   }
 
   return (
-    <div className="panel-3d rounded border border-yellow-400/30 bg-[#05050a] px-2 py-1.5 text-[10px] flex items-center gap-3 flex-wrap w-fit max-w-full mx-auto">
+    <>
       {enemyApexes.map((apex) => {
         if (!apex) return null;
         const name = getCardDef(apex.defId).name;
         const preview = getAttackOutcomePreview(state, attackerInstanceId, attackId, apex.instanceId);
         if (!preview) return null;
         return (
-          <div key={apex.instanceId} className="flex items-center gap-1.5 whitespace-nowrap">
-            <span className="text-yellow-200 font-bold">→ {name}:</span>
-            <span className="font-mono">{preview.finalDamage} dmg / {preview.targetDef} DEF</span>
+          <span key={apex.instanceId} className="whitespace-nowrap">
+            <span className="text-yellow-200 font-bold">→ {name}:</span>{' '}
+            <span className="font-mono">{preview.finalDamage}/{preview.targetDef}</span>{' '}
             {preview.willDestroy ? (
               <span className="text-red-300 font-bold">
-                Destroys{preview.overflow > 0 ? ` (${preview.overflow} ovf \u2192 ${preview.o2Loss} O2)` : ''}
+                Destroys{preview.overflow > 0 ? ` (-${preview.o2Loss} O2)` : ''}
               </span>
             ) : (
               <span className="text-white/50">Survives</span>
             )}
-            {preview.apexBreakRewardWouldTrigger && <span className="text-fuchsia-300">+1 Mom</span>}
-          </div>
+            {preview.apexBreakRewardWouldTrigger && <span className="text-fuchsia-300"> +1 Mom</span>}
+          </span>
         );
       })}
-    </div>
+    </>
   );
 }
