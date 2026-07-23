@@ -2,8 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { VisualEvent } from '@/store/animationStore';
 import type { GameState, PlayerId } from '@/types/game';
+import type { VisualEvent } from '@/store/animationStore';
 import { factionTheme } from '@/lib/theme';
 import { usePlayerVisualEvents } from '@/store/animationStore';
 import type { DragState } from '@/ui/dragDrop/dragDropTypes';
@@ -45,9 +45,9 @@ const O2_COLOR = '#22d3ee'; // oxygen cyan - global, both players
 const MOM_COLOR = '#fbbf24'; // momentum amber - global, both players
 
 export default function StatsPanel({ state, playerId, drag }: { state: GameState; playerId: PlayerId; drag?: DragState | null }) {
-  // Callback-ref into STATE (not a ref object) so the portal can react to the
-  // element mounting and measure it in an effect - the react-hooks/refs rule
-  // (correctly) forbids reading ref.current during render.
+  // Callback-ref into STATE (not a ref object) so the popup portal can react
+  // to the element mounting - react-hooks/refs forbids reading ref.current in
+  // render.
   const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
   const player = state.players[playerId];
   const theme = factionTheme(player.faction);
@@ -123,13 +123,9 @@ export default function StatsPanel({ state, playerId, drag }: { state: GameState
           >
             {player.o2}
           </span>
-          {/* Giant O2 loss popups - PORTALED to document.body (Commit 54.1).
-              The mat's perspective/preserve-3d transform creates a 3D stacking
-              context where the lifted card columns (translateZ 8-14px) render
-              above any flat z-index inside it - reported directly as the
-              opponent's overflow popup "sitting underneath the cards". A body
-              portal escapes that context entirely; position is fixed, measured
-              off this panel's live rect at render time. */}
+          {/* Giant O2 loss popups - PORTALED to document.body (Commit 54.1):
+              the mat's preserve-3d transform buries any in-tree z-index under
+              the translateZ-lifted card columns. */}
           {rootEl && o2Events.length > 0 && <GiantO2Popups anchor={rootEl} events={o2Events} popupClass={popupClass} />}
         </div>
 
@@ -170,12 +166,10 @@ export default function StatsPanel({ state, playerId, drag }: { state: GameState
 /** Commit 54.1 - giant O2 popups, PORTALED to document.body. The mat's
  *  perspective/preserve-3d transform creates a 3D stacking context where the
  *  lifted card columns (translateZ 8-14px) render above any flat z-index
- *  inside it - reported directly as the opponent's overflow popup "sitting
- *  underneath the cards". A body portal escapes that context entirely. The
- *  fixed wrapper's position is written imperatively in a layout effect (a
- *  plain DOM update - the sanctioned effect use), measured off the anchor
- *  panel every time the event set changes; no state, no cascading renders.
- */
+ *  inside it. A body portal escapes that context entirely; the fixed
+ *  wrapper's position is written imperatively in a layout effect (a plain
+ *  DOM update - the sanctioned effect use), measured off the anchor panel
+ *  every time the event set changes. */
 function GiantO2Popups({ anchor, events, popupClass }: { anchor: HTMLElement; events: VisualEvent[]; popupClass: (label?: string) => string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {

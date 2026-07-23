@@ -7,7 +7,7 @@ import { getEffectiveDef, getPreviewAttackDamage, getChainedSupportFor, getChain
 import Card from './Card';
 import EquipFlap from './EquipFlap';
 import DeckVoidStack from './DeckVoidStack';
-import O2HudTower from './O2HudTower';
+import StatsPanel from './StatsPanel';
 import { factionTheme } from '@/lib/theme';
 import { getPlaymat } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
@@ -106,39 +106,10 @@ export default function PlayerBoard({
   const matIsActionHovered = drag?.hoveredZoneKey === actionZoneKeyStr;
 
   return (
-    // Commit 54.1 - ATTACHED HUD: the perspective + 11-degree tilt moved UP
-    // off the mat onto this wrapper, which holds the O2 HUD tower and the mat
-    // as one rigid body in the same 3D space. The tower tilts with the board,
-    // shares its vanishing point, overlaps the mat's edge by a few px, and
-    // rides a small translateZ lift - it reads as hardware BOLTED to the play
-    // surface, not a flat sticker floating beside it.
-    <div
-      data-board-tilt-row
-      className="w-fit max-w-full mx-auto flex items-stretch"
-      style={{ transform: 'perspective(1100px) rotateX(11deg)', transformOrigin: 'center center', transformStyle: 'preserve-3d' }}
-    >
-      <div
-        className="shrink-0 self-end"
-        style={{
-          transform: 'translateZ(8px)',
-          // Commit 54.1 - offset WITH a gap (requested): the tower stands
-          // clear of the mat's edge instead of tucked into it (26px layout =
-          // ~12px PROJECTED once the 3D tilt compresses it - the projected
-          // rects are what the eye sees). The
-          // shared tilt + contact shadow keep it reading as part of the same
-          // rig; the gap gives each piece its own silhouette.
-          marginRight: 26,
-          zIndex: 5,
-          display: 'flex',
-          filter: 'drop-shadow(6px 4px 10px rgba(0,0,0,0.75))',
-        }}
-      >
-        <O2HudTower state={state} playerId={playerId} drag={drag} />
-      </div>
     <div
       ref={containerRef}
       data-dropzone={matIsActionTarget ? JSON.stringify({ kind: 'action-zone', playerId }) : undefined}
-      className={`relative rounded-lg border p-3 scanlines min-h-0 flex flex-col w-fit max-w-full ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass} ${
+      className={`relative rounded-lg border p-3 scanlines min-h-0 flex flex-col w-fit max-w-full mx-auto ${isActiveTurn ? 'active-board-glow' : ''} ${reactVfxClass} ${
         matIsActionTarget ? (matIsActionHovered ? 'vfx-mat-action-hover' : 'vfx-mat-action-legal') : ''
       }`}
       style={{
@@ -151,9 +122,12 @@ export default function PlayerBoard({
           : `radial-gradient(ellipse at 50% ${flipped ? '0%' : '100%'}, ${theme.primary}14, #05050a 70%)`,
         backgroundSize: playmat.image ? 'cover' : undefined,
         backgroundPosition: playmat.image ? 'center' : undefined,
-        // Commit 44/54.1 - the 11-degree tilt lives on the shared wrapper
-        // above now (so the HUD tower tilts with the mat); preserve-3d here
-        // keeps the slot columns' translateZ lifts rendering as true parallax.
+        transform: 'perspective(1100px) rotateX(11deg)',
+        transformOrigin: 'center center',
+        // Commit 44 - the board's 11-degree tilt existed since Commit 23, but
+        // everything on it rendered flat. preserve-3d (here and on the grid
+        // below) lets the slot columns take small translateZ lifts, which the
+        // existing tilt turns into true parallax against the mat.
         transformStyle: 'preserve-3d',
         ['--active-glow-color' as string]: `${theme.primary}99`,
       }}
@@ -201,10 +175,10 @@ export default function PlayerBoard({
               ))}
             </div>
           ) : (
-            <div className="flex flex-col gap-1.5 items-center justify-center flex-1">
-              {/* Commit 54.1 - vitals moved OFF the mat again, onto the O2 HUD
-                  tower standing left of the board; the piles column is Deck/
-                  Void alone, vertically centered in the freed space. */}
+            <div className="flex flex-col gap-1.5 items-center">
+              {/* Commit 54 - vitals live ON the mat: StatsPanel takes the top
+                  of the piles column, Deck/Void below it. */}
+              <StatsPanel state={state} playerId={playerId} drag={drag} />
               <div className="flex gap-1">
                 <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                 <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
@@ -235,11 +209,15 @@ export default function PlayerBoard({
         <div className={`flex flex-col gap-1.5 row-start-1 col-start-3 items-start relative ${flipped ? 'lift-piles' : 'lift-support'}`}>
           <div className="flex gap-2 items-start justify-start">
             {flipped ? (
-              <div className="flex flex-col gap-1.5 items-center justify-center flex-1">
+              <div className="flex flex-col gap-1.5 items-center">
+                {/* Commit 54.1 - opponent's vitals BELOW their Deck/Void: the
+                    panel lands at the bottom edge of their mat, nearest
+                    player 1's play area. */}
                 <div className="flex gap-1">
                   <DeckVoidStack label="DECK" count={player.deck.length} accentColor={theme.primary} playerId={playerId} />
                   <DeckVoidStack label="VOID" count={player.voidZone.length} accentColor={theme.primary} onClick={onOpenVoid} playerId={playerId} />
                 </div>
+                <StatsPanel state={state} playerId={playerId} drag={drag} />
               </div>
             ) : (
               <div className="flex gap-1.5">
@@ -264,7 +242,6 @@ export default function PlayerBoard({
           {footer && <div className="absolute top-full left-0 w-full flex justify-center mt-1.5">{footer}</div>}
         </div>
       </div>
-    </div>
     </div>
   );
 }
