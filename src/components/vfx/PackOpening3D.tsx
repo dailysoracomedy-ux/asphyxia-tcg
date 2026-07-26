@@ -1,20 +1,27 @@
 'use client';
 
 /**
- * Commit 55 - the Pack Lab's ritual, ported into the real game as a Ladder
- * Mode reward reveal. Same three.js language as CoinFlip3D: MeshStandard
- * foil, pink/green scene lights, UnrealBloom tuned low with materials
- * emissive turned up instead (Daily: "turn bloom down, make it more
- * emissive"). Everything below is the PROVEN v4 pack-lab logic (rip seam,
- * pillow geometry, three faction warp shaders, tight inline edge glow,
- * rounded card corners, back-first one-by-one reveal) - ported from the
- * standalone HTML build to real React lifecycle and real /art asset paths
- * instead of embedded data URIs.
+ * Commit 55.2 - Ladder Mode reward reveal, "Genesis Collapse" expansion.
+ * Playtest fixes from Daily, in order:
  *
- * Flow: rip the top -> each of 6 cards rises BACK-first -> click flips it ->
- * click again releases it through its faction's exit shader (Neon glitch /
- * Dark White dissolve / Synth de-rez upload) -> next card -> after the 6th
- * (always a guaranteed Apex), a small recap grid, then onComplete().
+ *  1. Pack art was missing - static2/images/pack-front/back.webp regenerated
+ *     from the real Genesis Collapse cover (already a perfect 600x900, i.e.
+ *     2:3 - the exact ratio requested below).
+ *  2. Pack proportions changed to a real 2in x 3in ratio (PACK_W/PACK_H).
+ *  3. The jagged tear seam used to be baked into the geometry from the
+ *     start, so it was visibly zigzagging even on the SEALED pack ("cheap
+ *     looking"). Fixed by building the body/strip with a perfectly FLAT
+ *     seam at rest, and only swapping in the jagged tear geometry at the
+ *     exact moment rip() fires (buildTornGeometry, called once, then the
+ *     meshes' .geometry is swapped and the old one disposed).
+ *  4. Added a persistent skip/exit control (top-right, visible through the
+ *     whole ritual) - there was previously no way out once the overlay
+ *     opened short of finishing all 6 cards.
+ *  5. Procedural SFX (Web Audio, synthesized inline - no new audio assets,
+ *     built fast on purpose): a filtered-noise rip, a short flip whoosh+
+ *     click, and three distinct disappear sounds matching each faction's
+ *     shader - Neon a stuttering glitch-gate burst, Dark White a long airy
+ *     ember fizzle, Synth an ascending digital blip arpeggio.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -24,7 +31,6 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SLEEVE_BASE_SRC } from '@/lib/cosmetics';
-import { playSfx } from '@/audio/sfx';
 
 const COMMON_ART = [
   'dw-absolute-refusal', 'dw-blank-directive', 'dw-choke-protocol', 'dw-emergency-authority',
@@ -43,7 +49,9 @@ const APEX_ART = [
   'sa-chrome-seraph', 'sa-halcyon-maw', 'sa-model-00-crown', 'sa-virex',
 ];
 
-const PACK_W = 2.2, PACK_H = 3.0, BULGE = 0.22, STRIP_H = 0.42;
+// Real 2in x 3in booster proportions (the Genesis Collapse art is itself a
+// clean 600x900 = 2:3, so no letterboxing/cropping is needed against it).
+const PACK_W = 2.0, PACK_H = 3.0, BULGE = 0.22, STRIP_H = 0.42;
 const CARD_W = 1.5, CARD_H = 2.1;
 const RIP_DRAG_FRACTION = 0.16;
 const BLOOM = { strength: 0.38, radius: 0.5, threshold: 0.62 };
@@ -65,6 +73,98 @@ function pickPull(): string[] {
   const commons = [...COMMON_ART].sort(() => Math.random() - 0.5).slice(0, 5).map((n) => `/art/cards/${n}.webp`);
   const apex = APEX_ART[Math.floor(Math.random() * APEX_ART.length)];
   return [...commons, `/art/apex/${apex}.webp`];
+}
+
+// ---------------------------------------------------------------------------
+// Procedural SFX - a tiny synth, not sample files. Built fast on purpose;
+// tune envelopes/frequencies below if any of these should hit differently.
+// ---------------------------------------------------------------------------
+function noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
+  const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+function playRip(ctx: AudioContext) {
+  const t0 = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, 0.5);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = 0.9;
+  bp.frequency.setValueAtTime(1100, t0);
+  bp.frequency.exponentialRampToValueAtTime(3800, t0 + 0.38);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.55, t0 + 0.035);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.48);
+  src.connect(bp).connect(g).connect(ctx.destination);
+  src.start(t0); src.stop(t0 + 0.5);
+}
+function playFlip(ctx: AudioContext) {
+  const t0 = ctx.currentTime;
+  const src = ctx.createBufferSource();
+  src.buffer = noiseBuffer(ctx, 0.18);
+  const hp = ctx.createBiquadFilter();
+  hp.type = 'highpass'; hp.frequency.value = 2400;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.32, t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+  src.connect(hp).connect(g).connect(ctx.destination);
+  src.start(t0); src.stop(t0 + 0.2);
+  const osc = ctx.createOscillator();
+  osc.type = 'square'; osc.frequency.value = 950;
+  const og = ctx.createGain();
+  og.gain.setValueAtTime(0.07, t0);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.045);
+  osc.connect(og).connect(ctx.destination);
+  osc.start(t0); osc.stop(t0 + 0.05);
+}
+function playWarp(ctx: AudioContext, faction: Faction) {
+  const t0 = ctx.currentTime;
+  if (faction === 'neon') {
+    // stuttering glitch gate - several short band-passed noise bursts
+    for (let i = 0; i < 7; i++) {
+      const delay = i * 0.055 + Math.random() * 0.02;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(ctx, 0.05);
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.Q.value = 6; bp.frequency.value = 700 + Math.random() * 3200;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.3, t0 + delay);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.045);
+      src.connect(bp).connect(g).connect(ctx.destination);
+      src.start(t0 + delay); src.stop(t0 + delay + 0.06);
+    }
+  } else if (faction === 'dw') {
+    // long airy ember fizzle - rising-filtered noise, soft in and out
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(ctx, 0.85);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.Q.value = 0.6;
+    bp.frequency.setValueAtTime(380, t0);
+    bp.frequency.exponentialRampToValueAtTime(5200, t0 + 0.8);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.24, t0 + 0.15);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.85);
+    src.connect(bp).connect(g).connect(ctx.destination);
+    src.start(t0); src.stop(t0 + 0.9);
+  } else {
+    // ascending digital blip arpeggio - the upload
+    [220, 330, 440, 660, 880, 1320].forEach((f, i) => {
+      const delay = i * 0.08;
+      const osc = ctx.createOscillator();
+      osc.type = 'square'; osc.frequency.value = f;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + delay);
+      g.gain.exponentialRampToValueAtTime(0.13, t0 + delay + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.09);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(t0 + delay); osc.stop(t0 + delay + 0.1);
+    });
+  }
 }
 
 const WARP_VERT = `varying vec2 vUv;
@@ -170,6 +270,25 @@ function makeGlowMat(color: THREE.Color) {
   });
 }
 
+/** Pillow-displaced plane. `jag`, when given, offsets the TOP row (body) or
+ *  BOTTOM row (strip) into the torn zigzag; omitted entirely for the sealed
+ *  pre-rip state, which is what keeps the pack looking clean at rest. */
+function pillowGeometry(w: number, h: number, bulge: number, sign: 1 | -1, edge: 'top' | 'bottom' | null, jag?: number[]) {
+  const geo = new THREE.PlaneGeometry(w, h, 40, 48);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    const u = x / w + 0.5, v = y / h + 0.5;
+    let py = y;
+    if (jag && edge === 'top' && v > 0.985) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
+    if (jag && edge === 'bottom' && v < 0.015) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
+    const bell = Math.sin(Math.PI * Math.min(Math.max(u, 0.02), 0.98)) * Math.sin(Math.PI * Math.min(Math.max(v, 0.03), 0.97));
+    pos.setXYZ(i, x, py, sign * bulge * bell);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 type Phase = 'idle' | 'ripping' | 'revealing' | 'done';
 type Sub = '' | 'rising' | 'back' | 'flipping' | 'face' | 'warping';
 
@@ -182,6 +301,18 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
   useEffect(() => {
     const host = hostRef.current;
     if (!host || typeof ResizeObserver === 'undefined') return;
+
+    // Audio context - created eagerly but only ever resumed/used from a
+    // real user gesture (rip/click), satisfying autoplay policy.
+    let audioCtx: AudioContext | null = null;
+    function ensureAudio(): AudioContext | null {
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        audioCtx = Ctx ? new Ctx() : null;
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
@@ -236,32 +367,21 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     const foilMat = (map: THREE.Texture) => new THREE.MeshStandardMaterial({ map, metalness: 0.42, roughness: 0.34, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: EMISSIVE.pack });
     const crimpMat = new THREE.MeshStandardMaterial({ map: crimpTexture(), metalness: 0.75, roughness: 0.35, color: 0x9a9aa6 });
 
-    function pillowGeometry(w: number, h: number, bulge: number, sign: 1 | -1, jag?: number[]) {
-      const geo = new THREE.PlaneGeometry(w, h, 40, 48);
-      const pos = geo.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i);
-        const u = x / w + 0.5, v = y / h + 0.5;
-        let py = y;
-        if (jag && v > 0.985) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
-        const bell = Math.sin(Math.PI * Math.min(Math.max(u, 0.02), 0.98)) * Math.sin(Math.PI * Math.min(Math.max(v, 0.03), 0.97));
-        pos.setXYZ(i, x, py, sign * bulge * bell);
-      }
-      geo.computeVertexNormals();
-      return geo;
-    }
-
     const JAG_N = 33;
     const jag = Array.from({ length: JAG_N }, (_, i) => (i % 2 ? 0.05 : -0.05) * (0.6 + Math.random() * 0.8));
     const pack = new THREE.Group();
     scene.add(pack);
     const bodyH = PACK_H - STRIP_H;
+
+    // Body: SEALED (flat top edge - edge=null means no jag applied at all,
+    // however this mesh is built) so the pack shows no zigzag at rest.
     const body = new THREE.Group();
     const bodyFrontTex = texFront.clone(); bodyFrontTex.needsUpdate = true; bodyFrontTex.repeat.set(1, bodyH / PACK_H);
     const bodyBackTex = texBack.clone(); bodyBackTex.needsUpdate = true; bodyBackTex.repeat.set(1, bodyH / PACK_H);
-    body.add(new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, 1, jag), foilMat(bodyFrontTex)));
-    const bb = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, -1, jag), foilMat(bodyBackTex));
-    bb.rotation.y = Math.PI; body.add(bb);
+    const bodyFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, 1, null), foilMat(bodyFrontTex));
+    const bodyBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, -1, null), foilMat(bodyBackTex));
+    bodyBackMesh.rotation.y = Math.PI;
+    body.add(bodyFrontMesh, bodyBackMesh);
     const botCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, 0.1), crimpMat);
     botCrimp.position.y = -bodyH / 2 - 0.08; body.add(botCrimp);
     const mouth = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 0.86, 0.26, BULGE * 1.1), new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.95 }));
@@ -269,34 +389,37 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     body.position.y = -STRIP_H / 2;
     pack.add(body);
 
+    // Strip: also sealed (flat bottom edge) at rest.
     const strip = new THREE.Group();
     const stripFrontTex = texFront.clone(); stripFrontTex.needsUpdate = true;
     stripFrontTex.repeat.set(1, STRIP_H / PACK_H); stripFrontTex.offset.set(0, 1 - STRIP_H / PACK_H);
     const stripBackTex = texBack.clone(); stripBackTex.needsUpdate = true;
     stripBackTex.repeat.set(1, STRIP_H / PACK_H); stripBackTex.offset.set(0, 1 - STRIP_H / PACK_H);
-    function stripGeo(sign: 1 | -1) {
-      const geo = new THREE.PlaneGeometry(PACK_W, STRIP_H, 40, 8);
-      const pos = geo.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i);
-        const u = x / PACK_W + 0.5, v = y / STRIP_H + 0.5;
-        let py = y;
-        if (v < 0.015) py = y + jag[Math.min(JAG_N - 1, Math.floor(u * (JAG_N - 1)))];
-        const bell = Math.sin(Math.PI * Math.min(Math.max(u, 0.02), 0.98)) * (0.55 + 0.45 * v);
-        pos.setXYZ(i, x, py, sign * BULGE * 0.8 * bell);
-      }
-      geo.computeVertexNormals();
-      return geo;
-    }
-    const sf = new THREE.Mesh(stripGeo(1), foilMat(stripFrontTex));
-    const sb2 = new THREE.Mesh(stripGeo(-1), foilMat(stripBackTex));
-    sb2.rotation.y = Math.PI;
+    const stripFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, 1, null), foilMat(stripFrontTex));
+    const stripBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, -1, null), foilMat(stripBackTex));
+    stripBackMesh.rotation.y = Math.PI;
     const topCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, 0.1), crimpMat);
     topCrimp.position.y = STRIP_H / 2 + 0.08;
-    strip.add(sf, sb2, topCrimp);
+    strip.add(stripFrontMesh, stripBackMesh, topCrimp);
     const stripHomeY = bodyH / 2;
     strip.position.y = stripHomeY;
     pack.add(strip);
+
+    // Torn geometry is built ONCE, lazily, the moment the rip actually
+    // starts - this is what makes the pre-rip pack look clean/sealed and
+    // the tear itself feel like a real event instead of a pre-existing seam.
+    let tornApplied = false;
+    function applyTornGeometry() {
+      if (tornApplied) return;
+      tornApplied = true;
+      const oldBF = bodyFrontMesh.geometry, oldBB = bodyBackMesh.geometry;
+      const oldSF = stripFrontMesh.geometry, oldSB = stripBackMesh.geometry;
+      bodyFrontMesh.geometry = pillowGeometry(PACK_W, bodyH, BULGE, 1, 'top', jag);
+      bodyBackMesh.geometry = pillowGeometry(PACK_W, bodyH, BULGE, -1, 'top', jag);
+      stripFrontMesh.geometry = pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, 1, 'bottom', jag);
+      stripBackMesh.geometry = pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, -1, 'bottom', jag);
+      oldBF.dispose(); oldBB.dispose(); oldSF.dispose(); oldSB.dispose();
+    }
 
     const blobC = document.createElement('canvas'); blobC.width = blobC.height = 128;
     const bg2 = blobC.getContext('2d')!;
@@ -364,19 +487,27 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       if (curPhase !== 'idle') return;
       curPhase = 'ripping'; setPhase('ripping');
       ripT = 0;
-      playSfx('ui.confirm');
+      applyTornGeometry();
+      const ac = ensureAudio();
+      if (ac) playRip(ac);
       spawnScraps();
     }
     function advance() {
       if (curPhase !== 'revealing') return;
-      if (curSub === 'back') { curSub = 'flipping'; setSub('flipping'); subT = 0; playSfx('ui.click'); }
-      else if (curSub === 'face') {
+      const ac = ensureAudio();
+      if (curSub === 'back') {
+        curSub = 'flipping'; setSub('flipping'); subT = 0;
+        if (ac) playFlip(ac);
+      } else if (curSub === 'face') {
         curSub = 'warping'; setSub('warping'); subT = 0;
         const c = cards[idx];
         c.front.material = c.warpMat;
         c.back.visible = false;
-        playSfx('ui.click');
+        if (ac) playWarp(ac, c.faction);
       }
+    }
+    function skip() {
+      onComplete();
     }
 
     let dragStart: { x: number } | null = null;
@@ -389,7 +520,7 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     }
     function onUp() { dragStart = null; }
     function onClick() { advance(); }
-    function onKey(e: KeyboardEvent) { if (e.key === 'r' || e.key === 'R') rip(); if (e.key === ' ' || e.key === 'Enter') advance(); }
+    function onKey(e: KeyboardEvent) { if (e.key === 'r' || e.key === 'R') rip(); if (e.key === ' ' || e.key === 'Enter') advance(); if (e.key === 'Escape') skip(); }
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('click', onClick);
     window.addEventListener('pointermove', onMove);
@@ -507,12 +638,26 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       window.removeEventListener('keydown', onKey);
       renderer.dispose();
       host.removeChild(renderer.domElement);
+      if (audioCtx) audioCtx.close();
     };
-  }, []);
+  }, [onComplete]);
 
   return (
     <div className="fixed inset-0 bg-[#07070c] z-[90] overflow-hidden font-mono">
       <div ref={hostRef} className="absolute inset-0" />
+
+      {/* Commit 55.2 - persistent exit, available from the moment the
+          overlay opens through the very end (recap screen included) - there
+          used to be no way out of this once it started. */}
+      <button
+        type="button"
+        onClick={onComplete}
+        aria-label="Skip and return to ladder"
+        className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full border border-white/20 bg-black/50 text-white/60 hover:text-white hover:border-white/50 hover:bg-black/70 transition-colors flex items-center justify-center text-lg"
+      >
+        ✕
+      </button>
+
       {phase === 'idle' && (
         <div className="absolute bottom-10 inset-x-0 text-center text-white/60 text-sm animate-pulse pointer-events-none select-none">
           drag across the top to rip it open — or press R

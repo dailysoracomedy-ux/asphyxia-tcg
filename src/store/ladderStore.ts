@@ -23,12 +23,14 @@
  *   this does not lock the base game for existing saves/testing. If you'd
  *   rather the lock applied everywhere, say so and it's a small follow-up.
  *
- * REWARD TABLE (tunable - see REWARD_PATTERN below): each win is assigned a
- * reward by its position (1-10) within that specific rival counter. Cosmetic
- * wins pull the next NOT-YET-OWNED playmat/sleeve/coin (cycling kind order);
- * once every cosmetic is owned, cosmetic slots fall back to a Pack instead
- * (no dead rewards). Win #10 always additionally carries the faction-unlock
- * moment itself, which is the real prize.
+ * REWARD CADENCE (tunable - see rewardTypeForTotalWin below): every 3rd win
+ * TOTAL on this ladder (either rival combined, not per-rival - see Commit
+ * 55.2 note at rewardTypeForTotalWin) gives a Pack; the other two give a
+ * cosmetic. Cosmetic wins pull the next NOT-YET-OWNED playmat/sleeve/coin
+ * (cycling kind order); once every cosmetic is owned, cosmetic slots fall
+ * back to a Pack instead (no dead rewards). Whichever win pushes a rival's
+ * OWN counter to 10 always gets a Pack too, regardless of the mod-3 cadence
+ * - the unlock moment is the real prize and should never feel like a miss.
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -46,15 +48,18 @@ export function rivalsOf(home: Faction): [Faction, Faction] {
   return [rivals[0], rivals[1]];
 }
 
-/** Win-index (1-10) -> reward TYPE. 3 and 3 and 3 cosmetics, 3 packs at a
- *  steady clip, win 10 is always the big one (handled separately in
- *  recordWin - it always also carries the faction unlock). */
-const REWARD_PATTERN: Array<'cosmetic' | 'pack'> = [
-  'cosmetic', 'cosmetic', 'pack',
-  'cosmetic', 'cosmetic', 'pack',
-  'cosmetic', 'cosmetic', 'pack',
-  'pack', // win 10 - always a celebratory pack, on top of the faction unlock
-];
+/** Commit 55.2 - reward cadence changed from PER-RIVAL to a single running
+ *  count of TOTAL wins on this ladder (either rival combined), per Daily:
+ *  "if I have to win 6 games to open 2 packs I'd be kinda mad" - splitting
+ *  the pattern per rival meant a bad matchup against one side could starve
+ *  you of packs even while crushing the other. Every 3rd win overall now
+ *  gives a pack, regardless of which rival it was against; the other two
+ *  give a cosmetic. Whatever win happens to trigger a faction unlock (hits
+ *  10 against that specific rival) ALWAYS gets a pack too, as a deliberate
+ *  override - the unlock moment should never feel like "oh, just a hat". */
+function rewardTypeForTotalWin(totalWinIndex: number): 'cosmetic' | 'pack' {
+  return totalWinIndex % 3 === 0 ? 'pack' : 'cosmetic';
+}
 
 export type RewardEvent =
   | { kind: 'pack' }
@@ -166,8 +171,13 @@ export const useLadderStore = create<LadderStore>()(
           if (!ladder) return s; // ladder not started - defensive no-op
           const current = ladder.wins[rival] ?? 0;
           if (current >= WINS_TO_UNLOCK) return s; // already maxed - defensive no-op
-          const winIndex = current + 1; // 1-10
-          const rewardType = REWARD_PATTERN[winIndex - 1];
+          const winIndex = current + 1; // 1-10, this rival's own count (unlock threshold - unaffected by the reward-cadence change)
+          const totalBefore = Object.values(ladder.wins).reduce((a, b) => a + b, 0);
+          const totalWinIndex = totalBefore + 1; // 1..20, combined wins on this ladder so far
+          const willUnlock = winIndex >= WINS_TO_UNLOCK;
+          // faction-unlock wins always get a pack (see doc comment above);
+          // otherwise it's whatever the total-win cadence says
+          const rewardType: 'cosmetic' | 'pack' = willUnlock ? 'pack' : rewardTypeForTotalWin(totalWinIndex);
 
           const cosmeticCycle = s.cosmeticCycle ?? 0;
           reward =
