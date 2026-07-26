@@ -8,6 +8,7 @@ import { factionTheme } from '@/lib/theme';
 import { getCardArt } from '@/lib/cardArt';
 import ApexCardRenderer from './ApexCardRenderer';
 import GenericArtCard from './GenericArtCard';
+import PackOpening3D from './vfx/PackOpening3D';
 
 const FACTIONS: Faction[] = ['Neon Underground', 'Dark White', 'Synth Ascendancy'];
 const CARD_W = 240;
@@ -26,12 +27,23 @@ const OTHER_CARD_H = 238;
  */
 export default function DevCardGallery({ onBack }: { onBack: () => void }) {
   const [debugZones, setDebugZones] = useState(false);
+  // Commit 55.5 - quick pack-opening debug, deliberately unannounced (plain
+  // text, bottom of the page, no button chrome) - just a fast way to jump
+  // straight into the ritual for tuning without grinding a ladder win.
+  const [packDebug, setPackDebug] = useState(false);
 
   const apexCards = ALL_CARDS.filter((c): c is ApexDef => c.type === 'Apex');
   const otherCards = ALL_CARDS.filter((c) => c.type !== 'Apex');
 
   return (
-    <div className="min-h-screen bg-black text-white p-6">
+    // Commit 55.5 - the app locks html/body to overflow:hidden globally
+    // (intentional - gameplay screens are fixed-viewport, no page scroll).
+    // That was silently clipping this screen too, since its content is
+    // genuinely taller than one viewport and min-h-screen alone doesn't
+    // create a scroll region under a hidden-overflow ancestor. h-dvh +
+    // overflow-y-auto makes the gallery its own internal scroll container
+    // instead, without touching the global rule everything else relies on.
+    <div className="h-dvh overflow-y-auto bg-black text-white p-6">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black text-fuchsia-300">Developer — Card Gallery</h1>
@@ -119,6 +131,14 @@ export default function DevCardGallery({ onBack }: { onBack: () => void }) {
           </div>
         );
       })}
+
+      <div className="mt-10 pb-6 text-center">
+        <button type="button" onClick={() => setPackDebug(true)} className="text-[11px] text-white/25 hover:text-white/60 underline">
+          pack opening debug
+        </button>
+      </div>
+
+      {packDebug && <PackOpening3D onComplete={() => setPackDebug(false)} />}
     </div>
   );
 }
