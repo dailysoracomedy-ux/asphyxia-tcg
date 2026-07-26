@@ -32,6 +32,7 @@ import {
   type CosmeticKind,
 } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
+import { useLadderStore, isCosmeticOwned } from '@/store/ladderStore';
 import { playSfx } from '@/audio/sfx';
 import CoinPreview3D from './CoinPreview3D';
 import LockerHeroPreview3D, { type HeroKind } from './LockerHeroPreview3D';
@@ -93,12 +94,17 @@ export default function LockerMenu() {
 
   // Typed per-tab rows: each carries the small tile preview + the data the big
   // hero preview needs (image + accent color).
-  type Row = { id: string; name: string; blurb: string; preview: React.ReactNode; heroImage: string | null; heroAccent: string | null };
+  type Row = { id: string; name: string; blurb: string; preview: React.ReactNode; heroImage: string | null; heroAccent: string | null; owned: boolean };
+  // Commit 55 - Ladder Mode ownership gate. Subscribing to the whole
+  // ownedCosmetics object (not a derived boolean) so every row re-evaluates
+  // the instant a new unlock lands, without needing per-row subscriptions.
+  const ownedCosmetics = useLadderStore((s) => s.ownedCosmetics);
   const rows: Row[] = useMemo(() => {
-    if (tab === 'playmat') return PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview image={p.image} edge={p.edge} />, heroImage: p.image, heroAccent: p.edge }));
-    if (tab === 'sleeve') return SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview image={s.image} rim={s.rim} />, heroImage: s.image ?? SLEEVE_BASE_SRC, heroAccent: s.rim }));
-    return COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview3D frontSrc={c.frontImage ?? undefined} size={104} />, heroImage: c.frontImage, heroAccent: '#ff2fd0' }));
-  }, [tab]);
+    if (tab === 'playmat') return PLAYMATS.map((p) => ({ id: p.id, name: p.name, blurb: p.blurb, preview: <PlaymatPreview image={p.image} edge={p.edge} />, heroImage: p.image, heroAccent: p.edge, owned: isCosmeticOwned('playmat', p.id) }));
+    if (tab === 'sleeve') return SLEEVES.map((s) => ({ id: s.id, name: s.name, blurb: s.blurb, preview: <SleevePreview image={s.image} rim={s.rim} />, heroImage: s.image ?? SLEEVE_BASE_SRC, heroAccent: s.rim, owned: isCosmeticOwned('sleeve', s.id) }));
+    return COINS.map((c) => ({ id: c.id, name: c.name, blurb: c.blurb, preview: <CoinPreview3D frontSrc={c.frontImage ?? undefined} size={104} />, heroImage: c.frontImage, heroAccent: '#ff2fd0', owned: isCosmeticOwned('coin', c.id) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ownedCosmetics]);
 
   const selectedRow = rows.find((r) => r.id === selectedId) ?? rows[0];
 
@@ -246,13 +252,15 @@ export default function LockerMenu() {
               onClick={() => {
                 // Suppress the click that ends a drag-scrub.
                 if (dragState.current.moved) return;
+                if (!item.owned) { playSfx('ui.invalid'); return; }
                 playSfx('ui.confirm');
                 setItem(seat, tab, item.id);
               }}
               onMouseEnter={() => playSfx('ui.hover')}
               aria-pressed={active}
+              aria-disabled={!item.owned}
               className={`panel-3d relative text-left rounded-lg border-2 p-2.5 shrink-0 w-[190px] transition-all ${
-                active ? 'border-fuchsia-400/80 shadow-[0_0_14px_rgba(255,47,208,0.35)]' : 'border-white/10 hover:border-white/30'
+                active ? 'border-fuchsia-400/80 shadow-[0_0_14px_rgba(255,47,208,0.35)]' : item.owned ? 'border-white/10 hover:border-white/30' : 'border-white/5 cursor-not-allowed'
               }`}
               style={{ scrollSnapAlign: 'start' }}
             >
@@ -261,11 +269,22 @@ export default function LockerMenu() {
                   ✓ EQUIPPED
                 </span>
               )}
-              {item.preview}
-              <div className="mt-2 text-[12px] font-bold" style={{ color: active ? '#ffd6f7' : 'rgba(255,255,255,0.8)' }}>
+              {/* Commit 55 - locked tiles keep the real art visible (the
+                  whole point is showing the player what they're working
+                  toward) but dimmed under a lock badge, per the ladder's
+                  "prize ladder" framing. */}
+              {!item.owned && (
+                <span className="absolute top-1.5 right-1.5 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-black/80 border border-white/20 text-white/70 text-[8px] font-black tracking-wider">
+                  🔒 LADDER
+                </span>
+              )}
+              <div className={item.owned ? '' : 'opacity-35 grayscale'}>{item.preview}</div>
+              <div className="mt-2 text-[12px] font-bold" style={{ color: active ? '#ffd6f7' : item.owned ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)' }}>
                 {item.name}
               </div>
-              <div className="text-[10px] text-white/40 leading-snug mt-0.5 line-clamp-2">{item.blurb}</div>
+              <div className="text-[10px] text-white/40 leading-snug mt-0.5 line-clamp-2">
+                {item.owned ? item.blurb : 'Locked - earn this in Ladder Mode.'}
+              </div>
             </button>
           );
         })}

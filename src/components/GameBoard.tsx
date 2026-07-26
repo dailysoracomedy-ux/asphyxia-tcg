@@ -22,6 +22,7 @@ import TutorialPanel from './TutorialPanel';
 import TutorialOverlay from './TutorialOverlay';
 import TutorialSlideshow from '@/tutorial/TutorialSlideshow';
 import { OptionsInline } from './PlayerIdentityRow';
+import LadderResultScreen from './LadderResultScreen';
 import { DISCORD_INVITE } from '@/lib/links';
 import { TUTORIAL_PACING_MULTIPLIER, TUTORIAL_STEPS, type GuidedAction } from '@/tutorial/tutorialSteps';
 import { useTutorialStore } from '@/store/tutorialStore';
@@ -1446,7 +1447,17 @@ function formatLogAsText(log: GameState['log']): string {
   return log.map((entry) => `[T${entry.turn}] ${entry.message}`).join('\n');
 }
 
+// Commit 55 - Ladder Mode branches to its own result screen entirely -
+// different content, different buttons (reward reveal, instant
+// continuation), no Discord/log/tutorial-mode furniture that belongs to the
+// normal path. A thin wrapper picks the branch BEFORE either screen's hooks
+// run, so neither component ever calls hooks conditionally.
 function GameOverScreen() {
+  const ladderContext = useGameStore((s) => s.ladderContext);
+  return ladderContext ? <LadderResultScreen /> : <NormalGameOverScreen />;
+}
+
+function NormalGameOverScreen() {
   const state = useGameStore();
   const theme = state.winnerId ? factionTheme(state.players[state.winnerId].faction) : null;
   const loserId: PlayerId | null = state.winnerId ? (state.winnerId === 'player1' ? 'player2' : 'player1') : null;

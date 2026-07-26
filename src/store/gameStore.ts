@@ -91,6 +91,7 @@ function freshPlayer(id: PlayerId, faction: Faction, o2Override?: number): Playe
 function initialState(): GameState {
   return {
     status: 'menu',
+    ladderContext: null,
     players: {
       player1: freshPlayer('player1', 'Neon Underground'),
       player2: freshPlayer('player2', 'Dark White'),
@@ -1250,6 +1251,14 @@ interface GameStore extends GameState {
   resolveResponse: (choice: ResponseChoice) => void;
   lockSupportControlConflict: (supportInstanceId: string) => void;
   resetToMenu: () => void;
+  /** Commit 55 - Ladder Mode: tag the CURRENT match (already started via
+   *  startNewGame) as counting toward a ladder run. Deliberately separate
+   *  from startNewGame's own signature - that function is called
+   *  positionally from a dozen sites (tests, tutorial, sim match, coin
+   *  flip) and adding an 8th param there risks a silent argument-shift bug
+   *  at every one of them. Calling this immediately after startNewGame in
+   *  the same synchronous handler is race-free (Zustand's set() is sync). */
+  setLadderContext: (ctx: { home: Faction; rival: Faction } | null) => void;
   toggleDebugMode: () => void;
 }
 
@@ -2318,6 +2327,7 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   resetToMenu: () => mutate(set, (draft) => Object.assign(draft, initialState())),
+  setLadderContext: (ctx) => mutate(set, (draft) => { draft.ladderContext = ctx; }),
   toggleDebugMode: () => mutate(set, (draft) => { draft.debugMode = !draft.debugMode; }),
 }));
 

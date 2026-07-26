@@ -10,6 +10,7 @@ import AudioSettingsControl from '@/audio/AudioSettingsControl';
 import { playSfx } from '@/audio/sfx';
 import CoinFlip3D, { type CoinFace } from './CoinFlip3D';
 import LockerMenu from './LockerMenu';
+import LadderScreen from './LadderScreen';
 import { getCoin } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
 
@@ -194,7 +195,7 @@ function BackButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-type MenuView = 'main' | 'new-game' | 'simulated' | 'coin-flip' | 'locker';
+type MenuView = 'main' | 'new-game' | 'simulated' | 'coin-flip' | 'locker' | 'ladder';
 type CallSide = 'heads' | 'tails';
 type CoinStage = 'calling' | 'flipping' | 'result';
 
@@ -270,7 +271,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
         {/* Commit 42 - the coin flip is a moment, not a menu: on that view the
             logo, version pill and audio sliders all step aside so nothing
             competes with the toss. Every other view keeps the full header. */}
-        {view !== 'coin-flip' && view !== 'locker' && (
+        {view !== 'coin-flip' && view !== 'locker' && view !== 'ladder' && (
           <>
             {/* Commit 33 - the real Asphyxia logo, replacing the plain text header.
                 Transparent PNG built for a dark background - fits the card's own
@@ -334,6 +335,14 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               colorClass="border-cyan-400/60 text-cyan-200 bg-cyan-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(34,211,238,0.4)]"
               onClick={() => setView('simulated')}
+            />
+
+            <MenuButton
+              label="Ladder Mode"
+              sublabel="Pick a faction. Climb. Earn the others."
+              colorClass="border-amber-400/60 text-amber-200 bg-amber-400/10"
+              glowColorClass="hover:shadow-[0_0_20px_rgba(251,191,36,0.4)]"
+              onClick={() => setView('ladder')}
             />
 
             <MenuButton
@@ -461,6 +470,8 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
             </p>
           </div>
         )}
+
+        {view === 'ladder' && <LadderScreen onBack={() => setView('main')} />}
 
         {view === 'locker' && (
           <div>

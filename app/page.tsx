@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { useTutorialStore } from '@/store/tutorialStore';
+import { useLadderStore } from '@/store/ladderStore';
 import NewGameMenu from '@/components/NewGameMenu';
 import GameBoard from '@/components/GameBoard';
 import DevCardGallery from '@/components/DevCardGallery';
@@ -27,6 +28,7 @@ export default function Home() {
     if (params.get('e2e') === '1') {
       (window as unknown as { __asphyxiaStore?: unknown }).__asphyxiaStore = useGameStore;
       (window as unknown as { __asphyxiaTutorialStore?: unknown }).__asphyxiaTutorialStore = useTutorialStore;
+      (window as unknown as { __asphyxiaLadderStore?: unknown }).__asphyxiaLadderStore = useLadderStore;
     }
   }, []);
 

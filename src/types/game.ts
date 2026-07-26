@@ -483,6 +483,14 @@ export interface GameState {
    *  behaves like Hotseat (flips to whoever's active) while both sides are driven
    *  by the AI. */
   aiVsAiMode?: boolean;
+  /** Commit 55 - Ladder Mode context. When set, this match is a ladder run:
+   *  `home` is the player's ladder (the faction whose progress this win/loss
+   *  counts toward), `rival` is the AI opponent this specific match is
+   *  against. Read by GameOverScreen to branch into LadderResultScreen
+   *  instead of the normal result screen. Always null for every other game
+   *  mode; startNewGame's initialState() reset clears it on every match
+   *  unless the ladder flow explicitly sets it right after. */
+  ladderContext?: { home: Faction; rival: Faction } | null;
   /** Learn To Play tutorial mode (Commit 29) - a real, playable match with a
    *  fixed Neon Underground vs Dark White matchup, guided by TutorialPanel. The
    *  underlying game engine runs completely normally underneath - tutorial
