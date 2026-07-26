@@ -346,11 +346,11 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
 
             <MenuButton
               label="Ladder Mode"
+              art="/ui/menu-ladder-mode.webp"
               sublabel="Pick a faction. Climb. Earn the others."
               colorClass="border-amber-400/60 text-amber-200 bg-amber-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(251,191,36,0.4)]"
               onClick={() => setView('ladder')}
-              matchArtWidth
             />
 
             <MenuButton

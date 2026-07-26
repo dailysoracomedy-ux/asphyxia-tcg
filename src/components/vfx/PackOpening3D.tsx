@@ -1,27 +1,36 @@
 'use client';
 
 /**
- * Commit 55.2 - Ladder Mode reward reveal, "Genesis Collapse" expansion.
- * Playtest fixes from Daily, in order:
+ * Commit 55.3 - shape and material overhaul, from Daily's real-pack
+ * reference photos:
  *
- *  1. Pack art was missing - static2/images/pack-front/back.webp regenerated
- *     from the real Genesis Collapse cover (already a perfect 600x900, i.e.
- *     2:3 - the exact ratio requested below).
- *  2. Pack proportions changed to a real 2in x 3in ratio (PACK_W/PACK_H).
- *  3. The jagged tear seam used to be baked into the geometry from the
- *     start, so it was visibly zigzagging even on the SEALED pack ("cheap
- *     looking"). Fixed by building the body/strip with a perfectly FLAT
- *     seam at rest, and only swapping in the jagged tear geometry at the
- *     exact moment rip() fires (buildTornGeometry, called once, then the
- *     meshes' .geometry is swapped and the old one disposed).
- *  4. Added a persistent skip/exit control (top-right, visible through the
- *     whole ritual) - there was previously no way out once the overlay
- *     opened short of finishing all 6 cards.
- *  5. Procedural SFX (Web Audio, synthesized inline - no new audio assets,
- *     built fast on purpose): a filtered-noise rip, a short flip whoosh+
- *     click, and three distinct disappear sounds matching each faction's
- *     shader - Neon a stuttering glitch-gate burst, Dark White a long airy
- *     ember fizzle, Synth an ascending digital blip arpeggio.
+ *  1. GEOMETRY: the old depth function was sin(u)*sin(v) across the WHOLE
+ *     face - a dome, maximum at dead-center, fading the entire way to every
+ *     edge. That's a pillow/lens shape, which is why it read as "fat."
+ *     Real packs (per the references) are flat slabs: constant depth
+ *     through the middle, with curvature only in a narrow band right at
+ *     the edges (a bevel on left/right, a pinch-to-neck on top/bottom where
+ *     the foil tapers into the crimped seal). Replaced with a
+ *     plateau-then-smoothstep-taper falloff (edgeFalloff below) instead of
+ *     a bell curve - flat through the center, curved only near the
+ *     boundary. Also stopped tapering the seam-facing edge of the body/
+ *     strip meshes (taperVStart/taperVEnd) so the two halves meet at full,
+ *     equal depth with zero visible step - one continuous flat slab.
+ *  2. MATERIAL: swapped the lit PBR look (MeshStandardMaterial responding
+ *     unevenly to the pink/green point lights depending on where the dome
+ *     curved) for an emissive-DOMINANT material - color pushed dark so the
+ *     lit term barely contributes, emissiveIntensity pushed way up so the
+ *     texture itself provides the brightness, consistently, regardless of
+ *     viewing angle or light position. Bloom strength/threshold both
+ *     lowered to match - it's now a thin glow kissing the brightest pixels
+ *     instead of doing the heavy lifting.
+ *  3. The interior "mouth" (dark box revealing the torn opening) used to
+ *     stay visible for the whole 6-card reveal, riding along as the pack
+ *     drifted aside - that was the stray black bar Daily saw during flips.
+ *     It now fades out over 0.5s shortly after the rip finishes.
+ *
+ * Everything else (rip mechanics, faction warp shaders, edge glow, one-by-
+ * one reveal, procedural SFX, skip button) is unchanged from Commit 55.2.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -49,18 +58,27 @@ const APEX_ART = [
   'sa-chrome-seraph', 'sa-halcyon-maw', 'sa-model-00-crown', 'sa-virex',
 ];
 
-// Real 2in x 3in booster proportions (the Genesis Collapse art is itself a
-// clean 600x900 = 2:3, so no letterboxing/cropping is needed against it).
-const PACK_W = 2.0, PACK_H = 3.0, BULGE = 0.22, STRIP_H = 0.42;
+// Real 2in x 3in booster proportions.
+const PACK_W = 2.0, PACK_H = 3.0, STRIP_H = 0.42;
+// Flat-slab depth (constant through the middle) and the edge margins where
+// it tapers to zero - see edgeFalloff. MARGIN_X is the side bevel, MARGIN_Y
+// is how far the "neck" pinch reaches in from the true top/bottom.
+const PACK_DEPTH = 0.13, MARGIN_X = 0.16, MARGIN_Y = 0.22;
 const CARD_W = 1.5, CARD_H = 2.1;
 const RIP_DRAG_FRACTION = 0.16;
-const BLOOM = { strength: 0.38, radius: 0.5, threshold: 0.62 };
-const EMISSIVE = { pack: 0.26, cardFace: 0.3 };
+const BLOOM = { strength: 0.22, radius: 0.42, threshold: 0.7 };
+const EMISSIVE = { pack: 0.85, cardFace: 0.3 };
 const CENTER_SCALE = 1.08;
 const RECAP_SCALE = 0.62;
 const WARP_SECONDS = 0.85;
 const CORNER_R = 0.085;
-const EDGE_GLOW = { width: 0.016 };
+// Commit 55.4 - the glow plane used to be the SAME SIZE as the card, so the
+// ring had no room to render outward and was structurally clipped inside
+// the card's own edge ("glow on the inside"). GLOW_MARGIN gives it a strip
+// of extra plane to bloom into; GLOW_OUTSET centers the ring just outside
+// the true edge instead of straddling it. width/skirt both cut down
+// (Daily: "too intense/thick").
+const EDGE_GLOW = { width: 0.01, outset: 0.014, marginW: 0.09, marginH: 0.07 };
 
 type Faction = 'neon' | 'dw' | 'synth';
 const factionOf = (key: string): Faction => (key.startsWith('nu-') ? 'neon' : key.startsWith('dw-') ? 'dw' : 'synth');
@@ -76,8 +94,7 @@ function pickPull(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Procedural SFX - a tiny synth, not sample files. Built fast on purpose;
-// tune envelopes/frequencies below if any of these should hit differently.
+// Procedural SFX - a tiny synth, not sample files.
 // ---------------------------------------------------------------------------
 function noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
   const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
@@ -124,7 +141,6 @@ function playFlip(ctx: AudioContext) {
 function playWarp(ctx: AudioContext, faction: Faction) {
   const t0 = ctx.currentTime;
   if (faction === 'neon') {
-    // stuttering glitch gate - several short band-passed noise bursts
     for (let i = 0; i < 7; i++) {
       const delay = i * 0.055 + Math.random() * 0.02;
       const src = ctx.createBufferSource();
@@ -138,7 +154,6 @@ function playWarp(ctx: AudioContext, faction: Faction) {
       src.start(t0 + delay); src.stop(t0 + delay + 0.06);
     }
   } else if (faction === 'dw') {
-    // long airy ember fizzle - rising-filtered noise, soft in and out
     const src = ctx.createBufferSource();
     src.buffer = noiseBuffer(ctx, 0.85);
     const bp = ctx.createBiquadFilter();
@@ -152,7 +167,6 @@ function playWarp(ctx: AudioContext, faction: Faction) {
     src.connect(bp).connect(g).connect(ctx.destination);
     src.start(t0); src.stop(t0 + 0.9);
   } else {
-    // ascending digital blip arpeggio - the upload
     [220, 330, 440, 660, 880, 1320].forEach((f, i) => {
       const delay = i * 0.08;
       const osc = ctx.createOscillator();
@@ -235,21 +249,31 @@ void main() {
   gl_FragColor = col;
 }`;
 
+const GLOW_VERT = `varying vec2 vPos;
+void main() { vPos = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
 const GLOW_FRAG = `
 uniform vec3 color;
 uniform float intensity;
 uniform float width;
-uniform float aspect;
-uniform float cornerUv;
-varying vec2 vUv;
+uniform float outset;
+uniform vec2 cardHalf;
+uniform float corner;
+varying vec2 vPos;
+float sdRoundRect(vec2 p, vec2 b, float r) {
+  vec2 q = abs(p) - b + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
 void main() {
-  vec2 q = (vUv - 0.5) * vec2(aspect, 1.0);
-  vec2 b = vec2(0.5 * aspect, 0.5) - cornerUv;
-  vec2 d2 = abs(q) - b;
-  float d = length(max(d2, 0.0)) + min(max(d2.x, d2.y), 0.0) - cornerUv;
-  float core = 1.0 - smoothstep(0.0, width, abs(d + width * 0.6));
-  float skirt = (1.0 - smoothstep(0.0, width * 1.8, abs(d + width * 0.6))) * 0.35;
-  float a = (core + skirt) * intensity;
+  // d in the SAME world units as the card itself: d<0 inside, d>0 outside.
+  float d = sdRoundRect(vPos, cardHalf, corner);
+  // ring centered OUTSIDE the true edge (at d=outset), never straddling it
+  float core = 1.0 - smoothstep(0.0, width, abs(d - outset));
+  // hard-kill anything still meaningfully inside the card - this is the
+  // actual fix for "glow on the inside": no amount of the ring's math can
+  // paint over the art once this mask is in the mix.
+  float insideMask = smoothstep(-0.004, 0.006, d);
+  float a = core * insideMask * intensity;
   if (a < 0.015) discard;
   gl_FragColor = vec4(color, a);
 }`;
@@ -265,25 +289,55 @@ function makeWarpMat(tex: THREE.Texture, mode: number) {
 }
 function makeGlowMat(color: THREE.Color) {
   return new THREE.ShaderMaterial({
-    uniforms: { color: { value: color.clone() }, intensity: { value: 0 }, width: { value: EDGE_GLOW.width }, aspect: { value: CARD_W / CARD_H }, cornerUv: { value: CORNER_R / CARD_H } },
-    vertexShader: WARP_VERT, fragmentShader: GLOW_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    uniforms: {
+      color: { value: color.clone() }, intensity: { value: 0 },
+      width: { value: EDGE_GLOW.width }, outset: { value: EDGE_GLOW.outset },
+      cardHalf: { value: new THREE.Vector2(CARD_W / 2, CARD_H / 2) }, corner: { value: CORNER_R },
+    },
+    vertexShader: GLOW_VERT, fragmentShader: GLOW_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
 }
 
-/** Pillow-displaced plane. `jag`, when given, offsets the TOP row (body) or
- *  BOTTOM row (strip) into the torn zigzag; omitted entirely for the sealed
- *  pre-rip state, which is what keeps the pack looking clean at rest. */
-function pillowGeometry(w: number, h: number, bulge: number, sign: 1 | -1, edge: 'top' | 'bottom' | null, jag?: number[]) {
+/** Smoothstep, clamped. */
+function smooth01(t: number): number {
+  const c = Math.min(Math.max(t, 0), 1);
+  return c * c * (3 - 2 * c);
+}
+/** Plateau-then-taper falloff along one axis: 1.0 through the middle,
+ *  smoothstepping down to 0 only within `margin` of whichever end(s) are
+ *  flagged to taper. This is the flat-slab-with-edge-bevel shape, replacing
+ *  the old bell-curve dome. */
+function edgeFalloff(t: number, taper0: boolean, taper1: boolean, margin: number): number {
+  let f = 1;
+  if (taper0 && t < margin) f = Math.min(f, smooth01(t / margin));
+  if (taper1 && t > 1 - margin) f = Math.min(f, smooth01((1 - t) / margin));
+  return f;
+}
+
+interface PillowOpts {
+  jag?: number[];
+  jagEdge?: 'top' | 'bottom';
+  /** Whether the v=0 (bottom) and v=1 (top) edges of THIS mesh taper to
+   *  zero depth. The body's top edge and the strip's bottom edge are the
+   *  invisible pre-rip SEAM between them - those stay false so both meshes
+   *  meet at full, equal depth with no visible step. Only the true outer
+   *  top/bottom (next to the crimps) taper, giving the neck-pinch look. */
+  taperVStart?: boolean;
+  taperVEnd?: boolean;
+}
+function pillowGeometry(w: number, h: number, depth: number, sign: 1 | -1, opts: PillowOpts = {}) {
+  const { jag, jagEdge, taperVStart = true, taperVEnd = true } = opts;
   const geo = new THREE.PlaneGeometry(w, h, 40, 48);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i);
     const u = x / w + 0.5, v = y / h + 0.5;
     let py = y;
-    if (jag && edge === 'top' && v > 0.985) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
-    if (jag && edge === 'bottom' && v < 0.015) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
-    const bell = Math.sin(Math.PI * Math.min(Math.max(u, 0.02), 0.98)) * Math.sin(Math.PI * Math.min(Math.max(v, 0.03), 0.97));
-    pos.setXYZ(i, x, py, sign * bulge * bell);
+    if (jag && jagEdge === 'top' && v > 0.985) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
+    if (jag && jagEdge === 'bottom' && v < 0.015) py = y + jag[Math.min(jag.length - 1, Math.floor(u * (jag.length - 1)))];
+    const fx = edgeFalloff(u, true, true, MARGIN_X);
+    const fy = edgeFalloff(v, taperVStart, taperVEnd, MARGIN_Y);
+    pos.setXYZ(i, x, py, sign * depth * fx * fy);
   }
   geo.computeVertexNormals();
   return geo;
@@ -302,8 +356,6 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     const host = hostRef.current;
     if (!host || typeof ResizeObserver === 'undefined') return;
 
-    // Audio context - created eagerly but only ever resumed/used from a
-    // real user gesture (rip/click), satisfying autoplay policy.
     let audioCtx: AudioContext | null = null;
     function ensureAudio(): AudioContext | null {
       if (!audioCtx) {
@@ -364,7 +416,14 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       return new THREE.CanvasTexture(c);
     }
     const cardAlpha = roundedAlphaTex();
-    const foilMat = (map: THREE.Texture) => new THREE.MeshStandardMaterial({ map, metalness: 0.42, roughness: 0.34, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: EMISSIVE.pack });
+    // Commit 55.3 - emissive-DOMINANT foil material: dark base color so the
+    // lit PBR term barely registers, high emissiveIntensity so the texture
+    // itself carries the brightness consistently regardless of viewing
+    // angle or light position.
+    const foilMat = (map: THREE.Texture) => new THREE.MeshStandardMaterial({
+      map, color: 0x3a3a44, metalness: 0.12, roughness: 0.55,
+      emissive: 0xffffff, emissiveMap: map, emissiveIntensity: EMISSIVE.pack,
+    });
     const crimpMat = new THREE.MeshStandardMaterial({ map: crimpTexture(), metalness: 0.75, roughness: 0.35, color: 0x9a9aa6 });
 
     const JAG_N = 33;
@@ -373,51 +432,48 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     scene.add(pack);
     const bodyH = PACK_H - STRIP_H;
 
-    // Body: SEALED (flat top edge - edge=null means no jag applied at all,
-    // however this mesh is built) so the pack shows no zigzag at rest.
     const body = new THREE.Group();
     const bodyFrontTex = texFront.clone(); bodyFrontTex.needsUpdate = true; bodyFrontTex.repeat.set(1, bodyH / PACK_H);
     const bodyBackTex = texBack.clone(); bodyBackTex.needsUpdate = true; bodyBackTex.repeat.set(1, bodyH / PACK_H);
-    const bodyFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, 1, null), foilMat(bodyFrontTex));
-    const bodyBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, BULGE, -1, null), foilMat(bodyBackTex));
+    const bodyFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, PACK_DEPTH, 1, { taperVStart: true, taperVEnd: false }), foilMat(bodyFrontTex));
+    const bodyBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, bodyH, PACK_DEPTH, -1, { taperVStart: true, taperVEnd: false }), foilMat(bodyBackTex));
     bodyBackMesh.rotation.y = Math.PI;
     body.add(bodyFrontMesh, bodyBackMesh);
-    const botCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, 0.1), crimpMat);
+    const botCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, PACK_DEPTH * 0.85), crimpMat);
     botCrimp.position.y = -bodyH / 2 - 0.08; body.add(botCrimp);
-    const mouth = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 0.86, 0.26, BULGE * 1.1), new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.95 }));
+    const mouth = new THREE.Mesh(
+      new THREE.BoxGeometry(PACK_W * 0.86, 0.26, PACK_DEPTH * 1.3),
+      new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.95, transparent: true, opacity: 1 })
+    );
     mouth.position.y = bodyH / 2 - 0.16; mouth.visible = false; body.add(mouth);
     body.position.y = -STRIP_H / 2;
     pack.add(body);
 
-    // Strip: also sealed (flat bottom edge) at rest.
     const strip = new THREE.Group();
     const stripFrontTex = texFront.clone(); stripFrontTex.needsUpdate = true;
     stripFrontTex.repeat.set(1, STRIP_H / PACK_H); stripFrontTex.offset.set(0, 1 - STRIP_H / PACK_H);
     const stripBackTex = texBack.clone(); stripBackTex.needsUpdate = true;
     stripBackTex.repeat.set(1, STRIP_H / PACK_H); stripBackTex.offset.set(0, 1 - STRIP_H / PACK_H);
-    const stripFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, 1, null), foilMat(stripFrontTex));
-    const stripBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, -1, null), foilMat(stripBackTex));
+    const stripFrontMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, PACK_DEPTH, 1, { taperVStart: false, taperVEnd: true }), foilMat(stripFrontTex));
+    const stripBackMesh = new THREE.Mesh(pillowGeometry(PACK_W, STRIP_H, PACK_DEPTH, -1, { taperVStart: false, taperVEnd: true }), foilMat(stripBackTex));
     stripBackMesh.rotation.y = Math.PI;
-    const topCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, 0.1), crimpMat);
+    const topCrimp = new THREE.Mesh(new THREE.BoxGeometry(PACK_W * 1.02, 0.2, PACK_DEPTH * 0.85), crimpMat);
     topCrimp.position.y = STRIP_H / 2 + 0.08;
     strip.add(stripFrontMesh, stripBackMesh, topCrimp);
     const stripHomeY = bodyH / 2;
     strip.position.y = stripHomeY;
     pack.add(strip);
 
-    // Torn geometry is built ONCE, lazily, the moment the rip actually
-    // starts - this is what makes the pre-rip pack look clean/sealed and
-    // the tear itself feel like a real event instead of a pre-existing seam.
     let tornApplied = false;
     function applyTornGeometry() {
       if (tornApplied) return;
       tornApplied = true;
       const oldBF = bodyFrontMesh.geometry, oldBB = bodyBackMesh.geometry;
       const oldSF = stripFrontMesh.geometry, oldSB = stripBackMesh.geometry;
-      bodyFrontMesh.geometry = pillowGeometry(PACK_W, bodyH, BULGE, 1, 'top', jag);
-      bodyBackMesh.geometry = pillowGeometry(PACK_W, bodyH, BULGE, -1, 'top', jag);
-      stripFrontMesh.geometry = pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, 1, 'bottom', jag);
-      stripBackMesh.geometry = pillowGeometry(PACK_W, STRIP_H, BULGE * 0.8, -1, 'bottom', jag);
+      bodyFrontMesh.geometry = pillowGeometry(PACK_W, bodyH, PACK_DEPTH, 1, { taperVStart: true, taperVEnd: false, jag, jagEdge: 'top' });
+      bodyBackMesh.geometry = pillowGeometry(PACK_W, bodyH, PACK_DEPTH, -1, { taperVStart: true, taperVEnd: false, jag, jagEdge: 'top' });
+      stripFrontMesh.geometry = pillowGeometry(PACK_W, STRIP_H, PACK_DEPTH, 1, { taperVStart: false, taperVEnd: true, jag, jagEdge: 'bottom' });
+      stripBackMesh.geometry = pillowGeometry(PACK_W, STRIP_H, PACK_DEPTH, -1, { taperVStart: false, taperVEnd: true, jag, jagEdge: 'bottom' });
       oldBF.dispose(); oldBB.dispose(); oldSF.dispose(); oldSB.dispose();
     }
 
@@ -446,7 +502,7 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       const back = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W, CARD_H), new THREE.MeshStandardMaterial({ map: texSleeve, metalness: 0.2, roughness: 0.55, emissive: 0xffffff, emissiveMap: texSleeve, emissiveIntensity: 0.14, alphaMap: cardAlpha, transparent: true, alphaTest: 0.5 }));
       back.rotation.y = Math.PI;
       const glowMat = makeGlowMat(i === 5 ? GOLD : FACTION_COLOR[faction]);
-      const glow = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W, CARD_H), glowMat);
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + EDGE_GLOW.marginW, CARD_H + EDGE_GLOW.marginH), glowMat);
       glow.position.z = 0.005;
       g.add(front, back, glow);
       g.position.set(0, -0.4, 0);
@@ -469,6 +525,7 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
 
     let curPhase: Phase = 'idle', curSub: Sub = '';
     let idx = -1, subT = 0, ripT = -1, packT = 0;
+    let mouthFadeT = -1;
     const pointer = { x: 0, y: 0 };
     let t0 = performance.now();
 
@@ -553,8 +610,16 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
         if (ripT > 0.55) {
           curPhase = 'revealing'; setPhase('revealing');
           mouth.visible = true;
+          mouthFadeT = 0;
           startCard(0);
         }
+      }
+      if (mouthFadeT >= 0) {
+        mouthFadeT += dt;
+        const FADE_DELAY = 0.6, FADE_DUR = 0.5;
+        const k = Math.min(Math.max((mouthFadeT - FADE_DELAY) / FADE_DUR, 0), 1);
+        (mouth.material as THREE.MeshStandardMaterial).opacity = 1 - k;
+        if (k >= 1) { mouth.visible = false; mouthFadeT = -1; }
       }
       if (curPhase === 'revealing' || curPhase === 'done') {
         packT += dt;
@@ -646,9 +711,6 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
     <div className="fixed inset-0 bg-[#07070c] z-[90] overflow-hidden font-mono">
       <div ref={hostRef} className="absolute inset-0" />
 
-      {/* Commit 55.2 - persistent exit, available from the moment the
-          overlay opens through the very end (recap screen included) - there
-          used to be no way out of this once it started. */}
       <button
         type="button"
         onClick={onComplete}
