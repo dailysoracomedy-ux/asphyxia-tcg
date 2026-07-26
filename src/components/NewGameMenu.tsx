@@ -140,10 +140,17 @@ function MenuButton({
   glowColorClass,
   onClick,
   art,
+  matchArtWidth,
 }: {
   /** Commit 47.1 - hand-made button plate (text baked in). When set, the
    *  image is the button; label/sublabel stay in the DOM as sr-only. */
   art?: string;
+  /** Commit 55.1 - for buttons that don't have bespoke art YET: renders the
+   *  plain text/border style but sized to the SAME fixed 305px the art
+   *  buttons use, instead of stretching w-full to the panel's width (which
+   *  made a new button visibly wider than the row above it). Swap to `art`
+   *  once real button art exists - this is a placeholder, not a new style. */
+  matchArtWidth?: boolean;
   label: string;
   sublabel: string;
   colorClass: string;
@@ -161,7 +168,7 @@ function MenuButton({
       className={
         art
           ? `btn-art group block w-[305px] mx-auto rounded-lg transition-all ${glowColorClass}`
-          : `btn-3d group w-full py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`
+          : `btn-3d group ${matchArtWidth ? 'w-[305px] mx-auto block' : 'w-full'} py-4 rounded-lg border-2 font-bold tracking-widest text-lg transition-all hover:brightness-110 ${colorClass} ${glowColorClass}`
       }
       style={art ? { backgroundImage: `url(${art})`, aspectRatio: '2657 / 592' } : undefined}
     >
@@ -343,6 +350,7 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
               colorClass="border-amber-400/60 text-amber-200 bg-amber-400/10"
               glowColorClass="hover:shadow-[0_0_20px_rgba(251,191,36,0.4)]"
               onClick={() => setView('ladder')}
+              matchArtWidth
             />
 
             <MenuButton

@@ -23,6 +23,8 @@ import { useLadderStore, LADDER_O2, WINS_TO_UNLOCK, type RewardEvent } from '@/s
 import { factionTheme } from '@/lib/theme';
 import { playSfx } from '@/audio/sfx';
 import PackOpening3D from './vfx/PackOpening3D';
+import LadderCoinFlip from './LadderCoinFlip';
+import type { PlayerId, Faction } from '@/types/game';
 
 function RewardCard({ reward }: { reward: RewardEvent }) {
   if (reward.kind === 'cosmetic') {
@@ -64,6 +66,9 @@ export default function LadderResultScreen() {
   const [unlockedFaction, setUnlockedFaction] = useState(false);
   const [showPack, setShowPack] = useState(false);
   const [packClaimed, setPackClaimed] = useState(false);
+  // Commit 55.1 - "Continue Ladder" now flips a coin first instead of
+  // forcing the human to always go first.
+  const [coinFlipTarget, setCoinFlipTarget] = useState<{ home: Faction; rival: Faction } | null>(null);
 
   useEffect(() => {
     if (!won || recordedRef.current) return;
@@ -79,10 +84,14 @@ export default function LadderResultScreen() {
   const winsVsRival = ladder?.wins[ctx.rival] ?? 0;
 
   function continueLadder() {
-    const rival = nextRival(ctx.home);
     playSfx('ui.confirm');
-    startNewGame(ctx.home, rival, true, false, false, 'player1', LADDER_O2);
-    setLadderContext({ home: ctx.home, rival });
+    setCoinFlipTarget({ home: ctx.home, rival: nextRival(ctx.home) });
+  }
+  function onCoinResolved(first: PlayerId) {
+    if (!coinFlipTarget) return;
+    startNewGame(coinFlipTarget.home, coinFlipTarget.rival, true, false, false, first, LADDER_O2);
+    setLadderContext({ home: coinFlipTarget.home, rival: coinFlipTarget.rival });
+    setCoinFlipTarget(null);
   }
   function exitToMenu() {
     playSfx('ui.click');
@@ -93,6 +102,15 @@ export default function LadderResultScreen() {
 
   if (showPack) {
     return <PackOpening3D onComplete={() => { setShowPack(false); setPackClaimed(true); }} />;
+  }
+  if (coinFlipTarget) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="panel-3d-deep max-w-md w-full rounded-xl border-2 border-white/15 p-8">
+          <LadderCoinFlip onResolved={onCoinResolved} />
+        </div>
+      </div>
+    );
   }
 
   return (

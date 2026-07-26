@@ -24,6 +24,8 @@ import { useGameStore } from '@/store/gameStore';
 import { useLadderStore, ALL_FACTIONS, WINS_TO_UNLOCK, LADDER_O2, rivalsOf } from '@/store/ladderStore';
 import { factionTheme } from '@/lib/theme';
 import { playSfx } from '@/audio/sfx';
+import LadderCoinFlip from './LadderCoinFlip';
+import type { PlayerId } from '@/types/game';
 
 /** Short, punchy - matches the game's own card-name voice rather than
  *  reading like a novel. Tunable copy; nothing here is load-bearing. */
@@ -72,14 +74,25 @@ export default function LadderScreen({ onBack }: { onBack: () => void }) {
   const nextRival = useLadderStore((s) => s.nextRival);
 
   const [view, setView] = useState<'lore' | 'home'>(unlockedFactions.length > 0 ? 'home' : 'lore');
+  // Commit 55.1 - a real coin flip decides who goes first, same as every
+  // other match in the game (this used to hardcode the human first, which
+  // was wrong). Set to a pending matchup while the toss plays out; cleared
+  // once resolved and the real match has launched.
+  const [pendingLaunch, setPendingLaunch] = useState<{ home: Faction; rival: Faction } | null>(null);
 
   function launchMatch(home: Faction) {
-    const rival = nextRival(home);
     playSfx('ui.confirm');
-    // Ladder matches skip the coin-flip ceremony (always the human first)
-    // and run at a fixed O2 - see LADDER_O2's doc comment for why.
-    startNewGame(home, rival, true, false, false, 'player1', LADDER_O2);
-    setLadderContext({ home, rival });
+    setPendingLaunch({ home, rival: nextRival(home) });
+  }
+  function onCoinResolved(first: PlayerId) {
+    if (!pendingLaunch) return;
+    startNewGame(pendingLaunch.home, pendingLaunch.rival, true, false, false, first, LADDER_O2);
+    setLadderContext({ home: pendingLaunch.home, rival: pendingLaunch.rival });
+    setPendingLaunch(null);
+  }
+
+  if (pendingLaunch) {
+    return <LadderCoinFlip onResolved={onCoinResolved} />;
   }
 
   if (view === 'lore') {
