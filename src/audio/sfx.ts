@@ -68,7 +68,19 @@ export type SfxKey =
   // original one-shot samples don't carry on their own.
   | 'combat.whoosh'
   | 'combat.subBoom'
-  | 'vfx.shatter';
+  | 'vfx.shatter'
+  // Commit 55.6 - Ladder Mode pack-opening reveal (PackOpening3D). Real
+  // supplied assets, replacing the procedural Web Audio synthesis that was
+  // there as a fast placeholder. card.flip is every common; card.flipRare
+  // is specifically the guaranteed-Apex 6th pull (the pack has no live
+  // rarity field to key off - the pull itself is the "rare" slot, same
+  // distinction the gold edge-glow and breathing animation already use).
+  | 'pack.rip'
+  | 'card.flip'
+  | 'card.flipRare'
+  | 'pack.dissolveNeon'
+  | 'pack.dissolveDarkWhite'
+  | 'pack.dissolveSynth';
 
 const SFX_SRC: Record<SfxKey, string> = {
   'ui.click': '/audio/sfx/ui.click.m4a',
@@ -115,6 +127,13 @@ const SFX_SRC: Record<SfxKey, string> = {
   'combat.whoosh': '/audio/sfx/combat.whoosh.m4a',
   'combat.subBoom': '/audio/sfx/combat.subBoom.m4a',
   'vfx.shatter': '/audio/sfx/vfx.shatter.m4a',
+
+  'pack.rip': '/audio/sfx/pack.rip.m4a',
+  'card.flip': '/audio/sfx/card.flip.m4a',
+  'card.flipRare': '/audio/sfx/card.flipRare.m4a',
+  'pack.dissolveNeon': '/audio/sfx/pack.dissolveNeon.m4a',
+  'pack.dissolveDarkWhite': '/audio/sfx/pack.dissolveDarkWhite.m4a',
+  'pack.dissolveSynth': '/audio/sfx/pack.dissolveSynth.m4a',
 };
 
 /**

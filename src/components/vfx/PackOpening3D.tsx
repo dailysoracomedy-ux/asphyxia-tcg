@@ -40,6 +40,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SLEEVE_BASE_SRC } from '@/lib/cosmetics';
+import { playSfx } from '@/audio/sfx';
 
 const COMMON_ART = [
   'dw-absolute-refusal', 'dw-blank-directive', 'dw-choke-protocol', 'dw-emergency-authority',
@@ -91,94 +92,6 @@ function pickPull(): string[] {
   const commons = [...COMMON_ART].sort(() => Math.random() - 0.5).slice(0, 5).map((n) => `/art/cards/${n}.webp`);
   const apex = APEX_ART[Math.floor(Math.random() * APEX_ART.length)];
   return [...commons, `/art/apex/${apex}.webp`];
-}
-
-// ---------------------------------------------------------------------------
-// Procedural SFX - a tiny synth, not sample files.
-// ---------------------------------------------------------------------------
-function noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
-  const n = Math.max(1, Math.floor(ctx.sampleRate * seconds));
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-  return buf;
-}
-function playRip(ctx: AudioContext) {
-  const t0 = ctx.currentTime;
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuffer(ctx, 0.5);
-  const bp = ctx.createBiquadFilter();
-  bp.type = 'bandpass'; bp.Q.value = 0.9;
-  bp.frequency.setValueAtTime(1100, t0);
-  bp.frequency.exponentialRampToValueAtTime(3800, t0 + 0.38);
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.55, t0 + 0.035);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.48);
-  src.connect(bp).connect(g).connect(ctx.destination);
-  src.start(t0); src.stop(t0 + 0.5);
-}
-function playFlip(ctx: AudioContext) {
-  const t0 = ctx.currentTime;
-  const src = ctx.createBufferSource();
-  src.buffer = noiseBuffer(ctx, 0.18);
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 2400;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.32, t0 + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-  src.connect(hp).connect(g).connect(ctx.destination);
-  src.start(t0); src.stop(t0 + 0.2);
-  const osc = ctx.createOscillator();
-  osc.type = 'square'; osc.frequency.value = 950;
-  const og = ctx.createGain();
-  og.gain.setValueAtTime(0.07, t0);
-  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.045);
-  osc.connect(og).connect(ctx.destination);
-  osc.start(t0); osc.stop(t0 + 0.05);
-}
-function playWarp(ctx: AudioContext, faction: Faction) {
-  const t0 = ctx.currentTime;
-  if (faction === 'neon') {
-    for (let i = 0; i < 7; i++) {
-      const delay = i * 0.055 + Math.random() * 0.02;
-      const src = ctx.createBufferSource();
-      src.buffer = noiseBuffer(ctx, 0.05);
-      const bp = ctx.createBiquadFilter();
-      bp.type = 'bandpass'; bp.Q.value = 6; bp.frequency.value = 700 + Math.random() * 3200;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.3, t0 + delay);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.045);
-      src.connect(bp).connect(g).connect(ctx.destination);
-      src.start(t0 + delay); src.stop(t0 + delay + 0.06);
-    }
-  } else if (faction === 'dw') {
-    const src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(ctx, 0.85);
-    const bp = ctx.createBiquadFilter();
-    bp.type = 'bandpass'; bp.Q.value = 0.6;
-    bp.frequency.setValueAtTime(380, t0);
-    bp.frequency.exponentialRampToValueAtTime(5200, t0 + 0.8);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.24, t0 + 0.15);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.85);
-    src.connect(bp).connect(g).connect(ctx.destination);
-    src.start(t0); src.stop(t0 + 0.9);
-  } else {
-    [220, 330, 440, 660, 880, 1320].forEach((f, i) => {
-      const delay = i * 0.08;
-      const osc = ctx.createOscillator();
-      osc.type = 'square'; osc.frequency.value = f;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t0 + delay);
-      g.gain.exponentialRampToValueAtTime(0.13, t0 + delay + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + 0.09);
-      osc.connect(g).connect(ctx.destination);
-      osc.start(t0 + delay); osc.stop(t0 + delay + 0.1);
-    });
-  }
 }
 
 const WARP_VERT = `varying vec2 vUv;
@@ -355,16 +268,6 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
   useEffect(() => {
     const host = hostRef.current;
     if (!host || typeof ResizeObserver === 'undefined') return;
-
-    let audioCtx: AudioContext | null = null;
-    function ensureAudio(): AudioContext | null {
-      if (!audioCtx) {
-        const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        audioCtx = Ctx ? new Ctx() : null;
-      }
-      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-      return audioCtx;
-    }
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
@@ -545,22 +448,24 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       curPhase = 'ripping'; setPhase('ripping');
       ripT = 0;
       applyTornGeometry();
-      const ac = ensureAudio();
-      if (ac) playRip(ac);
+      playSfx('pack.rip');
       spawnScraps();
     }
     function advance() {
       if (curPhase !== 'revealing') return;
-      const ac = ensureAudio();
       if (curSub === 'back') {
         curSub = 'flipping'; setSub('flipping'); subT = 0;
-        if (ac) playFlip(ac);
+        // idx === 5 is always the guaranteed-Apex pull - the pack has no
+        // live rarity field, so this is the same "special slot" distinction
+        // the gold edge-glow/breathing animation already use.
+        playSfx(idx === 5 ? 'card.flipRare' : 'card.flip');
       } else if (curSub === 'face') {
         curSub = 'warping'; setSub('warping'); subT = 0;
         const c = cards[idx];
         c.front.material = c.warpMat;
         c.back.visible = false;
-        if (ac) playWarp(ac, c.faction);
+        const dissolveKey = c.faction === 'neon' ? 'pack.dissolveNeon' : c.faction === 'dw' ? 'pack.dissolveDarkWhite' : 'pack.dissolveSynth';
+        playSfx(dissolveKey);
       }
     }
     function skip() {
@@ -703,7 +608,6 @@ export default function PackOpening3D({ onComplete }: { onComplete: () => void }
       window.removeEventListener('keydown', onKey);
       renderer.dispose();
       host.removeChild(renderer.domElement);
-      if (audioCtx) audioCtx.close();
     };
   }, [onComplete]);
 
