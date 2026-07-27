@@ -11,6 +11,7 @@ import { playSfx } from '@/audio/sfx';
 import CoinFlip3D, { type CoinFace } from './CoinFlip3D';
 import LockerMenu from './LockerMenu';
 import LadderScreen from './LadderScreen';
+import { useLadderStore } from '@/store/ladderStore';
 import { getCoin } from '@/lib/cosmetics';
 import { useCosmeticsStore } from '@/store/cosmeticsStore';
 
@@ -372,6 +373,23 @@ export default function NewGameMenu({ onOpenDeveloper }: { onOpenDeveloper?: () 
                 Developer — Apex Card Gallery
               </button>
             )}
+
+            {/* Commit 56 - "just a click and reset the ladder mode" - kept
+                exactly as unceremonious as the dev link above it. One native
+                confirm() as the only guard rail, since this wipes real
+                progress (wins, unlocks, earned cosmetics) with no undo. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Reset all Ladder Mode progress? This wipes your faction, wins, and earned cosmetics - it cannot be undone.')) {
+                  playSfx('ui.click');
+                  useLadderStore.getState().resetLadder();
+                }
+              }}
+              className="mx-auto text-[10px] text-white/15 hover:text-white/40 underline"
+            >
+              Reset Ladder Mode Progress
+            </button>
           </div>
         )}
 

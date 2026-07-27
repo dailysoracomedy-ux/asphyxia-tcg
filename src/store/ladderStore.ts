@@ -87,6 +87,16 @@ interface LadderStore {
    *  unlocks feel varied (playmat/sleeve/coin/playmat/...) instead of
    *  clearing one whole category before touching the next. */
   cosmeticCycle: number;
+  /** Commit 56 - has the 11-beat cinematic lore intro ever played. Kept
+   *  explicit rather than derived from unlockedFactions.length>0 - a
+   *  separate concern (the story vs. what's unlocked), even though today
+   *  they're always set together by chooseFirstFaction. */
+  introSeen: boolean;
+  /** Commit 56 - which factions' welcome splash has ever played. Fires
+   *  once per faction, EVER: on the original pick from LoreIntro, or the
+   *  first time you enter a newly-unlocked faction's own ladder -
+   *  whichever happens first for that faction. */
+  splashSeen: Faction[];
 
   /** True once any ladder has been started - drives the lore screen showing
    *  the one-time "choose your path" framing vs. the returning ladder-select
@@ -105,6 +115,12 @@ interface LadderStore {
    *  ladder, based on total matches already played (wins only - see note in
    *  LadderScreen about losses not advancing the sequence). */
   nextRival: (home: Faction) => Faction;
+  markIntroSeen: () => void;
+  markSplashSeen: (faction: Faction) => void;
+  /** Wipes ALL ladder progress back to a fresh install - unlocks, wins,
+   *  earned cosmetics, and both one-time-play flags. The "Ladder Mode
+   *  reset" button's entire implementation is this one call. */
+  resetLadder: () => void;
 }
 
 function ownedSet(owned: Record<CosmeticKind, string[]>, kind: CosmeticKind): Set<string> {
@@ -138,8 +154,23 @@ export const useLadderStore = create<LadderStore>()(
       ladders: {},
       ownedCosmetics: { playmat: [], sleeve: [], coin: [] },
       cosmeticCycle: 0,
+      introSeen: false,
+      splashSeen: [],
 
       hasChosenFirstFaction: () => get().unlockedFactions.length > 0,
+
+      markIntroSeen: () => set({ introSeen: true }),
+      markSplashSeen: (faction) =>
+        set((s) => (s.splashSeen.includes(faction) ? s : { splashSeen: [...s.splashSeen, faction] })),
+      resetLadder: () =>
+        set({
+          unlockedFactions: [],
+          ladders: {},
+          ownedCosmetics: { playmat: [], sleeve: [], coin: [] },
+          cosmeticCycle: 0,
+          introSeen: false,
+          splashSeen: [],
+        }),
 
       chooseFirstFaction: (faction) =>
         set((s) => {
@@ -225,6 +256,8 @@ export const useLadderStore = create<LadderStore>()(
             coin: p.ownedCosmetics?.coin ?? [],
           },
           cosmeticCycle: p.cosmeticCycle ?? 0,
+          introSeen: p.introSeen ?? false,
+          splashSeen: p.splashSeen ?? [],
         };
       },
     }

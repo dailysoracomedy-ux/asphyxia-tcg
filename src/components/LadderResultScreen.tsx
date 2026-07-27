@@ -24,28 +24,38 @@ import { factionTheme } from '@/lib/theme';
 import { playSfx } from '@/audio/sfx';
 import PackOpening3D from './vfx/PackOpening3D';
 import LadderCoinFlip from './LadderCoinFlip';
+import LockerHeroPreview3D from './LockerHeroPreview3D';
+import { getPlaymat, getSleeve } from '@/lib/cosmetics';
 import type { PlayerId, Faction } from '@/types/game';
 
+/** Commit 55.7 - "the prize preview should be like the bigger preview up top
+ *  in the Locker": swapped the flat 56px thumbnail for the SAME
+ *  LockerHeroPreview3D used there - a real mouse-steered 3D object (a cloth
+ *  plate for playmats, a glossy plastic card for sleeves, a lit cylinder for
+ *  coins), not a static image. Accent color (the playmat's stitched edge /
+ *  the sleeve's plastic rim) is looked up directly from the cosmetics
+ *  registry rather than threading it through RewardEvent - ladderStore
+ *  already tracks the winning id, that's all this needs. */
 function RewardCard({ reward }: { reward: RewardEvent }) {
-  if (reward.kind === 'cosmetic') {
-    return (
-      <div className="flex items-center gap-3 rounded-lg border border-white/15 bg-black/50 p-3 mb-4">
-        {reward.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={reward.image} alt="" className="w-14 h-14 rounded object-cover border border-white/10" />
-        ) : (
-          <div className="w-14 h-14 rounded bg-white/5 border border-white/10" />
-        )}
-        <div className="text-left">
-          <div className="text-[10px] uppercase tracking-widest text-white/40">
-            {reward.cosmeticKind} unlocked
-          </div>
-          <div className="text-sm font-bold text-white">{reward.name}</div>
-        </div>
+  if (reward.kind !== 'cosmetic') return null;
+  const accent =
+    reward.cosmeticKind === 'playmat' ? getPlaymat(reward.id).edge
+    : reward.cosmeticKind === 'sleeve' ? getSleeve(reward.id).rim
+    : '#ff2fd0'; // coins: same fixed accent the Locker's hero preview uses
+  return (
+    <div className="rounded-lg border border-white/15 bg-black/50 p-4 mb-4 flex flex-col items-center">
+      <div className="text-[10px] uppercase tracking-widest text-white/40 mb-2">
+        {reward.cosmeticKind} unlocked
       </div>
-    );
-  }
-  return null;
+      <LockerHeroPreview3D
+        kind={reward.cosmeticKind}
+        image={reward.image}
+        accent={accent}
+        size={reward.cosmeticKind === 'playmat' ? 220 : 190}
+      />
+      <div className="text-base font-bold text-white mt-2">{reward.name}</div>
+    </div>
+  );
 }
 
 export default function LadderResultScreen() {
@@ -116,7 +126,7 @@ export default function LadderResultScreen() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div
-        className="panel-3d-deep max-w-md w-full rounded-xl border-2 p-8 text-center"
+        className="panel-3d-deep max-w-lg w-full rounded-xl border-2 p-8 text-center"
         style={{ borderColor: won ? theme.border : '#883333', boxShadow: won ? `0 0 40px ${theme.primary}55` : undefined }}
       >
         <div className="text-[11px] uppercase tracking-widest text-white/40 mb-1">

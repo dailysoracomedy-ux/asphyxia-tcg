@@ -1,14 +1,18 @@
 'use client';
 
 /**
- * Commit 55 - LADDER MODE. The full arc, in one file (same convention as
+ * Commit 56 - LADDER MODE. The full arc, in one file (same convention as
  * NewGameMenu.tsx managing several internal views itself):
  *
- *   'lore'        - one-time origin story + the permanent first-faction pick
- *                    (only shown before hasChosenFirstFaction()).
- *   'home'        - the ladder hub: each unlocked faction as a card showing
- *                    its two rival win-rings; locked factions show silhouette
- *                    teasers. "Continue Ladder" launches the next match.
+ *   'intro'   - the 11-beat cinematic lore intro, shown once ever
+ *               (!introSeen), resolving into the 3-faction choice.
+ *   'splash'  - a faction's voice-differentiated welcome, shown once per
+ *               faction ever (splashSeen) - either right after the intro
+ *               (the original pick) or the first time you enter a NEWLY
+ *               UNLOCKED faction's own ladder from the hub.
+ *   'home'    - the ladder hub: each unlocked faction as a card showing
+ *               its two rival win-rings; locked factions show silhouette
+ *               teasers. "Continue Ladder" launches the next match.
  *
  * The actual MATCH is just a normal game - startNewGame + setLadderContext,
  * then GameBoard takes over exactly as it does for New Game / Simulated
@@ -19,32 +23,14 @@
  */
 
 import { useState } from 'react';
-import type { Faction } from '@/types/game';
+import type { Faction, PlayerId } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import { useLadderStore, ALL_FACTIONS, WINS_TO_UNLOCK, LADDER_O2, rivalsOf } from '@/store/ladderStore';
 import { factionTheme } from '@/lib/theme';
 import { playSfx } from '@/audio/sfx';
 import LadderCoinFlip from './LadderCoinFlip';
-import type { PlayerId } from '@/types/game';
-
-/** Short, punchy - matches the game's own card-name voice rather than
- *  reading like a novel. Tunable copy; nothing here is load-bearing. */
-const WORLD_LORE = `The Rift tore the sky over the city forty years ago and never closed. Three powers grew up in its light: the ones who want OUT from under anyone's boot, the ones who want everyone back UNDER control, and the ones who want to stop being human about it entirely. Pick a side. Prove it on the ladder. Earn the right to become the enemy too.`;
-
-const FACTION_PITCH: Record<Faction, { tag: string; body: string }> = {
-  'Neon Underground': {
-    tag: 'Freedom, by force if it has to be.',
-    body: 'No masters, no clean rooms, no upload. Just the street, the signal, and whoever\u2019s fast enough to keep both.',
-  },
-  'Dark White': {
-    tag: 'Order is mercy. Chaos is a disease.',
-    body: 'The Rift didn\u2019t break the world - people did, the moment no one was watching them. Dark White watches. Always.',
-  },
-  'Synth Ascendancy': {
-    tag: 'The body was always the weak part.',
-    body: 'Flesh fails. Code doesn\u2019t have to. Ascendancy isn\u2019t trying to survive the Rift - it\u2019s trying to become it.',
-  },
-};
+import LoreIntro from './lore/LoreIntro';
+import FactionSplash from './lore/FactionSplash';
 
 function WinRing({ wins, target, color }: { wins: number; target: number; color: string }) {
   const r = 15.5, c = 2 * Math.PI * r;
@@ -65,24 +51,48 @@ function WinRing({ wins, target, color }: { wins: number; target: number; color:
   );
 }
 
+type Screen = 'intro' | 'splash' | 'home';
+
 export default function LadderScreen({ onBack }: { onBack: () => void }) {
   const startNewGame = useGameStore((s) => s.startNewGame);
   const setLadderContext = useGameStore((s) => s.setLadderContext);
   const unlockedFactions = useLadderStore((s) => s.unlockedFactions);
   const ladders = useLadderStore((s) => s.ladders);
+  const introSeen = useLadderStore((s) => s.introSeen);
+  const splashSeen = useLadderStore((s) => s.splashSeen);
   const chooseFirstFaction = useLadderStore((s) => s.chooseFirstFaction);
+  const markIntroSeen = useLadderStore((s) => s.markIntroSeen);
+  const markSplashSeen = useLadderStore((s) => s.markSplashSeen);
   const nextRival = useLadderStore((s) => s.nextRival);
 
-  const [view, setView] = useState<'lore' | 'home'>(unlockedFactions.length > 0 ? 'home' : 'lore');
+  const [screen, setScreen] = useState<Screen>(introSeen ? 'home' : 'intro');
+  const [splashFaction, setSplashFaction] = useState<Faction | null>(null);
+  // What to do once the current splash finishes - "go to the hub" (first-
+  // ever pick) or "proceed into the coin flip for this faction" (entering
+  // a just-unlocked faction's ladder for the first time). A plain closure
+  // keeps those two call sites (below) from needing to know about each
+  // other at all.
+  const [afterSplash, setAfterSplash] = useState<(() => void) | null>(null);
+
   // Commit 55.1 - a real coin flip decides who goes first, same as every
-  // other match in the game (this used to hardcode the human first, which
-  // was wrong). Set to a pending matchup while the toss plays out; cleared
-  // once resolved and the real match has launched.
+  // other match in the game. Set to a pending matchup while the toss plays
+  // out; cleared once resolved and the real match has launched.
   const [pendingLaunch, setPendingLaunch] = useState<{ home: Faction; rival: Faction } | null>(null);
+
+  function showSplashThen(faction: Faction, then: () => void) {
+    setSplashFaction(faction);
+    setAfterSplash(() => then);
+    setScreen('splash');
+  }
 
   function launchMatch(home: Faction) {
     playSfx('ui.confirm');
-    setPendingLaunch({ home, rival: nextRival(home) });
+    const doLaunch = () => setPendingLaunch({ home, rival: nextRival(home) });
+    if (!splashSeen.includes(home)) {
+      showSplashThen(home, doLaunch);
+    } else {
+      doLaunch();
+    }
   }
   function onCoinResolved(first: PlayerId) {
     if (!pendingLaunch) return;
@@ -95,49 +105,30 @@ export default function LadderScreen({ onBack }: { onBack: () => void }) {
     return <LadderCoinFlip onResolved={onCoinResolved} />;
   }
 
-  if (view === 'lore') {
+  if (screen === 'intro') {
     return (
-      <div className="max-w-xl mx-auto">
-        <div className="text-center mb-5">
-          <div className="text-[11px] uppercase tracking-[0.3em] text-white/40 mb-2">Ladder Mode</div>
-          <div className="text-2xl font-black text-white mb-4">Choose Your Path</div>
-          <p className="text-sm text-white/60 leading-relaxed">{WORLD_LORE}</p>
-        </div>
+      <LoreIntro
+        onFactionChosen={(f) => {
+          chooseFirstFaction(f);
+          markIntroSeen();
+          showSplashThen(f, () => setScreen('home'));
+        }}
+      />
+    );
+  }
 
-        <div className="flex flex-col gap-2.5">
-          {ALL_FACTIONS.map((f) => {
-            const theme = factionTheme(f);
-            const pitch = FACTION_PITCH[f];
-            return (
-              <button
-                key={f}
-                type="button"
-                onClick={() => {
-                  playSfx('ui.confirm');
-                  chooseFirstFaction(f);
-                  setView('home');
-                }}
-                onMouseEnter={() => playSfx('ui.hover')}
-                className="panel-3d text-left rounded-lg border-2 p-4 transition-all hover:scale-[1.01]"
-                style={{ borderColor: `${theme.primary}55` }}
-              >
-                <div className="text-base font-black mb-1" style={{ color: theme.primary }}>{f}</div>
-                <div className="text-xs italic text-white/70 mb-1.5">{pitch.tag}</div>
-                <div className="text-[11px] text-white/45 leading-relaxed">{pitch.body}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="text-center text-white/30 text-[10px] mt-5 leading-relaxed">
-          This choice is permanent - it&apos;s who you start as. Beat each rival {WINS_TO_UNLOCK} times to earn
-          the right to play as them too, each with their own ladder.
-        </p>
-
-        <button type="button" onClick={onBack} className="block mx-auto mt-5 text-[11px] text-white/30 hover:text-white/60 underline">
-          Back
-        </button>
-      </div>
+  if (screen === 'splash' && splashFaction) {
+    return (
+      <FactionSplash
+        faction={splashFaction}
+        onDone={() => {
+          markSplashSeen(splashFaction);
+          setSplashFaction(null);
+          const next = afterSplash;
+          setAfterSplash(null);
+          next?.();
+        }}
+      />
     );
   }
 
